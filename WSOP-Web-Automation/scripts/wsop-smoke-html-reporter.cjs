@@ -179,6 +179,7 @@ function renderDashboard(report, isKo) {
     .status-badge.fail { background-color: var(--danger-bg); color: var(--danger); }
     .status-badge.warn { background-color: var(--warning-bg); color: var(--warning); }
     .status-badge.pending { background-color: rgba(255,255,255,0.06); color: var(--text-muted); }
+    .header-actions .status-badge { font-size: 14px; padding: 8px 20px; font-weight: 800; letter-spacing: 1px; }
 
     .visualizations-row { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 45px; }
     @media (max-width: 1024px) {
@@ -201,7 +202,7 @@ function renderDashboard(report, isKo) {
     }
 
     .panel { background: var(--bg-card); border-radius: 8px; border: var(--card-border); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 40px; }
-    .panel h2 { margin: 0; padding: 18px 24px; border-bottom: 1px solid var(--border); font-size: 18px; font-family: 'Outfit', sans-serif; }
+    .panel h2 { margin: 0; padding: 18px 24px; border-bottom: 1px solid var(--border); font-size: 18px; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 10px; }
     
     .panel-summary { cursor: pointer; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); }
     .panel-summary h2 { border-bottom: 0; padding: 0; margin: 0; font-size: 18px; font-weight: 700; line-height: 1.2; display: flex; align-items: center; gap: 10px; }
@@ -224,7 +225,7 @@ function renderDashboard(report, isKo) {
     .filter-btn:hover { color: var(--text-main); }
     .filter-btn.active { background: var(--primary); color: white; }
 
-    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; margin-top: 15px; }
     th { background: rgba(0, 0, 0, 0.2); color: var(--text-main); font-weight: 600; padding: 14px 18px; border-bottom: 1px solid var(--border); font-family: 'Outfit', sans-serif; }
     td { padding: 14px 18px; border-bottom: 1px solid var(--border); color: var(--text-main); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
@@ -363,7 +364,7 @@ function renderDashboard(report, isKo) {
 
     <section class="grid">
       <div class="panel">
-        <h2>${escapeHtml(t.executionSummary)}</h2>
+        <h2><svg viewBox="0 0 24 24" style="fill: var(--primary); width: 20px; height: 20px; flex-shrink: 0;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>${escapeHtml(t.executionSummary)}</h2>
         <div class="panel-body">
           <div class="summary-line">
             <span>${escapeHtml(t.baseUrl)}: <a href="${escapeHtml(report.baseURL)}">${escapeHtml(report.baseURL)}</a></span>
@@ -381,7 +382,7 @@ function renderDashboard(report, isKo) {
       </div>
 
       <div class="panel">
-        <h2>${escapeHtml(t.readMeFirst)}</h2>
+        <h2><svg viewBox="0 0 24 24" style="fill: var(--warning); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>${escapeHtml(t.readMeFirst)}</h2>
         <div class="panel-body">
           <div class="note">${escapeHtml(readMeFirst(report, isKo))}</div>
         </div>
@@ -391,7 +392,7 @@ function renderDashboard(report, isKo) {
     ${playerCoverage ? renderPlayerPresentationCoverage(playerCoverage, t) : ''}
 
     <section class="panel">
-      <h2>${escapeHtml(t.suiteDirectory)}</h2>
+      <h2><svg viewBox="0 0 24 24" style="fill: var(--primary); width: 20px; height: 20px; flex-shrink: 0;"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>${escapeHtml(t.suiteDirectory)}</h2>
       ${[...bySuite.entries()].map(([suite, items]) => renderSuite(suite, items, t)).join('')}
     </section>
 
@@ -400,7 +401,7 @@ function renderDashboard(report, isKo) {
 
     <details class="panel collapsible-panel" open>
       <summary class="panel-summary">
-        <h2>${escapeHtml(t.allTests)}</h2>
+        <h2><svg viewBox="0 0 24 24" style="fill: var(--text-main); width: 20px; height: 20px; flex-shrink: 0;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM17.99 9l-1.41-1.42-6.59 6.59-2.58-2.57-1.42 1.41 4 3.99z"/></svg>${escapeHtml(t.allTests)}</h2>
         <svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
         </svg>
@@ -421,7 +422,7 @@ function renderDashboard(report, isKo) {
     </details>
 
     <section class="panel">
-      <h2>${escapeHtml(t.artifacts)}</h2>
+      <h2><svg viewBox="0 0 24 24" style="fill: var(--text-muted); width: 20px; height: 20px; flex-shrink: 0;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/></svg>${escapeHtml(t.artifacts)}</h2>
       <div class="panel-body summary-line">
         <span>${escapeHtml(t.playwrightReport)}: <a href="${escapeHtml(`${report.reportPrefix}-${report.runId}-playwright-report/index.html`)}">${escapeHtml(report.playwrightHtmlReport)}</a></span>
         <span>Node: ${escapeHtml(report.node)}</span>
@@ -639,20 +640,20 @@ function readMeFirst(report, isKo) {
 
 function renderFailurePanel(items, t) {
   return `<section class="panel">
-    <h2>${escapeHtml(t.failures)}</h2>
+    <h2><svg viewBox="0 0 24 24" style="fill: var(--danger); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2L1 21h22L12 2zm0 4l7.53 13H4.47L12 6zm-1 4v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>${escapeHtml(t.failures)}</h2>
     ${renderResultsTable(items, t, true)}
   </section>`;
 }
 
 function renderSkippedPanel(items, t) {
   return `<section class="panel">
-    <h2>${escapeHtml(t.skippedTests)}</h2>
+    <h2><svg viewBox="0 0 24 24" style="fill: var(--warning); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>${escapeHtml(t.skippedTests)}</h2>
     ${renderResultsTable(items, t)}
   </section>`;
 }
 
 function renderEmptyPanel(title, body) {
-  return `<section class="panel"><h2>${escapeHtml(title)}</h2><div class="panel-body"><div class="note">${escapeHtml(body)}</div></div></section>`;
+  return `<section class="panel"><h2><svg viewBox="0 0 24 24" style="fill: var(--success); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>${escapeHtml(title)}</h2><div class="panel-body"><div class="note">${escapeHtml(body)}</div></div></section>`;
 }
 
 function renderSuite(suite, items, t) {
@@ -710,7 +711,7 @@ function renderAttachments(attachments) {
 
 function renderPlayerPresentationCoverage(coverage, t) {
   return `<section class="panel">
-    <h2>${escapeHtml(t.playerCoverageTitle)}</h2>
+    <h2><svg viewBox="0 0 24 24" style="fill: var(--primary); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>${escapeHtml(t.playerCoverageTitle)}</h2>
     <div class="panel-body">
       <div class="note">${escapeHtml(t.playerCoverageNote)}</div>
       <div class="coverage-summary" style="margin-top:18px">

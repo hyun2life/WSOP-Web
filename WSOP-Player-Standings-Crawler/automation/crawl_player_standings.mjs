@@ -3042,6 +3042,7 @@ function renderDashboardTemplate(report, isKo) {
     .status-badge.fail { background-color: var(--danger-bg); color: var(--danger); }
     .status-badge.warn { background-color: var(--warning-bg); color: var(--warning); }
     .status-badge.pending { background-color: rgba(255,255,255,0.06); color: var(--text-muted); }
+    .header-actions .status-badge { font-size: 14px; padding: 8px 20px; font-weight: 800; letter-spacing: 1px; }
 
     .visualizations-row { display: grid; grid-template-columns: 1fr 2fr; gap: 25px; margin-bottom: 45px; }
     @media (max-width: 1024px) {
@@ -3058,13 +3059,27 @@ function renderDashboardTemplate(report, isKo) {
     .radial-chart-fallback circle.fg { stroke: var(--success); stroke-linecap: round; transition: stroke-dashoffset 0.8s ease-in-out; }
     .radial-chart-fallback .percentage { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 800; }
 
+    .grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 25px; margin-bottom: 40px; }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .panel { background: var(--bg-card); border-radius: 8px; border: var(--card-border); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 40px; }
+    .panel h2 { margin: 0; padding: 18px 24px; border-bottom: 1px solid var(--border); font-size: 18px; font-family: 'Outfit', sans-serif; }
+    .panel-body { padding: 18px 20px; }
+    .summary-line { display: flex; gap: 12px; flex-wrap: wrap; color: var(--text-muted); font-size: 14px; }
+    .summary-line span { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; }
+    .bar { height: 14px; border-radius: 999px; overflow: hidden; background: var(--bg-input); border: 1px solid var(--border); display: flex; margin-top: 18px; }
+    .bar-pass { background: var(--success); }
+    .bar-fail { background: var(--danger); }
+    .bar-skip { background: var(--warning); }
+    .note { border-left: 4px solid var(--primary-hover); background: var(--warning-bg); padding: 12px 14px; border-radius: 8px; color: var(--text-main); }
+
     h2 { font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; margin: 40px 0 20px; display: flex; align-items: center; gap: 10px; }
     h2 svg { fill: var(--primary); width: 24px; height: 24px; }
 
-    .panel { background: var(--bg-card); border-radius: 8px; border: var(--card-border); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 40px; }
-
     .table-container { width: 100%; overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; margin-top: 15px; }
     th { background: rgba(0, 0, 0, 0.2); color: var(--text-main); font-weight: 600; padding: 14px 18px; border-bottom: 1px solid var(--border); font-family: 'Outfit', sans-serif; }
     td { padding: 14px 18px; border-bottom: 1px solid var(--border); color: var(--text-main); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
@@ -3166,7 +3181,9 @@ function renderDashboardTemplate(report, isKo) {
         <h1>${escapeHtml(t.title)}</h1>
         <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>${summary.interruptedReason ? ` (${escapeHtml(summary.interruptedReason)})` : ""} | ${escapeHtml(t.source)}: <a href="${escapeHtml(report.playersUrl || "")}">${escapeHtml(report.playersUrl || "")}</a></p>
       </div>
-      <div class="header-actions"></div>
+      <div class="header-actions">
+        <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>
+      </div>
     </div>
   </header>
 
@@ -3224,6 +3241,38 @@ function renderDashboardTemplate(report, isKo) {
         </div>
       </div>
     </div>
+
+    <!-- Execution Summary & Readme First -->
+    <section class="grid">
+      <div class="panel">
+        <h2>${isKo ? "실행 요약" : "Execution Summary"}</h2>
+        <div class="panel-body">
+          <div class="summary-line">
+            <span>${isKo ? "대상 사이트" : "Source"}: <a href="${escapeHtml(report.playersUrl || "")}" target="_blank" onclick="event.stopPropagation();">${escapeHtml(report.playersUrl || "")}</a></span>
+            <span>${isKo ? "확인한 선수" : "Players Checked"}: ${summary.completedPlayers}/${summary.totalPlayers}</span>
+            <span>${isKo ? "생성 시간" : "Generated"}: ${escapeHtml(new Date().toLocaleString())}</span>
+            <span>${isKo ? "수집 카테고리" : "Categories"}: ${summary.checkedStandingsCategories}</span>
+          </div>
+          <div class="bar" aria-label="정합성 비율">
+            <div class="bar-pass" style="width:${(summary.passedPlayers / (summary.checkedPlayers || 1)) * 100}%"></div>
+            <div class="bar-fail" style="width:${(summary.failedPlayers / (summary.checkedPlayers || 1)) * 100}%"></div>
+            <div class="bar-skip" style="width:${((summary.warnedPlayers || 0) / (summary.checkedPlayers || 1)) * 100}%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>${isKo ? "먼저 볼 내용" : "Read Me First"}</h2>
+        <div class="panel-body">
+          <div class="note">
+            ${isKo ? 
+              (summary.defects > 0 ? "데이터 무결성 검증 결과 일부 결함 후보가 검출되었습니다. 아래 결함 후보 목록에서 상세 비교 데이터를 확인하세요." : "모든 수집 대상 플레이어의 데이터 정합성 검증을 완료했으며, 검출된 결함 후보가 없습니다.") : 
+              (summary.defects > 0 ? "Some data integrity defects were detected. Please review the Defect Candidates List below." : "All checked players passed the data integrity validation. No defect candidates were found.")
+            }
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Crawler Coverage & Guidelines -->
     <h2>
