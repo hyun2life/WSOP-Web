@@ -120,6 +120,10 @@ function renderDashboard(report, isKo) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(t.title)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -137,13 +141,15 @@ function renderDashboard(report, isKo) {
       --shadow: 0 18px 45px rgba(0,0,0,.24);
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", Arial, sans-serif; line-height: 1.55; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.55; }
+    h1, h2, h3, .eyebrow { font-family: 'Outfit', sans-serif; }
     a { color: var(--info); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    header { border-bottom: 1px solid var(--border); background: linear-gradient(135deg, #080a0f 0%, #171b24 58%, #2b1016 100%); }
+    header { border-bottom: 1px solid var(--border); background: linear-gradient(135deg, #080a0f 0%, #171b24 58%, #2b1016 100%); position: relative; overflow: hidden; }
+    header::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); pointer-events: none; }
     .wrap { max-width: 1320px; margin: 0 auto; padding: 28px; }
     .hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; }
-    .eyebrow { color: var(--accent-2); font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+    .eyebrow { color: var(--accent-2); font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
     h1 { margin: 6px 0 10px; font-size: clamp(28px, 4vw, 44px); line-height: 1.08; letter-spacing: 0; }
     .subtitle { margin: 0; color: var(--muted); max-width: 920px; }
     .status-pill { display:inline-flex; align-items:center; gap:8px; min-width: 130px; justify-content:center; padding: 12px 18px; border-radius: 999px; font-weight: 800; border: 1px solid currentColor; }
@@ -160,6 +166,19 @@ function renderDashboard(report, isKo) {
     .value.warn { color: var(--warn); }
     .value.fail { color: var(--fail); }
     .grid { display:grid; grid-template-columns: 1.15fr .85fr; gap: 18px; margin-bottom: 22px; }
+    .visualizations-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+    @media (max-width: 1024px) {
+      .visualizations-row { grid-template-columns: 1fr; }
+    }
+    .chart-panel { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); box-shadow: var(--shadow); padding: 25px; display: flex; flex-direction: column; }
+    .chart-panel h3 { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; margin: 0 0 20px; color: var(--text); border-left: 4px solid var(--accent); padding-left: 10px; }
+    .chart-wrapper { position: relative; flex: 1; min-height: 250px; display: flex; align-items: center; justify-content: center; }
+    .radial-chart-fallback { position: relative; width: 140px; height: 140px; }
+    .radial-chart-fallback svg { transform: rotate(-90deg); width: 140px; height: 140px; }
+    .radial-chart-fallback circle { fill: none; stroke-width: 10; }
+    .radial-chart-fallback circle.bg { stroke: var(--border); }
+    .radial-chart-fallback circle.fg { stroke: var(--pass); stroke-linecap: round; transition: stroke-dashoffset 0.8s ease-in-out; }
+    .radial-chart-fallback .percentage { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 800; }
     .panel { overflow: hidden; }
     .panel h2 { margin: 0; padding: 18px 20px; border-bottom: 1px solid var(--border); font-size: 18px; }
     .panel-summary { cursor:pointer; padding: 0; display:flex; align-items:center; justify-content:space-between; gap: 16px; border-bottom: 1px solid var(--border); }
@@ -175,6 +194,12 @@ function renderDashboard(report, isKo) {
     .bar-fail { background: var(--fail); }
     .bar-skip { background: var(--warn); }
     .note { border-left: 4px solid var(--accent-2); background: rgba(247,201,72,.08); padding: 12px 14px; border-radius: 8px; color: var(--text); }
+    .filter-bar-panel { padding: 12px 20px !important; }
+    .filter-controls { display: flex; gap: 15px; align-items: center; }
+    .filter-group { display: flex; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); padding: 4px; border-radius: 8px; }
+    .filter-btn { background: transparent; border: none; color: var(--muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; outline: none; }
+    .filter-btn:hover { color: var(--text); }
+    .filter-btn.active { background: var(--accent); color: white; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { padding: 11px 12px; border-bottom: 1px solid var(--border); text-align:left; vertical-align: top; }
     th { color: var(--muted); background: rgba(255,255,255,.025); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
@@ -232,7 +257,7 @@ function renderDashboard(report, isKo) {
   <header>
     <div class="wrap hero">
       <div>
-        <div class="eyebrow">${escapeHtml(`WSOP WEB ${report.suite.toUpperCase()}`)}</div>
+        <div class="eyebrow">${escapeHtml(t.eyebrow)}</div>
         <h1>${escapeHtml(t.title)}</h1>
         <p class="subtitle">${escapeHtml(t.subtitle)}</p>
       </div>
@@ -277,6 +302,32 @@ function renderDashboard(report, isKo) {
       </div>
     </section>
 
+    <!-- Visualizations Row -->
+    <div class="visualizations-row">
+      <div class="chart-panel">
+        <h3>${isKo ? "검증 무결성 통계" : "Data Integrity Status"}</h3>
+        <div class="chart-wrapper">
+          <canvas id="statusChart" style="display:none;"></canvas>
+          <div class="radial-chart-fallback" id="radialFallback">
+            <svg>
+              <circle class="bg" cx="70" cy="70" r="60" />
+              <circle class="fg" cx="70" cy="70" r="60" stroke-dasharray="377" stroke-dashoffset="${377 - (377 * summary.passRate / 100)}" />
+            </svg>
+            <div class="percentage">${summary.passRate}%</div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-panel">
+        <h3>${isKo ? "검증 상태 분포" : "Test Status Breakdown"}</h3>
+        <div class="chart-wrapper">
+          <canvas id="statusDistributionChart" style="display:none;"></canvas>
+          <div id="distributionFallback" style="text-align:center;color:var(--muted);font-size:14px;padding:20px;">
+            ${isKo ? `전체 ${summary.total}개 테스트 중 통과 ${summary.passed}개, 실패 ${summary.failed}개, 건너뜀 ${summary.skipped}개` : `Total ${summary.total} tests: Passed ${summary.passed}, Failed ${summary.failed}, Skipped ${summary.skipped}`}
+          </div>
+        </div>
+      </div>
+    </div>
+
     ${failedTests.length ? renderFailurePanel(failedTests, t) : renderEmptyPanel(t.noCriticalFailuresTitle, t.noCriticalFailuresBody)}
     ${skippedTests.length ? renderSkippedPanel(skippedTests, t) : ''}
     ${playerCoverage ? renderPlayerPresentationCoverage(playerCoverage, t) : ''}
@@ -291,6 +342,16 @@ function renderDashboard(report, isKo) {
         <h2>${escapeHtml(t.allTests)}</h2>
         <span class="panel-toggle-label" aria-hidden="true">▼</span>
       </summary>
+      <div class="panel-body filter-bar-panel" style="border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.15);">
+        <div class="filter-controls">
+          <div class="filter-group">
+            <button class="filter-btn active" data-filter="all">${escapeHtml(isKo ? '전체' : 'All')}</button>
+            <button class="filter-btn" data-filter="passed">${escapeHtml(isKo ? '통과' : 'Passed')}</button>
+            <button class="filter-btn" data-filter="failed">${escapeHtml(isKo ? '실패' : 'Failed')}</button>
+            <button class="filter-btn" data-filter="skipped">${escapeHtml(isKo ? '건너뜀' : 'Skipped')}</button>
+          </div>
+        </div>
+      </div>
       <div class="table-container">
         ${renderResultsTable(report.results, t)}
       </div>
@@ -307,6 +368,120 @@ function renderDashboard(report, isKo) {
   </main>
 
   <footer class="wrap">${escapeHtml(t.footer)}</footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Chart.js initialization
+      const passCount = ${summary.passed};
+      const failCount = ${summary.failed};
+      const skipCount = ${summary.skipped};
+
+      if (typeof Chart !== 'undefined') {
+        const ctx = document.getElementById('statusChart');
+        const ctxDist = document.getElementById('statusDistributionChart');
+
+        if (ctx) {
+          ctx.style.display = 'block';
+          const radialFallback = document.getElementById('radialFallback');
+          if (radialFallback) radialFallback.style.display = 'none';
+
+          new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: ${isKo ? "['통과', '실패', '건너뜀']" : "['Passed', 'Failed', 'Skipped']"},
+              datasets: [{
+                data: [passCount, failCount, skipCount],
+                backgroundColor: ['#2ea043', '#f85149', '#d29922'],
+                borderWidth: 0,
+                hoverOffset: 4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false }
+              },
+              cutout: '75%'
+            }
+          });
+        }
+
+        if (ctxDist) {
+          ctxDist.style.display = 'block';
+          const distFallback = document.getElementById('distributionFallback');
+          if (distFallback) distFallback.style.display = 'none';
+
+          new Chart(ctxDist, {
+            type: 'bar',
+            data: {
+              labels: ${isKo ? "['통과 (Pass)', '실패 (Fail)', '건너뜀 (Skip)']" : "['Passed (Pass)', 'Failed (Fail)', 'Skipped (Skip)']"},
+              datasets: [{
+                data: [passCount, failCount, skipCount],
+                backgroundColor: ['rgba(46,160,67,0.85)', 'rgba(248,81,73,0.85)', 'rgba(210,153,34,0.85)'],
+                borderColor: ['#2ea043', '#f85149', '#d29922'],
+                borderWidth: 1,
+                borderRadius: 4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  grid: { color: '#30363d' },
+                  ticks: { color: '#8b949e', stepSize: 1 }
+                },
+                x: {
+                  grid: { display: false },
+                  ticks: { color: '#8b949e' }
+                }
+              }
+            }
+          });
+        }
+      }
+
+      // 2. Client-side interactive table filtering
+      const filterButtons = document.querySelectorAll('.filter-btn');
+      const tableRows = document.querySelectorAll('details.collapsible-panel table tbody tr');
+
+      filterButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          
+          // Toggle active class
+          filterButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          const filter = btn.getAttribute('data-filter');
+
+          tableRows.forEach(row => {
+            const statusBadge = row.querySelector('td span.badge');
+            if (!statusBadge) return;
+
+            const status = statusBadge.textContent.trim().toLowerCase();
+
+            if (filter === 'all') {
+              row.style.display = '';
+            } else if (filter === 'passed' && status === 'passed') {
+              row.style.display = '';
+            } else if (filter === 'failed' && (status === 'failed' || status === 'timedout' || status === 'interrupted')) {
+              row.style.display = '';
+            } else if (filter === 'skipped' && status === 'skipped') {
+              row.style.display = '';
+            } else {
+              row.style.display = 'none';
+            }
+          });
+        });
+      });
+    });
+  </script>
 </body>
 </html>`;
 }
@@ -701,28 +876,37 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
   let titleEn = 'WSOP Web Automation Report';
   let subtitleKo = '공개 페이지 접근, 핵심 콘텐츠, 상단 네비게이션, 콘솔 오류, 내부 링크 샘플을 빠르게 확인한 결과입니다.';
   let subtitleEn = 'A public web check for page access, core content, top navigation, console errors, and sampled internal links.';
+  let eyebrowKo = 'WSOP WEB AUTOMATION';
+  let eyebrowEn = 'WSOP WEB AUTOMATION';
 
   if (isSmoke) {
     titleKo = 'WSOP Phase 1 Smoke 검증 리포트';
     titleEn = 'WSOP Phase 1 Smoke Verification Report';
     subtitleKo = '배포 후 주요 공개 페이지 접근성, 핵심 콘텐츠, 콘솔 에러 등을 신속히 검증한 리포트입니다.';
     subtitleEn = 'A quick verification of public page accessibility, core content, and console errors after deployment.';
+    eyebrowKo = 'WSOP Phase 1 Smoke';
+    eyebrowEn = 'WSOP Phase 1 Smoke';
   } else if (isFunctional) {
     titleKo = 'WSOP Phase 2 Functional Flow 검증 리포트';
     titleEn = 'WSOP Phase 2 Functional Flow Verification Report';
     subtitleKo = '사용자가 웹사이트에서 주로 탐색하는 Schedule, Search, Standings, News 등의 기능 흐름 검증 결과입니다.';
     subtitleEn = 'Exploration flow verification results for key user paths such as Schedule, Search, Standings, and News.';
+    eyebrowKo = 'WSOP Phase 2 Functional Flow';
+    eyebrowEn = 'WSOP Phase 2 Functional Flow';
   } else if (isPlayerPresentation) {
     titleKo = 'WSOP Phase 3 플레이어 표현 검증 리포트';
     titleEn = 'WSOP Phase 3 Player Presentation Verification Report';
     subtitleKo = '크롤러가 수집한 standings TOP 대상자를 기준으로 공개 화면의 이름, 프로필 링크, 국가/국기, 이미지 표현 상태를 확인한 결과입니다.';
     subtitleEn = 'A public UI presentation check for crawler-targeted standings players: name, profile link, country/flag, and image candidates.';
+    eyebrowKo = 'WSOP Phase 3 Player Presentation';
+    eyebrowEn = 'WSOP Phase 3 Player Presentation';
   }
 
   return isKo
     ? {
         title: titleKo,
         subtitle: subtitleKo,
+        eyebrow: eyebrowKo,
         total: '전체 테스트',
         passed: '통과',
         failed: '실패',
@@ -775,6 +959,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
     : {
         title: titleEn,
         subtitle: subtitleEn,
+        eyebrow: eyebrowEn,
         total: 'Total Tests',
         passed: 'Passed',
         failed: 'Failed',

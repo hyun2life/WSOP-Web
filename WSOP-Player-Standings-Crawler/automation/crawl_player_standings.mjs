@@ -2912,7 +2912,7 @@ function renderDashboardTemplate(report, isKo) {
   const passPercent = Math.round((summary.passedPlayers / totalChecked) * 100);
 
   const t = {
-    title: isKo ? "WSOP 선수 순위 크롤러 프리미엄 대시보드" : "WSOP Player Standings Premium Dashboard",
+    title: isKo ? "WSOP 선수 순위 크롤러 대시보드" : "WSOP Player Standings Dashboard",
     generated: isKo ? "생성 시간" : "Generated",
     source: isKo ? "대상 사이트" : "Source",
     runStatus: isKo ? "실행 상태" : "Run Status",
@@ -3017,6 +3017,7 @@ function renderDashboardTemplate(report, isKo) {
     header::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--primary), #f7c948); pointer-events: none; }
 
     .header-content { max-width: 1600px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 30px; flex-wrap: wrap; }
+    .eyebrow { color: var(--primary-hover); font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
     .header-title h1 { margin: 0; font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: 0; color: var(--text-main); }
     .header-title p { margin: 8px 0 0; color: var(--text-muted); font-size: 14px; }
     .header-actions { display: flex; align-items: center; gap: 15px; }
@@ -3161,6 +3162,7 @@ function renderDashboardTemplate(report, isKo) {
   <header>
     <div class="header-content">
       <div class="header-title">
+        <div class="eyebrow">${isKo ? "WSOP 플레이어 standings 크롤러" : "WSOP PLAYER STANDINGS CRAWLER"}</div>
         <h1>${escapeHtml(t.title)}</h1>
         <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>${summary.interruptedReason ? ` (${escapeHtml(summary.interruptedReason)})` : ""} | ${escapeHtml(t.source)}: <a href="${escapeHtml(report.playersUrl || "")}">${escapeHtml(report.playersUrl || "")}</a></p>
       </div>
@@ -4522,9 +4524,9 @@ function runSelfTest() {
   }));
   const sampleReport = { playersUrl: DEFAULT_PLAYERS_URL, players: [{ name: "Sample", url: "https://example.test/player", summary, events, expansion: {}, tabChecks, calculated, comparisons, defects: [], warnings: [], status: "pass" }] };
   const html = renderHtml(sampleReport);
-  if (!html.includes("WSOP Player Standings Premium Dashboard")) throw new Error("HTML render failed");
+  if (!html.includes("WSOP Player Standings Dashboard")) throw new Error("HTML render failed");
   const koreanHtml = renderKoreanHtml(sampleReport);
-  if (!koreanHtml.includes("WSOP 선수 순위 크롤러 프리미엄 대시보드")) throw new Error("Korean HTML render failed");
+  if (!koreanHtml.includes("WSOP 선수 순위 크롤러 대시보드")) throw new Error("Korean HTML render failed");
   const partialReport = buildCrawlerReport({
     startedAt: new Date().toISOString(),
     finishedAt: new Date().toISOString(),
