@@ -1,0 +1,33 @@
+[
+  {
+    "caseName": "Lowercase search",
+    "keyword": "phil hellmuth",
+    "expectedPlayer": "Phil Hellmuth",
+    "type": "lowercase"
+  },
+  {
+    "caseName": "Partial search",
+    "keyword": "negreanu",
+    "expectedPlayer": "Daniel Negreanu",
+    "type": "partial"
+  },
+  {
+    "caseName": "Trimmed search",
+    "keyword": "  Phil Ivey  ",
+    "expectedPlayer": "Phil Ivey",
+    "type": "trim"
+  },
+  {
+    "caseName": "No result search",
+    "keyword": "zzzz-no-player-test-qa",
+    "expectedNoResults": true,
+    "type": "no-result"
+  },
+  {
+    "caseName": "Non-English player name from standings",
+    "keyword": "Александр",
+    "expectedPlayerContains": "Александр",
+    "type": "non-english",
+    "warningOnly": true
+  }
+]

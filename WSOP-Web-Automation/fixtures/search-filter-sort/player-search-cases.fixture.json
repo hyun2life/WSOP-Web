@@ -1,0 +1,38 @@
+[
+  {
+    "caseName": "Exact full name - Phil Hellmuth",
+    "keyword": "Phil Hellmuth",
+    "expectedPlayer": "Phil Hellmuth",
+    "expectedProfileUrlContains": "/players/",
+    "minExpectedResults": 1
+  },
+  {
+    "caseName": "Exact full name - Daniel Negreanu",
+    "keyword": "Daniel Negreanu",
+    "expectedPlayer": "Daniel Negreanu",
+    "expectedProfileUrlContains": "/players/",
+    "minExpectedResults": 1,
+    "knownExceptionKey": "daniel-negreanu"
+  },
+  {
+    "caseName": "Exact full name - Phil Ivey",
+    "keyword": "Phil Ivey",
+    "expectedPlayer": "Phil Ivey",
+    "expectedProfileUrlContains": "/players/",
+    "minExpectedResults": 1
+  },
+  {
+    "caseName": "Exact full name - Kristen Foxen",
+    "keyword": "Kristen Foxen",
+    "expectedPlayer": "Kristen Foxen",
+    "expectedProfileUrlContains": "/players/",
+    "minExpectedResults": 1
+  },
+  {
+    "caseName": "Exact full name - Michael Mizrachi",
+    "keyword": "Michael Mizrachi",
+    "expectedPlayer": "Michael Mizrachi",
+    "expectedProfileUrlContains": "/players/",
+    "minExpectedResults": 1
+  }
+]

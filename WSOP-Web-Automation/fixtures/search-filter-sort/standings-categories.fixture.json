@@ -1,0 +1,37 @@
+[
+  {
+    "categoryName": "2026 Standings",
+    "pageUrl": "/player-standings/",
+    "expectedHeading": "2026 Standings",
+    "expectedColumns": ["Player", "Country", "Earnings", "Bracelets", "Rings", "Cashes"],
+    "viewFullListExpected": true
+  },
+  {
+    "categoryName": "All-Time Earnings - Men",
+    "pageUrl": "/player-standings/all-time-earnings-men/",
+    "expectedHeading": "All-Time Earnings - Men",
+    "expectedColumns": ["Player", "Country", "Earnings"],
+    "viewFullListExpected": false
+  },
+  {
+    "categoryName": "All-Time Earnings - Women",
+    "pageUrl": "/player-standings/all-time-earnings-women/",
+    "expectedHeading": "All-Time Earnings - Women",
+    "expectedColumns": ["Player", "Country", "Earnings"],
+    "viewFullListExpected": false
+  },
+  {
+    "categoryName": "All-Time Bracelets",
+    "pageUrl": "/player-standings/all-time-bracelets/",
+    "expectedHeading": "All-Time Bracelets",
+    "expectedColumns": ["Player"],
+    "viewFullListExpected": false
+  },
+  {
+    "categoryName": "All-Time Rings",
+    "pageUrl": "/player-standings/all-time-rings/",
+    "expectedHeading": "All-Time Rings",
+    "expectedColumns": ["Player"],
+    "viewFullListExpected": false
+  }
+]

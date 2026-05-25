@@ -15,6 +15,8 @@
     "test:phase2": "node scripts/run-phase.cjs phase2",
     "test:player-presentation": "playwright test tests/player-presentation --project=chromium-desktop",
     "test:phase3": "playwright test tests/player-presentation --project=chromium-desktop",
+    "test:search-filter-sort": "playwright test tests/search-filter-sort --project=chromium-desktop",
+    "test:phase4": "playwright test tests/search-filter-sort --project=chromium-desktop",
     "report": "node scripts/open-latest-smoke-report.cjs smoke playwright",
     "report:smoke:ko": "node scripts/open-latest-smoke-report.cjs smoke ko",
     "report:smoke:en": "node scripts/open-latest-smoke-report.cjs smoke en",

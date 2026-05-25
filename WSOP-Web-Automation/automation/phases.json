@@ -69,17 +69,18 @@
       "reportSuite": "search-filter-sort",
       "testDir": "tests/search-filter-sort",
       "project": "chromium-desktop",
-      "implemented": false,
+      "implemented": true,
       "nameKo": "검색, 필터, 정렬 심화 검증",
-      "shortSummaryKo": "검색 조건, 필터, 정렬, 페이지네이션의 세부 동작을 검증할 예정입니다.",
-      "description": "Reserved for deeper filter, sort, pagination, and search behavior checks.",
-      "descriptionKo": "검색/필터/정렬/페이지네이션처럼 목록 UI의 조작성이 복잡해지는 영역을 별도 단계로 분리해 검증할 예정입니다.",
+      "shortSummaryKo": "Player Search, Standings, POY의 검색어/탭/카테고리/정렬/페이지네이션 조작이 깨지지 않는지 확인합니다.",
+      "description": "Validates search input behavior, list filtering, category navigation, sort controls, pagination/load more, and edge-case search handling without DB/API value checks.",
+      "descriptionKo": "Data/API 정합성이 아니라, Player Search와 Standings/POY 목록 UI에서 검색어 입력, 탭/섹션 전환, 카테고리 이동, 정렬, 페이지네이션/Load more 조작이 신뢰 가능하게 동작하는지 검증합니다.",
       "stepsKo": [
-        "검색어 입력과 결과 필터링 확인",
-        "필터 조합별 결과 목록 갱신 확인",
-        "정렬 조건 변경 확인",
-        "페이지네이션 이동 확인",
-        "느슨하지 않은 selector 기준 정리"
+        "Player Search에서 탑랭커 이름 검색 후 결과와 프로필 링크 확인",
+        "대소문자, 부분 검색, 앞뒤 공백, 결과 없음, 비영문 검색어 edge case 확인",
+        "Player Search의 Trending/Winners/Player of the Year/Hall of Fame 영역 또는 탭 전환 확인",
+        "Player Standings 주요 카테고리와 full list 이동 확인",
+        "정렬 UI와 pagination/load more가 있으면 클릭 후 리스트가 깨지지 않는지 확인",
+        "검색/필터/정렬 수치 정확성은 검증하지 않고 Phase 6으로 분리"
       ]
     },
     {

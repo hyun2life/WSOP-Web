@@ -1,0 +1,15 @@
+{
+  "daniel-negreanu": {
+    "reason": "Daniel Negreanu can appear in multiple contexts such as search, standings, POY, Hall of Fame, and profile links. Multiple context mentions are allowed, but profile targets should not be split into unrelated players.",
+    "allowMultipleContextMentions": true,
+    "requireProfileTarget": true
+  },
+  "non-english-search": {
+    "reason": "Search behavior for non-English names may depend on current site indexing. Treat as warning until behavior is confirmed.",
+    "warningOnly": true
+  },
+  "standings-url-mismatch": {
+    "reason": "Some standings full list URLs may change. If 404 occurs, classify as fixture URL mismatch rather than product bug until manually confirmed.",
+    "warningOnly": true
+  }
+}

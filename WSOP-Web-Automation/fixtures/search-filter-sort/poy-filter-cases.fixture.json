@@ -1,0 +1,14 @@
+[
+  {
+    "caseName": "Current POY leaderboard",
+    "pageUrl": "/2026-poy/",
+    "expectedTexts": ["2026 WSOP Player of the Year", "P.O.Y.", "Leaderboard"],
+    "expectedPlayerCandidates": ["Shaun Deeb", "Marius Kudzmanas"]
+  },
+  {
+    "caseName": "Previous POY winners",
+    "pageUrl": "/2026-poy/",
+    "expectedTexts": ["Previous WSOP Player of the Year Winners"],
+    "expectedPlayerCandidates": ["Shaun Deeb", "Scott Brandon Seiver", "Ian Matakis", "Daniel Negreanu"]
+  }
+]

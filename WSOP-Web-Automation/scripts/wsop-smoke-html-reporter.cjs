@@ -1013,6 +1013,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
   const isSmoke = suite === 'smoke';
   const isFunctional = suite === 'functional';
   const isPlayerPresentation = suite === 'player-presentation';
+  const isSearchFilterSort = suite === 'search-filter-sort';
 
   let titleKo = 'WSOP Web 자동화 리포트';
   let titleEn = 'WSOP Web Automation Report';
@@ -1042,6 +1043,13 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
     subtitleEn = 'A public UI presentation check for crawler-targeted standings players: name, profile link, country/flag, and image candidates.';
     eyebrowKo = 'WSOP Phase 3 Player Presentation';
     eyebrowEn = 'WSOP Phase 3 Player Presentation';
+  } else if (isSearchFilterSort) {
+    titleKo = 'WSOP Phase 4 검색/필터/정렬 검증 리포트';
+    titleEn = 'WSOP Phase 4 Search / Filter / Sort Verification Report';
+    subtitleKo = 'Player Search, Standings, POY 목록에서 검색어 입력, 탭/섹션 전환, 카테고리 이동, 정렬, 페이지네이션 조작이 깨지지 않는지 확인한 결과입니다.';
+    subtitleEn = 'A public UI interaction check for Player Search, Standings, and POY list search, section switching, category navigation, sort controls, and pagination behavior.';
+    eyebrowKo = 'WSOP Phase 4 Search / Filter / Sort';
+    eyebrowEn = 'WSOP Phase 4 Search / Filter / Sort';
   }
 
   return isKo
@@ -1168,6 +1176,11 @@ readMeFirst = function readMeFirstOverride(report, isKo) {
     return isKo
       ? 'Phase 3는 수치 정합성이 아니라 공개 화면에서 플레이어가 올바르게 식별되고 표현되는지 확인합니다. 이미지/마크 일부는 환경 차이에 따라 warning으로 분류될 수 있습니다.'
       : 'Phase 3 checks public player identity presentation, not numeric data integrity. Some image or mark differences may be warning-only depending on environment.';
+  }
+  if (report.suite === 'search-filter-sort') {
+    return isKo
+      ? 'Phase 4는 검색/필터/정렬/페이지네이션 UI 조작이 깨지지 않는지 확인합니다. 수치 계산, API/DB 비교, POY 포인트 정합성은 Phase 6에서 다룹니다.'
+      : 'Phase 4 checks search/filter/sort/pagination UI behavior. Numeric calculations, API/DB comparisons, and POY point integrity remain Phase 6 scope.';
   }
   return isKo
     ? '모든 검증이 통과했습니다. 브라우저 실행 상세는 Playwright 기본 HTML 리포트에서 확인할 수 있습니다.'

@@ -55,6 +55,10 @@ function inferReportSuite(argv: string[]): string {
     return 'player-presentation';
   }
 
+  if (command.includes('tests/search-filter-sort')) {
+    return 'search-filter-sort';
+  }
+
   return 'smoke';
 }
 
