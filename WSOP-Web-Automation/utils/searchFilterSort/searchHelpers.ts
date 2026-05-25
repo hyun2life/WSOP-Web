@@ -8,6 +8,7 @@ export type PlayerSearchCase = {
   keyword: string;
   expectedPlayer?: string;
   expectedPlayerContains?: string;
+  expectedCountry?: string;
   expectedProfileUrlContains?: string;
   minExpectedResults?: number;
   expectedNoResults?: boolean;
@@ -75,6 +76,40 @@ export async function submitPlayerSearch(page: Page, keyword: string) {
   return true;
 }
 
+export async function expectPlayerAutocompleteResult(page: Page, searchCase: PlayerSearchCase) {
+  const input = await findSearchInput(page);
+  if (!input) {
+    addWarning('phase4-player-autocomplete', `Search input was not visible. Autocomplete cannot be checked for "${searchCase.keyword}".`, {
+      keyword: searchCase.keyword,
+      expectedPlayer: searchCase.expectedPlayer,
+    });
+    return false;
+  }
+
+  const keyword = searchCase.keyword.trim();
+  const expected = searchCase.expectedPlayer ?? searchCase.expectedPlayerContains ?? keyword;
+  await typeAutocompleteKeyword(input, keyword);
+
+  const suggestion = autocompleteSuggestion(page, expected);
+  await expect
+    .poll(async () => {
+      const inputValue = await input.inputValue().catch(() => '');
+      if (inputValue.trim() !== keyword) {
+        await typeAutocompleteKeyword(input, keyword);
+      }
+
+      return (await suggestion.count()) > 0 && (await suggestion.first().isVisible().catch(() => false));
+    }, {
+      message: `${searchCase.caseName}: autocomplete should show "${expected}" after typing "${keyword}"`,
+      timeout: 6_000,
+      intervals: [300, 700, 1_200],
+    })
+    .toBeTruthy();
+
+  await expectAutocompleteCountryOrFlag(suggestion.first(), searchCase);
+  return true;
+}
+
 async function fillSearchInput(input: Locator, keyword: string) {
   await input.click();
   await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
@@ -89,6 +124,22 @@ async function fillSearchInput(input: Locator, keyword: string) {
   await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
   await input.fill('');
   await input.fill(keyword);
+}
+
+async function typeAutocompleteKeyword(input: Locator, keyword: string) {
+  await input.click();
+  await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
+  await input.fill('').catch(() => undefined);
+  await input.type(keyword, { delay: 30 });
+
+  const currentValue = await input.inputValue().catch(() => '');
+  if (currentValue.trim() === keyword) {
+    return;
+  }
+
+  await input.click().catch(() => undefined);
+  await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
+  await input.fill(keyword).catch(() => undefined);
 }
 
 export async function collectPlayerResultLinks(page: Page, keywordOrPlayerName?: string): Promise<PlayerResultLink[]> {
@@ -182,6 +233,62 @@ async function collectVisiblePlayerLinks(page: Page): Promise<PlayerResultLink[]
   return links;
 }
 
+function autocompleteSuggestion(page: Page, expectedPlayer: string) {
+  const pattern = new RegExp(escapeRegExp(expectedPlayer), 'i');
+  return page
+    .locator(
+      [
+        '.autocomplete-container li',
+        '[class*="autocomplete" i] li',
+        '[class*="autocomplete" i] [role="option"]',
+        '[class*="autocomplete" i] tr',
+        '[class*="autocomplete" i] [class*="item" i]',
+      ].join(', '),
+    )
+    .filter({ hasText: pattern });
+}
+
+async function expectAutocompleteCountryOrFlag(suggestion: Locator, searchCase: PlayerSearchCase) {
+  if (!searchCase.expectedCountry) {
+    addWarning('phase4-player-autocomplete-country', `No expectedCountry fixture value for autocomplete case "${searchCase.caseName}".`, {
+      keyword: searchCase.keyword,
+      expectedPlayer: searchCase.expectedPlayer,
+    });
+    return;
+  }
+
+  const aliases = countryAliases(searchCase.expectedCountry);
+  const countryCodes = countryFlagCodes(searchCase.expectedCountry);
+  const text = await suggestion.innerText().catch(() => '');
+  if (aliases.some((alias) => new RegExp(`\\b${escapeRegExp(alias)}\\b`, 'i').test(text))) {
+    return;
+  }
+
+  const flagImages = await suggestion
+    .locator('img')
+    .evaluateAll((images) =>
+      images.map((image) => ({
+        alt: image.getAttribute('alt') || '',
+        title: image.getAttribute('title') || '',
+        src: image.getAttribute('src') || '',
+        srcset: image.getAttribute('srcset') || '',
+        className: image.getAttribute('class') || '',
+      })),
+    )
+    .catch(() => []);
+  const expectedNeedles = [...aliases, ...countryCodes].map(normalizeComparable);
+  const matched = flagImages.some((image) =>
+    [image.alt, image.title, image.src, image.srcset, image.className].some((value) =>
+      expectedNeedles.some((needle) => normalizeComparable(value).includes(needle)),
+    ),
+  );
+
+  expect(
+    matched,
+    `${searchCase.caseName}: autocomplete should show expected country/flag "${searchCase.expectedCountry}". Found flags: ${JSON.stringify(flagImages)}`,
+  ).toBeTruthy();
+}
+
 async function collectMatchingResultRows(page: Page, keywordOrPlayerName?: string): Promise<PlayerResultLink[]> {
   const rows = page.getByRole('row');
   const rowCount = await rows.count();
@@ -215,12 +322,11 @@ async function collectMatchingResultRows(page: Page, keywordOrPlayerName?: strin
 
 async function expectNoResultState(page: Page, searchCase: PlayerSearchCase) {
   const bodyText = await page.locator('body').innerText().catch(() => '');
-  const impossibleKeywordVisible = new RegExp(escapeRegExp(searchCase.keyword.trim()), 'i').test(bodyText);
   const noResultMessageVisible = /no results?|no players?|not found|0 results?/i.test(bodyText);
   const matchingLinks = await collectPlayerResultLinks(page, searchCase.keyword.trim());
 
   expect(
-    noResultMessageVisible || matchingLinks.length === 0 || impossibleKeywordVisible,
+    noResultMessageVisible || matchingLinks.length === 0,
     `${searchCase.caseName}: no-result search should show an empty/no-result state or avoid player links for keyword="${searchCase.keyword}"`,
   ).toBeTruthy();
 }
@@ -261,4 +367,28 @@ function normalizePlayerLinkText(value: string) {
     .replace(/\s+\$[\d,]+.*$/, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeComparable(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function countryAliases(country: string): string[] {
+  const normalized = normalizeComparable(country);
+  const aliases: Record<string, string[]> = {
+    unitedstates: ['United States', 'USA', 'US', 'Country Code - US'],
+    canada: ['Canada', 'CAN', 'CA', 'Country Code - CA'],
+  };
+
+  return aliases[normalized] ?? [country];
+}
+
+function countryFlagCodes(country: string): string[] {
+  const normalized = normalizeComparable(country);
+  const codes: Record<string, string[]> = {
+    unitedstates: ['US'],
+    canada: ['CA'],
+  };
+
+  return codes[normalized] ?? [];
 }

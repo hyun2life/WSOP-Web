@@ -4,6 +4,7 @@ import { expectProfilePageLoaded, type PlayerFixture } from '../../utils/playerP
 import { attachWarningsToTestInfo, clearWarnings } from '../../utils/playerPresentation/warningCollector';
 import {
   expectPlayerSearchResult,
+  expectPlayerAutocompleteResult,
   openFirstPlayerSearchProfile,
   openPlayerSearch,
   submitPlayerSearch,
@@ -23,6 +24,7 @@ test.describe('Phase 4 - player search depth', () => {
   for (const searchCase of searchCases) {
     test(`${searchCase.caseName} returns a player profile target`, async ({ page }) => {
       await openPlayerSearch(page);
+      await expectPlayerAutocompleteResult(page, searchCase);
       await submitPlayerSearch(page, searchCase.keyword);
       const links = await expectPlayerSearchResult(page, searchCase);
 
