@@ -126,127 +126,185 @@ function renderDashboard(report, isKo) {
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
-      --bg: #0d1117;
-      --surface: #151b23;
-      --surface-2: #1f2733;
-      --text: #f0f6fc;
-      --muted: #8b949e;
+      --bg-main: #0d1117;
+      --bg-card: #151b23;
+      --bg-card-hover: #1f2733;
+      --bg-input: #080b0f;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
       --border: #30363d;
-      --accent: #d61f2c;
-      --accent-2: #f7c948;
-      --pass: #2ea043;
-      --warn: #d29922;
-      --fail: #f85149;
+      --primary: #d61f2c;
+      --primary-rgb: 214, 31, 44;
+      --primary-hover: #f7c948;
+      --success: #2ea043;
+      --success-bg: rgba(46, 160, 67, 0.14);
+      --danger: #f85149;
+      --danger-bg: rgba(248, 81, 73, 0.14);
+      --warning: #d29922;
+      --warning-bg: rgba(210, 153, 34, 0.14);
       --info: #58a6ff;
-      --shadow: 0 18px 45px rgba(0,0,0,.24);
+      --shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+      --card-border: 1px solid #30363d;
     }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.55; }
+    * { box-sizing: border-box; transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.2s; }
+    body { margin: 0; background: var(--bg-main); color: var(--text-main); font-family: 'Inter', sans-serif; line-height: 1.5; padding-bottom: 60px; }
     h1, h2, h3, .eyebrow { font-family: 'Outfit', sans-serif; }
-    a { color: var(--info); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    header { border-bottom: 1px solid var(--border); background: linear-gradient(135deg, #080a0f 0%, #171b24 58%, #2b1016 100%); position: relative; overflow: hidden; }
-    header::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); pointer-events: none; }
-    .wrap { max-width: 1320px; margin: 0 auto; padding: 28px; }
-    .hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; }
-    .eyebrow { color: var(--accent-2); font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
-    h1 { margin: 6px 0 10px; font-size: clamp(28px, 4vw, 44px); line-height: 1.08; letter-spacing: 0; }
-    .subtitle { margin: 0; color: var(--muted); max-width: 920px; }
-    .status-pill { display:inline-flex; align-items:center; gap:8px; min-width: 130px; justify-content:center; padding: 12px 18px; border-radius: 999px; font-weight: 800; border: 1px solid currentColor; }
-    .status-pill.pass { color: var(--pass); background: rgba(46,160,67,.12); }
-    .status-pill.warn { color: var(--warn); background: rgba(210,153,34,.12); }
-    .status-pill.fail { color: var(--fail); background: rgba(248,81,73,.12); }
-    main.wrap { padding-top: 24px; }
-    .kpis { display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 14px; margin: 0 0 24px; }
-    .card, .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); }
-    .card { padding: 18px; min-height: 112px; }
-    .label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-    .value { margin-top: 10px; font-size: 32px; font-weight: 850; }
-    .value.pass { color: var(--pass); }
-    .value.warn { color: var(--warn); }
-    .value.fail { color: var(--fail); }
-    .grid { display:grid; grid-template-columns: 1.15fr .85fr; gap: 18px; margin-bottom: 22px; }
-    .visualizations-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+    a { color: var(--info); text-decoration: none; font-weight: 500; }
+    a:hover { text-decoration: underline; color: var(--primary-hover); }
+    
+    header { background: linear-gradient(135deg, #080a0f 0%, #171b24 58%, #2b1016 100%); padding: 30px 40px; position: relative; overflow: hidden; border-bottom: var(--card-border); box-shadow: var(--shadow); }
+    header::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--primary-hover)); pointer-events: none; }
+    
+    .header-content { max-width: 1600px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 30px; flex-wrap: wrap; }
+    .eyebrow { color: var(--primary-hover); font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px; }
+    .header-title h1 { margin: 0; font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: 0; color: var(--text-main); }
+    .header-title p { margin: 8px 0 0; color: var(--text-muted); font-size: 14px; }
+    .header-actions { display: flex; align-items: center; gap: 15px; }
+
+    main { max-width: 1600px; margin: 30px auto; padding: 0 30px; }
+
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 45px; }
+    .kpi-card { background: var(--bg-card); border-radius: 8px; padding: 25px; border: var(--card-border); box-shadow: var(--shadow); cursor: pointer; position: relative; overflow: hidden; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -10px rgba(0,0,0,0.3); border-color: var(--primary); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary); opacity: 0; transition: opacity 0.2s; }
+    .kpi-card:hover::before { opacity: 1; }
+    .kpi-card .kpi-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .kpi-card .kpi-value { font-size: 32px; font-weight: 800; margin-top: 10px; font-family: 'Outfit', sans-serif; }
+    .kpi-card .kpi-value.pass { color: var(--success); }
+    .kpi-card .kpi-value.warn { color: var(--warning); }
+    .kpi-card .kpi-value.fail { color: var(--danger); }
+
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+    .status-badge.pass { background-color: var(--success-bg); color: var(--success); }
+    .status-badge.fail { background-color: var(--danger-bg); color: var(--danger); }
+    .status-badge.warn { background-color: var(--warning-bg); color: var(--warning); }
+    .status-badge.pending { background-color: rgba(255,255,255,0.06); color: var(--text-muted); }
+
+    .visualizations-row { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 45px; }
     @media (max-width: 1024px) {
       .visualizations-row { grid-template-columns: 1fr; }
     }
-    .chart-panel { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); box-shadow: var(--shadow); padding: 25px; display: flex; flex-direction: column; }
-    .chart-panel h3 { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; margin: 0 0 20px; color: var(--text); border-left: 4px solid var(--accent); padding-left: 10px; }
+    .chart-panel { background: var(--bg-card); border-radius: 8px; border: var(--card-border); box-shadow: var(--shadow); padding: 25px; display: flex; flex-direction: column; }
+    .chart-panel h3 { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; margin: 0 0 20px; color: var(--text-main); border-left: 4px solid var(--primary); padding-left: 10px; }
     .chart-wrapper { position: relative; flex: 1; min-height: 250px; display: flex; align-items: center; justify-content: center; }
+
     .radial-chart-fallback { position: relative; width: 140px; height: 140px; }
     .radial-chart-fallback svg { transform: rotate(-90deg); width: 140px; height: 140px; }
     .radial-chart-fallback circle { fill: none; stroke-width: 10; }
     .radial-chart-fallback circle.bg { stroke: var(--border); }
-    .radial-chart-fallback circle.fg { stroke: var(--pass); stroke-linecap: round; transition: stroke-dashoffset 0.8s ease-in-out; }
+    .radial-chart-fallback circle.fg { stroke: var(--success); stroke-linecap: round; transition: stroke-dashoffset 0.8s ease-in-out; }
     .radial-chart-fallback .percentage { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 800; }
-    .panel { overflow: hidden; }
-    .panel h2 { margin: 0; padding: 18px 20px; border-bottom: 1px solid var(--border); font-size: 18px; }
-    .panel-summary { cursor:pointer; padding: 0; display:flex; align-items:center; justify-content:space-between; gap: 16px; border-bottom: 1px solid var(--border); }
-    .panel-summary h2 { border-bottom: 0; }
+
+    .grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 25px; margin-bottom: 40px; }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .panel { background: var(--bg-card); border-radius: 8px; border: var(--card-border); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 40px; }
+    .panel h2 { margin: 0; padding: 18px 24px; border-bottom: 1px solid var(--border); font-size: 18px; font-family: 'Outfit', sans-serif; }
+    
+    .panel-summary { cursor: pointer; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); }
+    .panel-summary h2 { border-bottom: 0; padding: 0; margin: 0; font-size: 18px; font-weight: 700; line-height: 1.2; display: flex; align-items: center; gap: 10px; }
     .panel-summary::-webkit-details-marker { display: none; }
-    .panel-toggle-label { color: var(--muted); font-size: 14px; font-weight: 800; padding-right: 20px; transition: transform 0.2s ease; display: inline-block; }
-    .collapsible-panel[open] .panel-toggle-label { transform: rotate(180deg); }
+    
     .panel-body { padding: 18px 20px; }
-    .summary-line { display:flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
-    .summary-line span { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; }
-    .bar { height: 14px; border-radius: 999px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); display:flex; margin-top: 18px; }
-    .bar-pass { background: var(--pass); }
-    .bar-fail { background: var(--fail); }
-    .bar-skip { background: var(--warn); }
-    .note { border-left: 4px solid var(--accent-2); background: rgba(247,201,72,.08); padding: 12px 14px; border-radius: 8px; color: var(--text); }
+    .summary-line { display: flex; gap: 12px; flex-wrap: wrap; color: var(--text-muted); font-size: 14px; }
+    .summary-line span { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; }
+    
+    .bar { height: 14px; border-radius: 999px; overflow: hidden; background: var(--bg-input); border: 1px solid var(--border); display: flex; margin-top: 18px; }
+    .bar-pass { background: var(--success); }
+    .bar-fail { background: var(--danger); }
+    .bar-skip { background: var(--warning); }
+    
+    .note { border-left: 4px solid var(--primary-hover); background: var(--warning-bg); padding: 12px 14px; border-radius: 8px; color: var(--text-main); }
     .filter-bar-panel { padding: 12px 20px !important; }
     .filter-controls { display: flex; gap: 15px; align-items: center; }
-    .filter-group { display: flex; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); padding: 4px; border-radius: 8px; }
-    .filter-btn { background: transparent; border: none; color: var(--muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; outline: none; }
-    .filter-btn:hover { color: var(--text); }
-    .filter-btn.active { background: var(--accent); color: white; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { padding: 11px 12px; border-bottom: 1px solid var(--border); text-align:left; vertical-align: top; }
-    th { color: var(--muted); background: rgba(255,255,255,.025); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-    tr:hover td { background: rgba(255,255,255,.018); }
-    .badge { display:inline-block; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 800; border: 1px solid currentColor; white-space: nowrap; }
-    .badge.passed { color: var(--pass); background: rgba(46,160,67,.10); }
-    .badge.failed, .badge.timedOut, .badge.interrupted { color: var(--fail); background: rgba(248,81,73,.10); }
-    .badge.skipped, .badge.warn { color: var(--warn); background: rgba(210,153,34,.10); }
-    .muted { color: var(--muted); }
+    .filter-group { display: flex; gap: 6px; background: var(--bg-card-hover); border: 1px solid var(--border); padding: 4px; border-radius: 8px; }
+    .filter-btn { background: transparent; border: none; color: var(--text-muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; outline: none; }
+    .filter-btn:hover { color: var(--text-main); }
+    .filter-btn.active { background: var(--primary); color: white; }
+
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    th { background: rgba(0, 0, 0, 0.2); color: var(--text-main); font-weight: 600; padding: 14px 18px; border-bottom: 1px solid var(--border); font-family: 'Outfit', sans-serif; }
+    td { padding: 14px 18px; border-bottom: 1px solid var(--border); color: var(--text-main); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background-color: rgba(255, 255, 255, 0.015); }
+    
+    .badge { display: inline-block; border-radius: 99px; padding: 4px 12px; font-size: 11px; font-weight: 700; border: 1px solid currentColor; white-space: nowrap; text-transform: uppercase; }
+    .badge.passed { color: var(--success); background: var(--success-bg); }
+    .badge.failed, .badge.timedOut, .badge.interrupted { color: var(--danger); background: var(--danger-bg); }
+    .badge.skipped, .badge.warn { color: var(--warning); background: var(--warning-bg); }
+    
+    .muted { color: var(--text-muted); }
     .error { white-space: pre-wrap; max-width: 760px; color: #ffb4ad; }
-    .attachments { display:flex; gap: 7px; flex-wrap: wrap; }
-    .attachment { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; }
-    .coverage-summary { display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
-    .coverage-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
-    .coverage-card .value { font-size: 24px; margin-top: 6px; }
-    .category-strip { display:flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
-    .category-pill { border: 1px solid var(--border); background: rgba(255,255,255,.03); border-radius: 999px; padding: 6px 10px; color: var(--muted); font-size: 12px; }
-    .player-card-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
-    .player-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 184px; display:flex; flex-direction:column; gap: 10px; }
+    .attachments { display: flex; gap: 7px; flex-wrap: wrap; }
+    .attachment { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; }
+    
+    .coverage-summary { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
+    .coverage-card { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .coverage-card .label { color: var(--text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .coverage-card .value { font-size: 24px; font-weight: 800; margin-top: 6px; font-family: 'Outfit', sans-serif; }
+    .coverage-card .value.pass { color: var(--success); }
+    .coverage-card .value.warn { color: var(--warning); }
+    .coverage-card .value.fail { color: var(--danger); }
+    
+    .category-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .category-pill { border: 1px solid var(--border); background: rgba(255,255,255,.03); border-radius: 999px; padding: 6px 10px; color: var(--text-muted); font-size: 12px; }
+    
+    .player-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+    .player-card { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 184px; display: flex; flex-direction: column; gap: 10px; }
     .player-card.fail { border-color: rgba(248,81,73,.68); }
     .player-card.warn { border-color: rgba(210,153,34,.68); }
     .player-card.pass { border-color: rgba(46,160,67,.42); }
-    .player-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap: 12px; }
+    .player-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
     .player-name { font-size: 16px; font-weight: 850; line-height: 1.25; }
-    .player-meta { color: var(--muted); font-size: 12px; overflow-wrap:anywhere; }
-    .check-grid { display:flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
-    .check-pill { border-radius: 999px; padding: 4px 8px; border: 1px solid currentColor; font-size: 11px; font-weight: 800; }
-    .check-pill.pass { color: var(--pass); background: rgba(46,160,67,.10); }
-    .check-pill.fail { color: var(--fail); background: rgba(248,81,73,.10); }
+    .player-meta { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+    
+    .check-grid { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+    .check-pill { border-radius: 99px; padding: 4px 8px; border: 1px solid currentColor; font-size: 11px; font-weight: 700; }
+    .check-pill.pass { color: var(--success); background: var(--success-bg); }
+    .check-pill.fail { color: var(--danger); background: var(--danger-bg); }
+    
     details { border-bottom: 1px solid var(--border); }
     details:last-child { border-bottom: 0; }
     details summary::-webkit-details-marker { display: none; }
     details summary { list-style: none; }
-    summary { cursor:pointer; padding: 15px 20px; font-weight: 800; display:flex; justify-content:space-between; align-items:center; gap: 16px; }
+    summary { cursor: pointer; padding: 18px 24px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    summary::-webkit-details-marker,
+    summary::marker {
+      display: none !important;
+    }
     details[open] summary { background: rgba(255,255,255,.035); border-bottom: 1px solid var(--border); }
+    
     .suite-summary-left { display: flex; align-items: center; gap: 12px; }
-    .suite-toggle-icon { color: var(--muted); font-size: 14px; transition: transform 0.2s ease; display: inline-block; }
-    details[open] .suite-toggle-icon { transform: rotate(180deg); }
+    
+    /* Dynamic Arrow rotate */
+    .toggle-icon {
+      width: 20px;
+      height: 20px;
+      fill: var(--text-muted);
+      transition: transform 0.2s ease;
+      transform-origin: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    details[open] .toggle-icon { transform: rotate(180deg); }
+    
     .suite-body { padding: 12px 20px 18px; }
-    footer { color: var(--muted); padding: 24px 0 40px; }
+    footer { color: var(--text-muted); padding: 24px 0 40px; }
+    
+    @media (max-width: 1200px) {
+      .player-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     @media (max-width: 980px) {
-      .hero, .grid { grid-template-columns: 1fr; }
+      .hero { grid-template-columns: 1fr; }
       .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
-      .coverage-summary, .player-card-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .coverage-summary { grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
     @media (max-width: 560px) {
-      .wrap { padding: 20px; }
+      main { padding: 0 20px; }
       .kpis { grid-template-columns: 1fr; }
       .coverage-summary, .player-card-grid { grid-template-columns: 1fr; }
       th, td { padding: 9px; }
@@ -255,18 +313,20 @@ function renderDashboard(report, isKo) {
 </head>
 <body>
   <header>
-    <div class="wrap hero">
-      <div>
+    <div class="header-content">
+      <div class="header-title">
         <div class="eyebrow">${escapeHtml(t.eyebrow)}</div>
         <h1>${escapeHtml(t.title)}</h1>
-        <p class="subtitle">${escapeHtml(t.subtitle)}</p>
+        <p>${escapeHtml(t.subtitle)}</p>
       </div>
-      <div class="status-pill ${statusClass}">${escapeHtml(formatOverallStatus(summary.status, isKo))}</div>
+      <div class="header-actions">
+        <span class="status-badge ${statusClass}">${escapeHtml(formatOverallStatus(summary.status, isKo))}</span>
+      </div>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="kpis">
+  <main>
+    <section class="dashboard-grid">
       ${kpi(t.total, summary.total)}
       ${kpi(t.passed, summary.passed, 'pass')}
       ${kpi(t.failed, summary.failed, summary.failed ? 'fail' : '')}
@@ -274,6 +334,32 @@ function renderDashboard(report, isKo) {
       ${kpi(t.passRate, `${summary.passRate}%`, summary.failed ? 'fail' : summary.skipped ? 'warn' : 'pass')}
       ${kpi(t.duration, formatDuration(summary.totalDuration))}
     </section>
+
+    <!-- Visualizations Row -->
+    <div class="visualizations-row">
+      <div class="chart-panel">
+        <h3>${isKo ? "검증 무결성 통계" : "Data Integrity Status"}</h3>
+        <div class="chart-wrapper">
+          <canvas id="statusChart" style="display:none;"></canvas>
+          <div class="radial-chart-fallback" id="radialFallback">
+            <svg>
+              <circle class="bg" cx="70" cy="70" r="60" />
+              <circle class="fg" cx="70" cy="70" r="60" stroke-dasharray="377" stroke-dashoffset="${377 - (377 * summary.passRate / 100)}" />
+            </svg>
+            <div class="percentage">${summary.passRate}%</div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-panel">
+        <h3>${isKo ? "검증 상태 분포" : "Test Status Breakdown"}</h3>
+        <div class="chart-wrapper">
+          <canvas id="statusDistributionChart" style="display:none;"></canvas>
+          <div id="distributionFallback" style="text-align:center;color:var(--text-muted);font-size:14px;padding:20px;">
+            ${isKo ? `전체 ${summary.total}개 테스트 중 통과 ${summary.passed}개, 실패 ${summary.failed}개, 건너뜀 ${summary.skipped}개` : `Total ${summary.total} tests: Passed ${summary.passed}, Failed ${summary.failed}, Skipped ${summary.skipped}`}
+          </div>
+        </div>
+      </div>
+    </div>
 
     <section class="grid">
       <div class="panel">
@@ -302,34 +388,6 @@ function renderDashboard(report, isKo) {
       </div>
     </section>
 
-    <!-- Visualizations Row -->
-    <div class="visualizations-row">
-      <div class="chart-panel">
-        <h3>${isKo ? "검증 무결성 통계" : "Data Integrity Status"}</h3>
-        <div class="chart-wrapper">
-          <canvas id="statusChart" style="display:none;"></canvas>
-          <div class="radial-chart-fallback" id="radialFallback">
-            <svg>
-              <circle class="bg" cx="70" cy="70" r="60" />
-              <circle class="fg" cx="70" cy="70" r="60" stroke-dasharray="377" stroke-dashoffset="${377 - (377 * summary.passRate / 100)}" />
-            </svg>
-            <div class="percentage">${summary.passRate}%</div>
-          </div>
-        </div>
-      </div>
-      <div class="chart-panel">
-        <h3>${isKo ? "검증 상태 분포" : "Test Status Breakdown"}</h3>
-        <div class="chart-wrapper">
-          <canvas id="statusDistributionChart" style="display:none;"></canvas>
-          <div id="distributionFallback" style="text-align:center;color:var(--muted);font-size:14px;padding:20px;">
-            ${isKo ? `전체 ${summary.total}개 테스트 중 통과 ${summary.passed}개, 실패 ${summary.failed}개, 건너뜀 ${summary.skipped}개` : `Total ${summary.total} tests: Passed ${summary.passed}, Failed ${summary.failed}, Skipped ${summary.skipped}`}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    ${failedTests.length ? renderFailurePanel(failedTests, t) : renderEmptyPanel(t.noCriticalFailuresTitle, t.noCriticalFailuresBody)}
-    ${skippedTests.length ? renderSkippedPanel(skippedTests, t) : ''}
     ${playerCoverage ? renderPlayerPresentationCoverage(playerCoverage, t) : ''}
 
     <section class="panel">
@@ -337,10 +395,15 @@ function renderDashboard(report, isKo) {
       ${[...bySuite.entries()].map(([suite, items]) => renderSuite(suite, items, t)).join('')}
     </section>
 
+    ${failedTests.length ? renderFailurePanel(failedTests, t) : renderEmptyPanel(t.noCriticalFailuresTitle, t.noCriticalFailuresBody)}
+    ${skippedTests.length ? renderSkippedPanel(skippedTests, t) : ''}
+
     <details class="panel collapsible-panel" open>
       <summary class="panel-summary">
         <h2>${escapeHtml(t.allTests)}</h2>
-        <span class="panel-toggle-label" aria-hidden="true">▼</span>
+        <svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+        </svg>
       </summary>
       <div class="panel-body filter-bar-panel" style="border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.15);">
         <div class="filter-controls">
@@ -367,7 +430,7 @@ function renderDashboard(report, isKo) {
     </section>
   </main>
 
-  <footer class="wrap">${escapeHtml(t.footer)}</footer>
+  <footer class="wrap" style="max-width: 1600px; margin: 0 auto; padding: 24px 30px 40px;">${escapeHtml(t.footer)}</footer>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -602,7 +665,9 @@ function renderSuite(suite, items, t) {
         <span>${escapeHtml(suite)}</span>
         <span><span class="badge ${status}">${escapeHtml(status)}</span> <span class="muted">${items.length} tests</span></span>
       </div>
-      <span class="suite-toggle-icon" aria-hidden="true">▼</span>
+      <svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+      </svg>
     </summary>
     <div class="suite-body">${renderResultsTable(items, t)}</div>
   </details>`;
@@ -792,7 +857,10 @@ function formatCoverageStatus(status, t) {
 }
 
 function kpi(label, value, tone = '') {
-  return `<div class="card"><div class="label">${escapeHtml(label)}</div><div class="value ${tone}">${escapeHtml(String(value))}</div></div>`;
+  return `<div class="kpi-card">
+    <div class="kpi-label">${escapeHtml(label)}</div>
+    <div class="kpi-value ${tone}">${escapeHtml(String(value))}</div>
+  </div>`;
 }
 
 function groupBy(values, getKey) {
