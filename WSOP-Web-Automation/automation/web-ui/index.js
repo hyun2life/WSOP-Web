@@ -291,6 +291,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (message.type === 'status') {
           updateExecutionStatus(message.status);
         }
+
+        if (message.type === 'phase-status' && message.phaseId) {
+          updatePhaseCardStatus(message.phaseId, message.status);
+        }
+
+        if (message.type === 'phase-statuses' && message.phaseStatuses) {
+          updateAllPhaseStatuses(message.phaseStatuses);
+        }
       } catch (err) {
         console.error('SSE message parsing error:', err);
       }
@@ -309,6 +317,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return res.json();
       })
       .then((data) => {
+        if (data.phaseStatuses) {
+          updateAllPhaseStatuses(data.phaseStatuses);
+        }
+
         if (data.isRunning && data.phaseId) {
           updateExecutionStatus('running');
 
@@ -340,6 +352,50 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch((err) => {
         console.error('Failed to restore running status:', err);
       });
+  }
+
+  function updatePhaseCardStatus(phaseId, status) {
+    const card = document.querySelector(`.phase-card[data-id="${phaseId}"]`);
+    if (!card) return;
+
+    card.classList.remove('running', 'success', 'failed');
+    if (status === 'running' || status === 'success' || status === 'failed') {
+      card.classList.add(status);
+    }
+
+    const badge = card.querySelector('.phase-badge');
+    if (badge) {
+      badge.classList.remove('ready', 'planned', 'running', 'success', 'failed');
+      
+      let badgeClass = status;
+      let badgeText = '준비됨';
+
+      if (status === 'ready') {
+        badgeClass = 'ready';
+        badgeText = '준비됨';
+      } else if (status === 'running') {
+        badgeClass = 'running';
+        badgeText = '진행중';
+      } else if (status === 'success') {
+        badgeClass = 'success';
+        badgeText = '통과';
+      } else if (status === 'failed') {
+        badgeClass = 'failed';
+        badgeText = '실패';
+      } else if (status === 'planned') {
+        badgeClass = 'planned';
+        badgeText = '예정';
+      }
+
+      badge.className = `phase-badge ${badgeClass}`;
+      badge.textContent = badgeText;
+    }
+  }
+
+  function updateAllPhaseStatuses(statuses) {
+    Object.entries(statuses).forEach(([phaseId, status]) => {
+      updatePhaseCardStatus(phaseId, status);
+    });
   }
 
   function appendConsoleLog(text) {
@@ -400,6 +456,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnRun.addEventListener('click', () => {
     if (!selectedPhase || isRunning) return;
+
+    // Reset all implemented phase cards to ready status
+    phases.forEach(p => {
+      if (p.implemented) {
+        updatePhaseCardStatus(p.id, 'ready');
+      }
+    });
+    updatePhaseCardStatus('crawler', 'ready');
 
     const mode = modeSelect.value;
     const customArgs = {};

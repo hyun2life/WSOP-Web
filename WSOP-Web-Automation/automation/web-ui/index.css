@@ -221,6 +221,56 @@ body {
   border: 1px solid var(--border-color);
 }
 
+.phase-badge.running {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.2);
+  animation: badge-pulse 2s infinite;
+}
+
+.phase-badge.success {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.phase-badge.failed {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: var(--accent-red);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+@keyframes badge-pulse {
+  0% { opacity: 0.8; }
+  50% { opacity: 1; filter: brightness(1.2); }
+  100% { opacity: 0.8; }
+}
+
+.phase-card.running {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.15) !important;
+}
+
+.phase-card.running::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background-color: #f59e0b;
+}
+
+.phase-card.success {
+  border-color: rgba(16, 185, 129, 0.25) !important;
+}
+
+.phase-card.failed {
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
 .phase-name {
   font-size: 0.86rem;
   color: var(--text-primary);

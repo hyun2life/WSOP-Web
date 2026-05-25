@@ -242,7 +242,9 @@ function renderDashboard(report, isKo) {
     .attachment { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; }
     
     .coverage-summary { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
-    .coverage-card { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .coverage-card { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: border-color 0.2s, transform 0.2s; }
+    .coverage-card.clickable-coverage-card { cursor: pointer; }
+    .coverage-card.clickable-coverage-card:hover { transform: translateY(-2px); border-color: var(--primary); }
     .coverage-card .label { color: var(--text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
     .coverage-card .value { font-size: 24px; font-weight: 800; margin-top: 6px; font-family: 'Outfit', sans-serif; }
     .coverage-card .value.pass { color: var(--success); }
@@ -250,7 +252,9 @@ function renderDashboard(report, isKo) {
     .coverage-card .value.fail { color: var(--danger); }
     
     .category-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
-    .category-pill { border: 1px solid var(--border); background: rgba(255,255,255,.03); border-radius: 999px; padding: 6px 10px; color: var(--text-muted); font-size: 12px; }
+    .category-pill { border: 1px solid var(--border); background: rgba(255,255,255,.03); border-radius: 999px; padding: 6px 14px; color: var(--text-muted); font-size: 12px; cursor: pointer; transition: all 0.2s; }
+    .category-pill:hover { border-color: var(--primary); color: var(--text-main); }
+    .category-pill.active { background: var(--primary); color: white; border-color: var(--primary); }
     
     .player-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
     .player-card { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 184px; display: flex; flex-direction: column; gap: 10px; }
@@ -310,6 +314,10 @@ function renderDashboard(report, isKo) {
       .coverage-summary, .player-card-grid { grid-template-columns: 1fr; }
       th, td { padding: 9px; }
     }
+    .scroll-top-btn { position: fixed; bottom: 30px; right: 30px; width: 45px; height: 45px; border-radius: 50%; background: var(--primary); color: white; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.3); opacity: 0; transform: translateY(10px); transition: opacity 0.3s, transform 0.3s; z-index: 100; outline: none; }
+    .scroll-top-btn.visible { opacity: 1; transform: translateY(0); }
+    .scroll-top-btn:hover { background: var(--primary-hover); transform: scale(1.05); }
+    .scroll-top-btn svg { width: 20px; height: 20px; fill: white; }
   </style>
 </head>
 <body>
@@ -544,8 +552,70 @@ function renderDashboard(report, isKo) {
           });
         });
       });
+
+      // 3. Player presentation coverage filtering
+      const covCards = document.querySelectorAll('.coverage-card[data-status-filter]');
+      const catPills = document.querySelectorAll('.category-pill[data-category-filter]');
+      const playerCards = document.querySelectorAll('.player-card');
+
+      let currentStatusFilter = 'all';
+      let currentCategoryFilter = 'all';
+
+      function filterPlayers() {
+        playerCards.forEach(card => {
+          const cat = card.getAttribute('data-category');
+          const stat = card.getAttribute('data-status');
+
+          // normalize stat for matching coverageStatus
+          // (player.status is 'pass', 'warn', 'fail' while filter types are 'pass', 'warn', 'fail')
+          const catMatch = currentCategoryFilter === 'all' || cat === currentCategoryFilter;
+          const statMatch = currentStatusFilter === 'all' || stat === currentStatusFilter;
+
+          if (catMatch && statMatch) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
+
+      covCards.forEach(card => {
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          covCards.forEach(c => c.style.borderColor = '');
+          const filter = card.getAttribute('data-status-filter');
+          currentStatusFilter = filter;
+          
+          if (filter !== 'all') {
+            card.style.borderColor = 'var(--primary)';
+          }
+          filterPlayers();
+        });
+      });
+
+      catPills.forEach(pill => {
+        pill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          catPills.forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          currentCategoryFilter = pill.getAttribute('data-category-filter');
+          filterPlayers();
+        });
+      });
+
+      // Scroll to top button visibility
+      const scrollTopBtn = document.getElementById('scroll-to-top');
+      if (scrollTopBtn) {
+        window.addEventListener('scroll', () => {
+          if (window.scrollY > 300) scrollTopBtn.classList.add('visible');
+          else scrollTopBtn.classList.remove('visible');
+        });
+      }
     });
   </script>
+  <button class="scroll-top-btn" id="scroll-to-top" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+    <svg viewBox="0 0 24 24"><path d="M7.41,18.41L6,17L12,11L18,17L16.59,18.41L12,13.83L7.41,18.41M7.41,12.41L6,11L12,5L18,11L16.59,12.41L12,7.83L7.41,12.41Z"/></svg>
+  </button>
 </body>
 </html>`;
 }
@@ -715,14 +785,15 @@ function renderPlayerPresentationCoverage(coverage, t) {
     <div class="panel-body">
       <div class="note">${escapeHtml(t.playerCoverageNote)}</div>
       <div class="coverage-summary" style="margin-top:18px">
-        ${coverageCard(t.coverageTotal, coverage.total)}
-        ${coverageCard(t.coveragePassed, coverage.passed, 'pass')}
-        ${coverageCard(t.coverageWarned, coverage.warned, coverage.warned ? 'warn' : '')}
-        ${coverageCard(t.coverageFailed, coverage.failed, coverage.failed ? 'fail' : '')}
+        ${coverageCard(t.coverageTotal, coverage.total, '', 'all')}
+        ${coverageCard(t.coveragePassed, coverage.passed, 'pass', 'pass')}
+        ${coverageCard(t.coverageWarned, coverage.warned, coverage.warned ? 'warn' : '', 'warn')}
+        ${coverageCard(t.coverageFailed, coverage.failed, coverage.failed ? 'fail' : '', 'fail')}
         ${coverageCard(t.coverageCategories, coverage.categories.length)}
       </div>
       <div class="category-strip">
-        ${coverage.categories.map((category) => `<span class="category-pill">${escapeHtml(category.name)}: ${escapeHtml(category.total)} (${escapeHtml(category.passed)}/${escapeHtml(category.warned)}/${escapeHtml(category.failed)})</span>`).join('')}
+        <span class="category-pill active" data-category-filter="all">${t.allTests || '전체'}</span>
+        ${coverage.categories.map((category) => `<span class="category-pill" data-category-filter="${escapeHtml(category.name)}">${escapeHtml(category.name)}: ${escapeHtml(category.total)} (${escapeHtml(category.passed)}/${escapeHtml(category.warned)}/${escapeHtml(category.failed)})</span>`).join('')}
       </div>
       <div class="player-card-grid">
         ${coverage.players.map((player) => renderCoveragePlayerCard(player, t)).join('')}
@@ -736,7 +807,7 @@ function renderCoveragePlayerCard(player, t) {
   const profileText = player.actualProfileUrl || player.expectedProfileUrl || '';
   const profileHref = toWsopUrl(profileText || player.expectedProfileUrl);
 
-  return `<article class="player-card ${escapeHtml(player.status)}">
+  return `<article class="player-card ${escapeHtml(player.status)}" data-category="${escapeHtml(player.category || 'Standings')}" data-status="${escapeHtml(player.status)}">
     <div class="player-card-top">
       <div>
         <div class="player-name">${escapeHtml(player.name)}</div>
@@ -841,8 +912,10 @@ function toWsopUrl(value) {
   }
 }
 
-function coverageCard(label, value, tone = '') {
-  return `<div class="coverage-card"><div class="label">${escapeHtml(label)}</div><div class="value ${tone}">${escapeHtml(String(value))}</div></div>`;
+function coverageCard(label, value, tone = '', filterType = '') {
+  const clickable = filterType ? 'clickable-coverage-card' : '';
+  const dataAttr = filterType ? `data-status-filter="${filterType}"` : '';
+  return `<div class="coverage-card ${clickable}" ${dataAttr}><div class="label">${escapeHtml(label)}</div><div class="value ${tone}">${escapeHtml(String(value))}</div></div>`;
 }
 
 function checkPill(label, ok) {

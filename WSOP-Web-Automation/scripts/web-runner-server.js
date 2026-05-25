@@ -13,6 +13,7 @@ const WEB_UI_DIR = path.join(PROJECT_ROOT, 'automation', 'web-ui');
 let activeProcess = null;
 let activePhaseId = null;
 let sseClients = [];
+let phaseStatuses = {};
 
 // Helper to strip ANSI codes from logs for clean terminal view
 function stripAnsi(str) {
@@ -138,6 +139,25 @@ const server = http.createServer((req, res) => {
           });
         }
 
+        // Reset phase statuses
+        phaseStatuses = {};
+        if (fs.existsSync(PHASES_JSON_PATH)) {
+          try {
+            const config = JSON.parse(fs.readFileSync(PHASES_JSON_PATH, 'utf8'));
+            (config.phases || []).forEach(p => {
+              if (p.implemented) {
+                phaseStatuses[p.id] = 'ready';
+              }
+            });
+          } catch (e) {
+            console.error('Failed to parse phases.json for resetting status:', e);
+          }
+        }
+        if (phaseId !== 'all') {
+          phaseStatuses[phaseId] = 'running';
+        }
+        sendToSse('phase-statuses', { phaseStatuses });
+
         sendToSse('status', { status: 'running', phaseId });
         sendToSse('log', { text: `[SERVER] Starting execution: node ${args.join(' ')}\n` });
 
@@ -153,14 +173,36 @@ const server = http.createServer((req, res) => {
         });
         activePhaseId = phaseId;
 
+        let stdoutBuf = '';
         activeProcess.stdout.on('data', data => {
           const text = stripAnsi(data.toString());
           sendToSse('log', { text });
+
+          stdoutBuf += text;
+          let lineEndIndex;
+          while ((lineEndIndex = stdoutBuf.indexOf('\n')) !== -1) {
+            const line = stdoutBuf.substring(0, lineEndIndex).trim();
+            stdoutBuf = stdoutBuf.substring(lineEndIndex + 1);
+            if (line) {
+              parseLineForPhaseStatus(line);
+            }
+          }
         });
 
+        let stderrBuf = '';
         activeProcess.stderr.on('data', data => {
           const text = stripAnsi(data.toString());
           sendToSse('log', { text });
+
+          stderrBuf += text;
+          let lineEndIndex;
+          while ((lineEndIndex = stderrBuf.indexOf('\n')) !== -1) {
+            const line = stderrBuf.substring(0, lineEndIndex).trim();
+            stderrBuf = stderrBuf.substring(lineEndIndex + 1);
+            if (line) {
+              parseLineForPhaseStatus(line);
+            }
+          }
         });
 
         activeProcess.on('error', err => {
@@ -173,7 +215,20 @@ const server = http.createServer((req, res) => {
         activeProcess.on('exit', (code, signal) => {
           const reason = signal ? `interrupted by ${signal}` : `exit code ${code}`;
           sendToSse('log', { text: `\n[SERVER] Process finished: ${reason}\n` });
-          sendToSse('status', { status: code === 0 ? 'success' : 'failed', code });
+          
+          const finalStatus = code === 0 ? 'success' : 'failed';
+          sendToSse('status', { status: finalStatus, code });
+
+          if (activePhaseId && activePhaseId !== 'all') {
+            updatePhaseStatus(activePhaseId, finalStatus);
+          } else if (activePhaseId === 'all') {
+            for (const pid in phaseStatuses) {
+              if (phaseStatuses[pid] === 'running') {
+                updatePhaseStatus(pid, finalStatus);
+              }
+            }
+          }
+
           activeProcess = null;
           activePhaseId = null;
         });
@@ -273,7 +328,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       isRunning: activeProcess !== null,
-      phaseId: activePhaseId
+      phaseId: activePhaseId,
+      phaseStatuses: phaseStatuses
     }));
     return;
   }
@@ -357,3 +413,36 @@ server.listen(PORT, HOST, () => {
     });
   }
 });
+
+function parseLineForPhaseStatus(line) {
+  // 1. Start check
+  let match = line.match(/Running\s+(phase\d+|crawler)\s*:/i) || 
+              line.match(/Starting:\s*(phase\d+|crawler)/i);
+  if (match) {
+    const phaseId = match[1].toLowerCase();
+    updatePhaseStatus(phaseId, 'running');
+    return;
+  }
+  
+  // 2. Success check
+  match = line.match(/\[SUCCESS\]\s*(phase\d+|crawler)\s+completed/i);
+  if (match) {
+    const phaseId = match[1].toLowerCase();
+    updatePhaseStatus(phaseId, 'success');
+    return;
+  }
+  
+  // 3. Failed check
+  match = line.match(/\[ERROR\]\s*(phase\d+|crawler)\s+failed/i) || 
+          line.match(/Execution\s+failed\s+for\s*(phase\d+|crawler)/i);
+  if (match) {
+    const phaseId = match[1].toLowerCase();
+    updatePhaseStatus(phaseId, 'failed');
+    return;
+  }
+}
+
+function updatePhaseStatus(phaseId, status) {
+  phaseStatuses[phaseId] = status;
+  sendToSse('phase-status', { phaseId, status });
+}
