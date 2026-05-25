@@ -111,6 +111,7 @@ function runPhasePromise(phase, rawArgs) {
     const env = {
       ...process.env,
       WSOP_REPORT_SUITE: phase.reportSuite,
+      WSOP_NO_PAUSE: 'true',
     };
 
     if (phase.runnerType === 'batch') {

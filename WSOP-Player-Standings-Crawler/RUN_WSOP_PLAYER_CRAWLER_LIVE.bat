@@ -24,6 +24,8 @@ if "%RESULT_PAGE_LIMIT%"=="" set "RESULT_PAGE_LIMIT=0"
 if "%DISABLED_RESULT_MODE%"=="" set "DISABLED_RESULT_MODE=skip"
 if "%CONCURRENCY%"=="" set "CONCURRENCY=10"
 if "%AUTH_WAIT_MS%"=="" set "AUTH_WAIT_MS=300000"
+rem WSOP_NO_PAUSE: true to skip pausing at the end (for automation runners)
+if "%WSOP_NO_PAUSE%"=="" set "WSOP_NO_PAUSE=false"
 
 echo ============================================
 echo WSOP LIVE Player Standings Crawler (Improved)
@@ -84,5 +86,5 @@ if "%EXIT_CODE%"=="0" (
 )
 
 echo.
-pause
+if not "%WSOP_NO_PAUSE%"=="true" pause
 exit /b %EXIT_CODE%

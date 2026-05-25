@@ -48,6 +48,11 @@ set "DISABLED_RESULT_MODE=skip"
 set "CONCURRENCY=8"
 ```
 
+또한, 대시보드나 CI/CD 환경처럼 무인 자동화 빌드를 실행할 때 배치 파일 마지막에서 입력 대기(`pause`)하지 않고 즉시 종료되도록 하기 위해 `WSOP_NO_PAUSE` 환경변수를 설정할 수 있습니다.
+```bat
+set "WSOP_NO_PAUSE=true"
+```
+
 정합성을 높이고 싶으면 `RESULT_LIMIT=0`, `RESULT_PAGE_LIMIT=0`, `MAX_LOAD_MORE=100` 이상을 유지하는 것을 권장합니다. 빠른 동작 확인만 할 때만 값을 줄이세요.
 
 ## 브라우저 표시 여부
