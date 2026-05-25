@@ -19,5 +19,30 @@ if errorlevel 1 (
   exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'node' -ArgumentList 'scripts\web-runner-server.js' -WorkingDirectory (Join-Path '%~dp0' 'WSOP-Web-Automation') -WindowStyle Hidden"
+rem 1. Check if port 3000 is already in use
+netstat -ano | findstr :3000 >nul 2>&1
+if %errorlevel% equ 0 (
+  echo [INFO] Dashboard server is already running on port 3000.
+  echo Opening dashboard in browser...
+  start http://localhost:3000
+  exit /b 0
+)
+
+rem 2. Start the server in a minimized cmd window so user can see it's active and check logs if needed
+echo [INFO] Starting WSOP Web Dashboard server...
+start /min "WSOP Web Dashboard" cmd /k "cd WSOP-Web-Automation && node scripts\web-runner-server.js"
+
+rem 3. Wait a moment for server to initialize
+timeout /t 2 /nobreak >nul
+
+rem 4. Verify if port 3000 is open now, and launch browser
+netstat -ano | findstr :3000 >nul 2>&1
+if %errorlevel% equ 0 (
+  echo [SUCCESS] Dashboard server started successfully.
+  start http://localhost:3000
+) else (
+  echo [WARNING] Server was started, but port 3000 is not active yet.
+  echo Please open http://localhost:3000 manually if the browser does not open.
+)
+
 exit /b 0
