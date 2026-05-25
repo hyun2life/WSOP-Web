@@ -1,0 +1,27 @@
+[
+  {
+    "displayName": "Daniel Negreanu",
+    "searchKeyword": "Daniel Negreanu",
+    "profileUrl": "/players/daniel-negreanu/",
+    "poyYears": [2004, 2013],
+    "knownExceptionKey": "daniel-negreanu"
+  },
+  {
+    "displayName": "Shaun Deeb",
+    "searchKeyword": "Shaun Deeb",
+    "profileUrl": "/players/shaun-deeb/",
+    "poyYears": [2018]
+  },
+  {
+    "displayName": "Scott Seiver",
+    "searchKeyword": "Scott Seiver",
+    "profileUrl": "/players/scott-seiver/",
+    "poyYears": [2024]
+  },
+  {
+    "displayName": "Ian Matakis",
+    "searchKeyword": "Ian Matakis",
+    "profileUrl": "/players/ian-matakis/",
+    "poyYears": [2023]
+  }
+]

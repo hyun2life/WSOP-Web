@@ -1,0 +1,11 @@
+{
+  "daniel-negreanu": {
+    "reason": "Daniel Negreanu may appear in multiple contexts such as All-Time Earnings, POY, Hall of Fame, and profile biography. Search/result uniqueness rules may need special handling.",
+    "allowMultipleContextMentions": true,
+    "requireSingleProfileTarget": true
+  },
+  "stage-avatar-missing": {
+    "reason": "Stage environment may not expose the same avatar assets as production. Treat missing avatar as warning when ENVIRONMENT=stage.",
+    "warningOnly": true
+  }
+}

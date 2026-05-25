@@ -1,0 +1,33 @@
+[
+  {
+    "displayName": "Doyle Brunson",
+    "searchKeyword": "Doyle Brunson",
+    "profileUrl": "/players/doyle-brunson/"
+  },
+  {
+    "displayName": "Johnny Chan",
+    "searchKeyword": "Johnny Chan",
+    "profileUrl": "/players/johnny-chan/"
+  },
+  {
+    "displayName": "Phil Hellmuth",
+    "searchKeyword": "Phil Hellmuth",
+    "profileUrl": "/players/phil-hellmuth/"
+  },
+  {
+    "displayName": "Phil Ivey",
+    "searchKeyword": "Phil Ivey",
+    "profileUrl": "/players/phil-ivey/"
+  },
+  {
+    "displayName": "Erik Seidel",
+    "searchKeyword": "Erik Seidel",
+    "profileUrl": "/players/erik-seidel/"
+  },
+  {
+    "displayName": "Daniel Negreanu",
+    "searchKeyword": "Daniel Negreanu",
+    "profileUrl": "/players/daniel-negreanu/",
+    "knownExceptionKey": "daniel-negreanu"
+  }
+]

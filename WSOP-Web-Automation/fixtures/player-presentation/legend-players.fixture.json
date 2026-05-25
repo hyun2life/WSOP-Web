@@ -1,0 +1,73 @@
+[
+  {
+    "displayName": "Phil Hellmuth",
+    "searchKeyword": "Phil Hellmuth",
+    "profileUrl": "/players/phil-hellmuth/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Bracelets", "Hall of Fame"]
+  },
+  {
+    "displayName": "Daniel Negreanu",
+    "searchKeyword": "Daniel Negreanu",
+    "profileUrl": "/players/daniel-negreanu/",
+    "expectedCountry": "Canada",
+    "expectedMarks": ["Player of the Year", "Hall of Fame"],
+    "knownExceptionKey": "daniel-negreanu"
+  },
+  {
+    "displayName": "Phil Ivey",
+    "searchKeyword": "Phil Ivey",
+    "profileUrl": "/players/phil-ivey/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Bracelets", "Hall of Fame"]
+  },
+  {
+    "displayName": "Doyle Brunson",
+    "searchKeyword": "Doyle Brunson",
+    "profileUrl": "/players/doyle-brunson/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"]
+  },
+  {
+    "displayName": "Johnny Chan",
+    "searchKeyword": "Johnny Chan",
+    "profileUrl": "/players/johnny-chan/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"]
+  },
+  {
+    "displayName": "Erik Seidel",
+    "searchKeyword": "Erik Seidel",
+    "profileUrl": "/players/erik-seidel/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"]
+  },
+  {
+    "displayName": "Johnny Moss",
+    "searchKeyword": "Johnny Moss",
+    "profileUrl": "/players/johnny-moss/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"]
+  },
+  {
+    "displayName": "Antonio Esfandiari",
+    "searchKeyword": "Antonio Esfandiari",
+    "profileUrl": "/players/antonio-esfandiari/",
+    "expectedCountry": "United States",
+    "expectedMarks": []
+  },
+  {
+    "displayName": "Michael Mizrachi",
+    "searchKeyword": "Michael Mizrachi",
+    "profileUrl": "/players/michael-mizrachi/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Bracelets"]
+  },
+  {
+    "displayName": "Vanessa Selbst",
+    "searchKeyword": "Vanessa Selbst",
+    "profileUrl": "/players/vanessa-selbst/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Bracelets"]
+  }
+]

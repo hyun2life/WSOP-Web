@@ -1,0 +1,105 @@
+{
+  "phases": [
+    {
+      "id": "phase1",
+      "aliases": ["smoke", "p1"],
+      "name": "Public page smoke",
+      "reportSuite": "smoke",
+      "testDir": "tests/smoke",
+      "project": "chromium-desktop",
+      "implemented": true,
+      "description": "Public page access, core content, navigation, console errors, and sampled internal links."
+    },
+    {
+      "id": "phase2",
+      "aliases": ["functional", "p2"],
+      "name": "Public functional flows",
+      "reportSuite": "functional",
+      "testDir": "tests/functional",
+      "project": "chromium-desktop",
+      "implemented": true,
+      "description": "Tournament schedule, player search, standings, and news user exploration flows."
+    },
+    {
+      "id": "phase3",
+      "aliases": ["player-presentation", "player-ui", "identity-ui", "presentation", "p3"],
+      "name": "Player Presentation & Identity UI",
+      "reportSuite": "player-presentation",
+      "testDir": "tests/player-presentation",
+      "project": "chromium-desktop",
+      "implemented": true,
+      "description": "Validates player identity presentation, flags, avatars, badges, Hall of Fame, POY, and profile linking without DB/API value checks."
+    },
+    {
+      "id": "phase4",
+      "aliases": ["search-filter-sort", "p4"],
+      "name": "Search, filter, and sort depth",
+      "reportSuite": "search-filter-sort",
+      "testDir": "tests/search-filter-sort",
+      "project": "chromium-desktop",
+      "implemented": false,
+      "description": "Reserved for deeper filter, sort, pagination, and search behavior checks."
+    },
+    {
+      "id": "phase5",
+      "aliases": ["result-detail", "p5"],
+      "name": "Result detail integrity",
+      "reportSuite": "result-detail",
+      "testDir": "tests/result-detail",
+      "project": "chromium-desktop",
+      "implemented": false,
+      "description": "Reserved for tournament/result detail page validation."
+    },
+    {
+      "id": "phase6",
+      "aliases": ["data-integrity", "api-integrity", "p6"],
+      "name": "Data and API integrity",
+      "reportSuite": "data-integrity",
+      "testDir": "tests/data-integrity",
+      "project": "chromium-desktop",
+      "implemented": false,
+      "description": "Reserved for DB/API consistency, playerId/onepassId mapping, and calculated value checks against public UI data."
+    },
+    {
+      "id": "phase7",
+      "aliases": ["performance-stability", "p7"],
+      "name": "Performance and stability",
+      "reportSuite": "performance-stability",
+      "testDir": "tests/performance-stability",
+      "project": "chromium-desktop",
+      "implemented": false,
+      "description": "Reserved for basic load timing, retry, stability, and error budget checks."
+    },
+    {
+      "id": "phase8",
+      "aliases": ["visual-regression", "p8"],
+      "name": "Visual regression",
+      "reportSuite": "visual-regression",
+      "testDir": "tests/visual-regression",
+      "project": "chromium-desktop",
+      "implemented": false,
+      "description": "Reserved for screenshot baseline and layout regression checks."
+    },
+    {
+      "id": "phase9",
+      "aliases": ["regression", "full-regression", "p9"],
+      "name": "Full regression suite",
+      "reportSuite": "regression",
+      "testDir": "tests/regression",
+      "project": "chromium-desktop",
+      "implemented": false,
+      "description": "Reserved for curated release regression coverage across prior phases."
+    },
+    {
+      "id": "crawler",
+      "aliases": ["crawler", "player-crawler"],
+      "name": "Player Standings Crawler",
+      "reportSuite": "crawler",
+      "testDir": "../WSOP-Player-Standings-Crawler",
+      "implemented": true,
+      "runnerType": "batch",
+      "scriptPath": "RUN_WSOP_PLAYER_CRAWLER_LIVE.bat",
+      "description": "Runs player standings crawler automation script to collect latest rankings and verify DB."
+    }
+  ]
+}

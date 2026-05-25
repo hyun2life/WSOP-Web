@@ -1,0 +1,715 @@
+/* ==========================================================================
+   Design Tokens & Color Palette
+   ========================================================================== */
+:root {
+  --bg-app: #0d1117;
+  --bg-sidebar: #090c10;
+  --bg-card: #151b23;
+  --bg-input: #080b0f;
+  --border-color: #30363d;
+  --border-focus: rgba(214, 31, 44, 0.4);
+
+  /* Accent Colors */
+  --accent-purple: #d61f2c;
+  --accent-purple-glow: rgba(214, 31, 44, 0.22);
+  
+  --accent-green: #2ea043;
+  --accent-green-glow: rgba(16, 185, 129, 0.2);
+
+  --accent-blue: #58a6ff;
+  
+  --accent-red: #f85149;
+  --accent-red-glow: rgba(239, 68, 68, 0.25);
+
+  /* Text Colors */
+  --text-primary: #f0f6fc;
+  --text-muted: #8b949e;
+  --text-dimmed: #6e7681;
+
+  /* Fonts */
+  --font-primary: 'Outfit', sans-serif;
+  --font-terminal: 'JetBrains Mono', monospace;
+
+  /* Dimensions */
+  --sidebar-width: 280px;
+  --card-radius: 8px;
+  --button-radius: 8px;
+}
+
+/* ==========================================================================
+   Global Reset & Base Setup
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-primary);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Custom Scrollbar Styles for Modern Feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ==========================================================================
+   App Container & Layout Grid
+   ========================================================================== */
+.app-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* 1. Sidebar Panel */
+.sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.brand {
+  position: relative;
+  margin-bottom: 20px;
+  padding: 10px 0;
+}
+
+.brand-glow {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, rgba(214, 31, 44, 0.22), rgba(247, 201, 72, 0.08));
+  border-radius: 8px;
+  z-index: -1;
+}
+
+#brand-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #ffffff 35%, #f7c948 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 2px;
+}
+
+#brand-subtitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dimmed);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-color) 0%, transparent 100%);
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* Phase Cards Navigation */
+.phase-list {
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.phase-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.phase-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.phase-card.active {
+  background: linear-gradient(135deg, rgba(214, 31, 44, 0.12) 0%, rgba(247, 201, 72, 0.04) 100%);
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 16px var(--accent-purple-glow);
+}
+
+.phase-card.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background-color: var(--accent-purple);
+}
+
+.phase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.phase-id {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.phase-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.phase-badge.ready {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.phase-badge.planned {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+.phase-name {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loading-spinner {
+  text-align: center;
+  color: var(--text-dimmed);
+  font-size: 0.85rem;
+  padding: 40px 0;
+}
+
+/* 2. Main Content Area */
+.main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 24px;
+  gap: 24px;
+  overflow-y: auto;
+}
+
+/* ==========================================================================
+   Shared Card Component (Glassmorphism UI)
+   ========================================================================== */
+.card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  padding: 20px;
+  transition: border-color 0.3s;
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.card-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin-bottom: 16px;
+}
+
+/* Upper Section: Details & Options Control Panel */
+.control-panel {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 24px;
+  min-height: 380px;
+}
+
+/* Left Card: Details Card */
+.details-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.details-content {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px 24px;
+  flex-grow: 1;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-item.full-width {
+  grid-column: span 2;
+}
+
+.detail-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-dimmed);
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.detail-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+/* Right Card: Settings Card */
+.settings-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex-grow: 1;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+/* Select Form Box Override */
+.custom-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.form-select {
+  width: 100%;
+  padding: 10px 14px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--button-radius);
+  color: var(--text-primary);
+  font-family: var(--font-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  transition: all 0.2s;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 10px var(--accent-purple-glow);
+}
+
+.custom-select-wrapper::after {
+  content: '▼';
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* Dynamic Option Panel Lists */
+.options-container {
+  min-height: 140px;
+}
+
+.options-panel-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-dimmed);
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+}
+
+.option-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+/* Custom Checkbox Toggle Styles */
+.custom-checkbox {
+  display: flex;
+  align-items: center;
+  position: relative;
+  padding-left: 24px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  user-select: none;
+}
+
+.custom-checkbox input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkmark {
+  position: absolute;
+  left: 0;
+  height: 16px;
+  width: 16px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.custom-checkbox:hover input ~ .checkmark {
+  border-color: var(--accent-purple);
+}
+
+.custom-checkbox input:checked ~ .checkmark {
+  background-color: var(--accent-purple);
+  border-color: var(--accent-purple);
+}
+
+.checkmark::after {
+  content: "";
+  position: absolute;
+  display: none;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.custom-checkbox input:checked ~ .checkmark::after {
+  display: block;
+}
+
+.form-input {
+  width: 90px;
+  padding: 4px 8px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: var(--font-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-purple);
+}
+
+.form-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background-color: transparent;
+}
+
+/* ==========================================================================
+   Button Classes
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 16px;
+  font-family: var(--font-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: var(--button-radius);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-buttons-group {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-run {
+  flex-grow: 1;
+  background: linear-gradient(135deg, var(--accent-green) 0%, hsl(150, 80%, 40%) 100%);
+  color: #03150d;
+  box-shadow: 0 4px 14px var(--accent-green-glow);
+}
+
+.btn-run:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+}
+
+.btn-run:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-kill {
+  background: linear-gradient(135deg, var(--accent-red) 0%, hsl(350, 80%, 48%) 100%);
+  color: white;
+  box-shadow: 0 4px 14px var(--accent-red-glow);
+}
+
+.btn-kill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.35);
+}
+
+/* Report Action Buttons Grid */
+.report-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.btn-report {
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: var(--accent-blue);
+  font-size: 0.82rem;
+  padding: 8px 12px;
+}
+
+.btn-report:hover:not(:disabled) {
+  background-color: var(--accent-blue);
+  color: #010613;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+}
+
+.btn-report:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* ==========================================================================
+   Lower Section: Console Terminal
+   ========================================================================== */
+.console-section {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.console-card {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.console-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.console-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--text-dimmed);
+  border-radius: 50%;
+  transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+/* Live dynamic status colors */
+.status-indicator.running .status-dot {
+  background-color: var(--accent-blue);
+  box-shadow: 0 0 8px var(--accent-blue);
+  animation: pulse-dot 1.5s infinite;
+}
+.status-indicator.success .status-dot {
+  background-color: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+}
+.status-indicator.failed .status-dot {
+  background-color: var(--accent-red);
+  box-shadow: 0 0 8px var(--accent-red);
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.btn-console {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-family: var(--font-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-console:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Console Window Body - Cyberpunk Terminal Style */
+.console-body {
+  flex-grow: 1;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-y: auto;
+  font-family: var(--font-terminal);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.console-line {
+  margin-bottom: 2px;
+  color: var(--accent-green); /* Emerald Default Terminal Text */
+}
+
+/* Log output level styling */
+.text-muted { color: var(--text-dimmed); }
+.text-accent { color: var(--accent-purple); }
+.text-error { color: var(--accent-red); }
+.text-info { color: var(--accent-blue); }
+.text-system { color: #f59e0b; /* Amber */ }
+
+/* Helper classes */
+.hidden {
+  display: none !important;
+}

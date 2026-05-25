@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WSOP Web Automation Dashboard</title>
+  <!-- Modern Premium Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+
+  <div class="app-container">
+
+    <!-- 1. Left Sidebar: Target Phases -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-glow"></div>
+        <h1 id="brand-title">WSOP Web</h1>
+        <p id="brand-subtitle">Automation Console</p>
+      </div>
+      <div class="sidebar-divider"></div>
+      <h2 class="section-title">검증 단계</h2>
+      <div class="phase-list" id="phase-list-container">
+        <!-- Dynamically rendered phase cards will appear here -->
+        <div class="loading-spinner">페이즈 데이터 로딩 중...</div>
+      </div>
+      <!-- Shutdown Footer -->
+      <div class="sidebar-footer" style="margin-top: auto; padding-top: 15px; border-top: 1px solid var(--border-color);">
+        <button id="btn-shutdown" class="btn btn-shutdown" style="width: 100%; background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.03) 100%); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--accent-red); font-size: 0.85rem; padding: 10px 0; border-radius: var(--button-radius); transition: all 0.2s; cursor: pointer;">대시보드 종료</button>
+      </div>
+    </aside>
+
+    <!-- 2. Main Content Area -->
+    <main class="main-content">
+
+      <!-- Upper Section: Settings & Controls -->
+      <section class="control-panel">
+
+        <!-- Left Column: Details Card -->
+        <div class="card details-card">
+          <h2 class="card-title">단계 정보</h2>
+          <div class="card-divider"></div>
+          <div class="details-content">
+            <div class="detail-item">
+              <span class="detail-label">Phase ID</span>
+              <span class="detail-value" id="detail-id">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Suite Name</span>
+              <span class="detail-value text-accent" id="detail-name">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Report Suite</span>
+              <span class="detail-value" id="detail-report">-</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Test Directory</span>
+              <span class="detail-value text-muted" id="detail-dir">-</span>
+            </div>
+            <div class="detail-item full-width">
+              <span class="detail-label">Description</span>
+              <p class="detail-desc" id="detail-desc">페이즈를 선택하면 세부 정보가 표시됩니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Settings Card -->
+        <div class="card settings-card">
+          <h2 class="card-title">실행 설정</h2>
+          <div class="card-divider"></div>
+
+          <div class="settings-form">
+            <!-- Target Environment Selection -->
+            <div class="form-group">
+              <label for="env-select" class="form-label">Target Environment</label>
+              <div class="custom-select-wrapper">
+                <select id="env-select" class="form-select">
+                  <option value="Live" selected>Live (https://www.wsop.com/)</option>
+                  <option value="Stage">Stage (https://wsop-stage.ggnweb.com)</option>
+                  <option value="Custom">Custom URL...</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Custom URL Input (Only visible when Custom is selected) -->
+            <div id="custom-env-url-container" class="form-group hidden" style="margin-top: 4px;">
+              <label for="custom-env-url" class="form-label">Custom Environment URL</label>
+              <input type="url" id="custom-env-url" class="form-input" placeholder="https://example.com" style="width: 100%; text-align: left; padding: 10px 14px; border-radius: var(--button-radius);">
+            </div>
+
+            <!-- Execution Mode Combo -->
+            <div class="form-group">
+              <label for="mode-select" class="form-label">Execution Mode</label>
+              <div class="custom-select-wrapper">
+                <select id="mode-select" class="form-select">
+                  <option value="Normal" selected>Normal (Headless)</option>
+                  <option value="Headed">Headed (Browser Open)</option>
+                  <option value="UI">UI (Playwright GUI)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Dynamic Overridable Options Panel -->
+            <div class="options-container">
+
+              <!-- A. Crawler Options (Only visible for crawler) -->
+              <div id="crawler-options" class="options-panel hidden">
+                <span class="options-panel-title">Crawler Options</span>
+                <div class="options-grid">
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-limit-check">
+                      <span class="checkmark"></span>
+                      Limit Players
+                    </label>
+                    <input type="number" id="opt-limit-input" value="10" min="1" disabled class="form-input">
+                  </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-auth-check">
+                      <span class="checkmark"></span>
+                      Auth Wait (ms)
+                    </label>
+                    <input type="number" id="opt-auth-input" value="300000" min="1000" disabled class="form-input">
+                  </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-concurrency-check">
+                      <span class="checkmark"></span>
+                      Concurrency
+                    </label>
+                    <input type="number" id="opt-concurrency-input" value="10" min="1" disabled class="form-input">
+                  </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-reslimit-check">
+                      <span class="checkmark"></span>
+                      Result Limit
+                    </label>
+                    <input type="number" id="opt-reslimit-input" value="0" min="0" disabled class="form-input">
+                  </div>
+                </div>
+              </div>
+
+              <!-- B. Playwright Options (Visible for non-crawler, non-all) -->
+              <div id="pw-options" class="options-panel hidden">
+                <span class="options-panel-title">Playwright Options</span>
+                <div class="options-grid">
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-grep-check">
+                      <span class="checkmark"></span>
+                      Grep Filter
+                    </label>
+                    <input type="text" id="opt-grep-input" value="schedule" disabled class="form-input">
+                  </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-timeout-check">
+                      <span class="checkmark"></span>
+                      Timeout (ms)
+                    </label>
+                    <input type="number" id="opt-timeout-input" value="30000" min="1000" disabled class="form-input">
+                  </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-repeat-check">
+                      <span class="checkmark"></span>
+                      Repeat Each
+                    </label>
+                    <input type="number" id="opt-repeat-input" value="1" min="1" disabled class="form-input">
+                  </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-retries-check">
+                      <span class="checkmark"></span>
+                      Retries Limit
+                    </label>
+                    <input type="number" id="opt-retries-input" value="0" min="0" disabled class="form-input">
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Action Buttons Group -->
+            <div class="action-buttons-group">
+              <button id="btn-run" class="btn btn-run" disabled>선택 단계 실행</button>
+              <button id="btn-kill" class="btn btn-kill hidden">중지</button>
+            </div>
+
+            <!-- Utility Divider -->
+            <div class="card-divider" style="margin: 15px 0;"></div>
+
+            <!-- Report Operations Panel -->
+            <div class="reports-section">
+              <span class="form-label" style="margin-bottom: 8px; display: block;">Report Utilities</span>
+              <div class="report-buttons-grid">
+                <button id="btn-report-ko" class="btn btn-report" disabled>KO Report</button>
+                <button id="btn-report-en" class="btn btn-report" disabled>EN Report</button>
+                <button id="btn-report-pw" class="btn btn-report" disabled>PW Report</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Lower Section: Console Log Output -->
+      <section class="console-section">
+        <div class="card console-card">
+          <div class="console-header">
+            <h2 class="card-title" style="margin-bottom: 0;">실시간 실행 로그</h2>
+            <div class="console-actions">
+              <span class="status-indicator" id="status-indicator"><span class="status-dot"></span>Ready</span>
+              <button id="btn-clear-log" class="btn-console">Clear</button>
+              <button id="btn-copy-log" class="btn-console">Copy</button>
+            </div>
+          </div>
+          <div class="console-body" id="console-output">
+            <div class="console-line text-muted">[SYSTEM] WSOP Web Automation Console ready. Select a phase to begin.</div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <script src="index.js"></script>
+</body>
+
+</html>

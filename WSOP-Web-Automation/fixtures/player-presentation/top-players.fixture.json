@@ -1,0 +1,38 @@
+[
+  {
+    "displayName": "Daniel Negreanu",
+    "searchKeyword": "Daniel Negreanu",
+    "profileUrl": "/players/daniel-negreanu/",
+    "expectedCountry": "Canada",
+    "identityType": ["top-earnings", "poy-known"],
+    "knownExceptionKey": "daniel-negreanu"
+  },
+  {
+    "displayName": "Phil Hellmuth",
+    "searchKeyword": "Phil Hellmuth",
+    "profileUrl": "/players/phil-hellmuth/",
+    "expectedCountry": "United States",
+    "identityType": ["top-bracelets", "hof-known"]
+  },
+  {
+    "displayName": "Phil Ivey",
+    "searchKeyword": "Phil Ivey",
+    "profileUrl": "/players/phil-ivey/",
+    "expectedCountry": "United States",
+    "identityType": ["top-earnings", "hof-known"]
+  },
+  {
+    "displayName": "Michael Mizrachi",
+    "searchKeyword": "Michael Mizrachi",
+    "profileUrl": "/players/michael-mizrachi/",
+    "expectedCountry": "United States",
+    "identityType": ["top-earnings", "bracelets-known"]
+  },
+  {
+    "displayName": "Kristen Foxen",
+    "searchKeyword": "Kristen Foxen",
+    "profileUrl": "/players/kristen-foxen/",
+    "expectedCountry": "Canada",
+    "identityType": ["top-women", "bracelets-known"]
+  }
+]

@@ -1,0 +1,9 @@
+**/node_modules/
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/automation/.auth/
+**/automation/output/
+**/.tmp-playwright/
+**/.env
+**/.env.*

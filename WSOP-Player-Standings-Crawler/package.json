@@ -1,0 +1,16 @@
+{
+  "name": "wsop-player-standings-crawler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "crawl": "node automation/crawl_player_standings.mjs",
+    "crawl:headed": "node automation/crawl_player_standings.mjs --headed",
+    "crawl:headless": "node automation/crawl_player_standings.mjs",
+    "crawl:ui": "cmd /C \"set PWDEBUG=1&&node automation/crawl_player_standings.mjs --headed\"",
+    "crawl:self-test": "node automation/crawl_player_standings.mjs --self-test"
+  },
+  "dependencies": {
+    "playwright": "1.60.0"
+  }
+}
