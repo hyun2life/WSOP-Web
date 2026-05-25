@@ -57,7 +57,7 @@ test.describe('Phase 3 - standings top player presentation', () => {
   });
 
   test('crawler standings target rows expose player identity UI', async ({ page }, testInfo) => {
-    const crawlerTargets = loadLatestCrawlerStandingTargets();
+    const crawlerTargets = loadCrawlerStandingTargetsFromRecentOutput();
     expect(
       crawlerTargets.length,
       `A recent crawler standings target file should expose at least ${MIN_STANDING_TARGETS_FOR_PHASE3} targets for Phase 3 UI validation`,
@@ -200,7 +200,7 @@ async function attachCrawlerCoverage(testInfo: TestInfo, coverage: CrawlerStandi
       JSON.stringify(
         {
           generatedAt: new Date().toISOString(),
-          source: 'latest crawler standings output',
+          source: 'selected crawler standings output with sufficient targets',
           total: coverage.length,
           passed: coverage.filter((item) => item.status === 'pass').length,
           warned: coverage.filter((item) => item.status === 'warn').length,
@@ -273,7 +273,7 @@ async function collectStandingRowUi(row: Locator, target: CrawlerStandingTarget)
   };
 }
 
-function loadLatestCrawlerStandingTargets(): CrawlerStandingTarget[] {
+function loadCrawlerStandingTargetsFromRecentOutput(): CrawlerStandingTarget[] {
   const outputDir = path.resolve(process.cwd(), '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
   if (!fs.existsSync(outputDir)) {
     return [];

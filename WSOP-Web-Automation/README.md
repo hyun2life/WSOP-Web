@@ -240,7 +240,7 @@ automation/output/
 검증 범위:
 
 - Player Standings 상위 플레이어 노출 및 profile 연결
-- Player Standings UI는 최신 `WSOP-Player-Standings-Crawler/automation/output/*-data.json`의 `players[].standingsSources[]`를 기준으로, 크롤러가 수집한 standings target들이 각 source category에서 이름, profile link, 국가/국기 후보로 보이는지 확인
+- Player Standings UI는 `WSOP-Player-Standings-Crawler/automation/output/*-data.json` 중 충분한 standings target을 포함한 최근 파일의 `players[].standingsSources[]`를 기준으로, 크롤러가 수집한 standings target들이 각 source category에서 이름, profile link, 국가/국기 후보로 보이는지 확인
 - Player Search에서 모든 플레이어를 전수 입력하지 않고, fixture에 정의한 대표 탑랭커 중심으로 이름 입력 시 검색창 하단 자동완성 row와 검색 결과에 해당 인물이 노출되는지 확인
 - Player Profile의 이름, 국가/국기, avatar/profile image 후보 확인
 - Hall of Fame, Player of the Year, 내부 Legend 그룹의 주요 플레이어 표현 확인
@@ -271,7 +271,7 @@ utils/playerPresentation/
 
 Standings UI 검증은 크롤러 산출물이 있으면 해당 산출물 중 충분한 standings target을 포함한 최신 `*-data.json`을 사용합니다. 이 기준은 크롤러가 실제 Result 상세 검증 대상으로 삼은 스탠딩 TOP 인원과 Phase 3 UI 검증 대상을 맞추기 위한 것입니다. 단, Phase 3 자체는 Result 상세 크롤링을 필요로 하지 않으므로 매번 full crawler를 오래 돌릴 필요는 없습니다. 중간에 중단된 부분 output처럼 target 수가 너무 적은 파일은 Phase 3 기준에서 제외합니다.
 
-Phase 3 custom 리포트는 크롤러 리포트와 같은 판단 흐름을 따르도록, 최신 크롤러 대상자 기준의 **플레이어 UI 커버리지 카드**를 포함합니다. 각 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. `국가/국기`까지는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
+Phase 3 custom 리포트는 크롤러 리포트와 같은 판단 흐름을 따르도록, 충분한 standings target을 포함한 크롤러 대상자 기준의 **플레이어 UI 커버리지 카드**를 포함합니다. 각 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. `국가/국기`까지는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
 
 ## Phase registry
 
@@ -382,7 +382,7 @@ Run.bat
 
 - public site의 접근성 role/name이 바뀔 수 있어 role 기반 selector를 우선 사용하되, 필요 시 `a[href*="..."]` 및 `filter({ hasText })` 기반 selector를 함께 사용합니다.
 - News와 Schedule은 live content가 계속 바뀌므로 fixed title 검증 대신 list에서 읽은 제목/이벤트명을 detail에서 다시 확인합니다.
-- Player Search 결과가 동적 검색으로 즉시 필터링되지 않을 수 있어 `Phil Hellmuth` link 우선, 현재 노출된 첫 player link fallback 순서로 검증합니다.
+- Phase 2 functional의 Player Search 결과는 동적 검색으로 즉시 필터링되지 않을 수 있어 `Phil Hellmuth` link 우선, 현재 노출된 첫 player link fallback 순서로 검증합니다.
 - Phase 3의 Player Search identity 검증은 모든 사용자를 전수 검색하지 않고 `fixtures/player-presentation/top-players.fixture.json`의 대표 탑랭커 샘플을 기준으로 합니다. 이름 입력 후 검색창 하단 `.autocomplete-container`의 suggestion row에 해당 인물과 기대 국가/국기 후보가 보이지 않거나, 검색 결과에 해당 인물이 보이지 않으면 hard fail로 처리합니다. 동일 이름이 여러 profile target으로 보이는 문제는 현재 Phase 3의 검색 UI 기준에서는 hard fail로 삼지 않고, 수치/DB/API 정합성은 Phase 6에서 다룹니다.
 
 ## 검증 범위에서 제외한 것
