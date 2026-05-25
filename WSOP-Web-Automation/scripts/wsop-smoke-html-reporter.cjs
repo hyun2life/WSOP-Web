@@ -165,10 +165,8 @@ function renderDashboard(report, isKo) {
     .panel-summary { cursor:pointer; padding: 0; display:flex; align-items:center; justify-content:space-between; gap: 16px; border-bottom: 1px solid var(--border); }
     .panel-summary h2 { border-bottom: 0; }
     .panel-summary::-webkit-details-marker { display: none; }
-    .panel-toggle-label { color: var(--muted); font-size: 12px; font-weight: 800; padding-right: 20px; white-space: nowrap; }
-    .collapsible-panel .when-open { display: none; }
-    .collapsible-panel[open] .when-open { display: inline; }
-    .collapsible-panel[open] .when-closed { display: none; }
+    .panel-toggle-label { color: var(--muted); font-size: 14px; font-weight: 800; padding-right: 20px; transition: transform 0.2s ease; display: inline-block; }
+    .collapsible-panel[open] .panel-toggle-label { transform: rotate(180deg); }
     .panel-body { padding: 18px 20px; }
     .summary-line { display:flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
     .summary-line span { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; }
@@ -208,9 +206,14 @@ function renderDashboard(report, isKo) {
     .check-pill.fail { color: var(--fail); background: rgba(248,81,73,.10); }
     details { border-bottom: 1px solid var(--border); }
     details:last-child { border-bottom: 0; }
-    summary { cursor:pointer; padding: 15px 20px; font-weight: 800; display:flex; justify-content:space-between; gap: 16px; }
-    details[open] summary { background: rgba(255,255,255,.025); }
-    .suite-body { padding: 0 20px 18px; }
+    details summary::-webkit-details-marker { display: none; }
+    details summary { list-style: none; }
+    summary { cursor:pointer; padding: 15px 20px; font-weight: 800; display:flex; justify-content:space-between; align-items:center; gap: 16px; }
+    details[open] summary { background: rgba(255,255,255,.035); border-bottom: 1px solid var(--border); }
+    .suite-summary-left { display: flex; align-items: center; gap: 12px; }
+    .suite-toggle-icon { color: var(--muted); font-size: 14px; transition: transform 0.2s ease; display: inline-block; }
+    details[open] .suite-toggle-icon { transform: rotate(180deg); }
+    .suite-body { padding: 12px 20px 18px; }
     footer { color: var(--muted); padding: 24px 0 40px; }
     @media (max-width: 980px) {
       .hero, .grid { grid-template-columns: 1fr; }
@@ -286,10 +289,7 @@ function renderDashboard(report, isKo) {
     <details class="panel collapsible-panel" open>
       <summary class="panel-summary">
         <h2>${escapeHtml(t.allTests)}</h2>
-        <span class="panel-toggle-label" aria-hidden="true">
-          <span class="when-open">${escapeHtml(isKo ? '접기' : 'Collapse')}</span>
-          <span class="when-closed">${escapeHtml(isKo ? '펼치기' : 'Expand')}</span>
-        </span>
+        <span class="panel-toggle-label" aria-hidden="true">▼</span>
       </summary>
       <div class="table-container">
         ${renderResultsTable(report.results, t)}
@@ -423,8 +423,11 @@ function renderSuite(suite, items, t) {
   const status = failed ? 'failed' : skipped ? 'skipped' : 'passed';
   return `<details open>
     <summary>
-      <span>${escapeHtml(suite)}</span>
-      <span><span class="badge ${status}">${escapeHtml(status)}</span> <span class="muted">${items.length} tests</span></span>
+      <div class="suite-summary-left">
+        <span>${escapeHtml(suite)}</span>
+        <span><span class="badge ${status}">${escapeHtml(status)}</span> <span class="muted">${items.length} tests</span></span>
+      </div>
+      <span class="suite-toggle-icon" aria-hidden="true">▼</span>
     </summary>
     <div class="suite-body">${renderResultsTable(items, t)}</div>
   </details>`;
@@ -690,14 +693,36 @@ function escapeHtml(value) {
 }
 
 dictionary = function dictionaryOverride(isKo, suite = '') {
+  const isSmoke = suite === 'smoke';
+  const isFunctional = suite === 'functional';
   const isPlayerPresentation = suite === 'player-presentation';
+
+  let titleKo = 'WSOP Web 자동화 리포트';
+  let titleEn = 'WSOP Web Automation Report';
+  let subtitleKo = '공개 페이지 접근, 핵심 콘텐츠, 상단 네비게이션, 콘솔 오류, 내부 링크 샘플을 빠르게 확인한 결과입니다.';
+  let subtitleEn = 'A public web check for page access, core content, top navigation, console errors, and sampled internal links.';
+
+  if (isSmoke) {
+    titleKo = 'WSOP Phase 1 Smoke 검증 리포트';
+    titleEn = 'WSOP Phase 1 Smoke Verification Report';
+    subtitleKo = '배포 후 주요 공개 페이지 접근성, 핵심 콘텐츠, 콘솔 에러 등을 신속히 검증한 리포트입니다.';
+    subtitleEn = 'A quick verification of public page accessibility, core content, and console errors after deployment.';
+  } else if (isFunctional) {
+    titleKo = 'WSOP Phase 2 Functional Flow 검증 리포트';
+    titleEn = 'WSOP Phase 2 Functional Flow Verification Report';
+    subtitleKo = '사용자가 웹사이트에서 주로 탐색하는 Schedule, Search, Standings, News 등의 기능 흐름 검증 결과입니다.';
+    subtitleEn = 'Exploration flow verification results for key user paths such as Schedule, Search, Standings, and News.';
+  } else if (isPlayerPresentation) {
+    titleKo = 'WSOP Phase 3 플레이어 표현 검증 리포트';
+    titleEn = 'WSOP Phase 3 Player Presentation Verification Report';
+    subtitleKo = '크롤러가 수집한 standings TOP 대상자를 기준으로 공개 화면의 이름, 프로필 링크, 국가/국기, 이미지 표현 상태를 확인한 결과입니다.';
+    subtitleEn = 'A public UI presentation check for crawler-targeted standings players: name, profile link, country/flag, and image candidates.';
+  }
 
   return isKo
     ? {
-        title: isPlayerPresentation ? 'WSOP Phase 3 플레이어 표현 리포트' : 'WSOP Web 자동화 리포트',
-        subtitle: isPlayerPresentation
-          ? '크롤러가 수집한 스탠딩 TOP 대상자를 기준으로 공개 웹의 이름, 프로필 링크, 국가/국기, 이미지 표현 상태를 확인한 결과입니다.'
-          : '공개 페이지 접근, 핵심 콘텐츠, 상단 내비게이션, 콘솔 오류, 내부 링크 샘플을 빠르게 확인한 결과입니다.',
+        title: titleKo,
+        subtitle: subtitleKo,
         total: '전체 테스트',
         passed: '통과',
         failed: '실패',
@@ -748,10 +773,8 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         coverageStatusFail: '실패',
       }
     : {
-        title: isPlayerPresentation ? 'WSOP Phase 3 Player Presentation Report' : 'WSOP Web Automation Report',
-        subtitle: isPlayerPresentation
-          ? 'A public UI presentation check for crawler-targeted standings players: name, profile link, country/flag, and image candidates.'
-          : 'A public web check for page access, core content, top navigation, console errors, and sampled internal links.',
+        title: titleEn,
+        subtitle: subtitleEn,
         total: 'Total Tests',
         passed: 'Passed',
         failed: 'Failed',
