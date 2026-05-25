@@ -76,11 +76,141 @@ document.addEventListener('DOMContentLoaded', () => {
       appendSystemLog(`[ERROR] 페이즈 설정을 불러오지 못했습니다: ${err.message}`, 'text-error');
     });
 
-  // Render Sidebar Cards
+  // 1. Helper function for toggleable accordion binding
+  function setupAccordion(toggleEl, contentEl, defaultCollapsed = false) {
+    const icon = toggleEl.querySelector('.accordion-icon');
+    const text = toggleEl.querySelector('.toggle-text');
+
+    if (defaultCollapsed) {
+      contentEl.classList.add('collapsed');
+      if (icon) {
+        icon.classList.add('collapsed');
+        icon.textContent = '▼';
+      }
+      if (text) text.textContent = '펼치기';
+    } else {
+      contentEl.classList.remove('collapsed');
+      if (icon) {
+        icon.classList.remove('collapsed');
+        icon.textContent = '▲';
+      }
+      if (text) text.textContent = '접기';
+    }
+
+    toggleEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isCollapsed = contentEl.classList.contains('collapsed');
+      if (isCollapsed) {
+        contentEl.classList.remove('collapsed');
+        if (icon) {
+          icon.classList.remove('collapsed');
+          icon.textContent = '▲';
+        }
+        if (text) text.textContent = '접기';
+      } else {
+        contentEl.classList.add('collapsed');
+        if (icon) {
+          icon.classList.add('collapsed');
+          icon.textContent = '▼';
+        }
+        if (text) text.textContent = '펼치기';
+      }
+    });
+  }
+
+  // Render Sidebar Cards with Hierarchical (Nested) Accordion
   function renderPhaseCards() {
     phaseListContainer.innerHTML = '';
 
-    // Add virtual 'all' phase card at top
+    // 1. Create All Group (전체 점검)
+    const allGroup = document.createElement('div');
+    allGroup.className = 'phase-group';
+    
+    const allHeader = document.createElement('div');
+    allHeader.className = 'phase-group-header';
+    allHeader.innerHTML = `
+      <span>전체 점검 (All)</span>
+      <button class="accordion-toggle" id="all-group-toggle" type="button">
+        <span class="accordion-icon">▲</span>
+        <span class="toggle-text">접기</span>
+      </button>
+    `;
+    allGroup.appendChild(allHeader);
+
+    const allContent = document.createElement('div');
+    allContent.className = 'phase-group-content';
+    allGroup.appendChild(allContent);
+
+    // 2. Create Playwright Phase Group (Playwright 검증)
+    const phaseGroup = document.createElement('div');
+    phaseGroup.className = 'phase-group';
+
+    const phaseHeader = document.createElement('div');
+    phaseHeader.className = 'phase-group-header';
+    phaseHeader.innerHTML = `
+      <span>Playwright 검증 (Phases)</span>
+      <button class="accordion-toggle" id="phase-group-toggle" type="button">
+        <span class="accordion-icon">▲</span>
+        <span class="toggle-text">접기</span>
+      </button>
+    `;
+    phaseGroup.appendChild(phaseHeader);
+
+    const phaseContent = document.createElement('div');
+    phaseContent.className = 'phase-group-content';
+    phaseGroup.appendChild(phaseContent);
+
+    const activeList = document.createElement('div');
+    activeList.className = 'phase-group-list';
+    activeList.style.display = 'flex';
+    activeList.style.flexDirection = 'column';
+    activeList.style.gap = '8px';
+    phaseContent.appendChild(activeList);
+
+    // Subgroup Accordion for Inactive (Planned) Phases inside Phase Group
+    const plannedSubHeader = document.createElement('div');
+    plannedSubHeader.className = 'sub-group-header';
+    plannedSubHeader.innerHTML = `
+      <span>준비 중인 단계</span>
+      <button class="accordion-toggle" id="planned-toggle" type="button">
+        <span class="accordion-icon collapsed">▼</span>
+        <span class="toggle-text">펼치기</span>
+      </button>
+    `;
+    phaseContent.appendChild(plannedSubHeader);
+
+    const plannedContent = document.createElement('div');
+    plannedContent.className = 'accordion-content collapsed';
+    plannedContent.id = 'planned-accordion-content';
+    phaseContent.appendChild(plannedContent);
+
+    // 3. Create Crawler Group (데이터 크롤러)
+    const crawlerGroup = document.createElement('div');
+    crawlerGroup.className = 'phase-group';
+
+    const crawlerHeader = document.createElement('div');
+    crawlerHeader.className = 'phase-group-header';
+    crawlerHeader.innerHTML = `
+      <span>데이터 크롤러 (Crawler)</span>
+      <button class="accordion-toggle" id="crawler-group-toggle" type="button">
+        <span class="accordion-icon">▲</span>
+        <span class="toggle-text">접기</span>
+      </button>
+    `;
+    crawlerGroup.appendChild(crawlerHeader);
+
+    const crawlerContent = document.createElement('div');
+    crawlerContent.className = 'phase-group-content';
+    crawlerGroup.appendChild(crawlerContent);
+
+    const crawlerList = document.createElement('div');
+    crawlerList.className = 'phase-group-list';
+    crawlerList.style.display = 'flex';
+    crawlerList.style.flexDirection = 'column';
+    crawlerList.style.gap = '8px';
+    crawlerContent.appendChild(crawlerList);
+
+    // Add virtual 'all' phase card in Group 1
     const allPhase = {
       id: 'all',
       name: 'All Implemented Phases',
@@ -89,15 +219,45 @@ document.addEventListener('DOMContentLoaded', () => {
       description: 'ready 상태의 모든 단계를 순차적으로 실행합니다. 전체 점검이 필요할 때 사용합니다.',
       implemented: true
     };
+    appendPhaseCard(allPhase, allContent);
 
-    appendPhaseCard(allPhase);
-    phases.forEach(phase => appendPhaseCard(phase));
+    // Distribute phases
+    phases.forEach(phase => {
+      if (phase.id === 'crawler') {
+        // Group 3
+        appendPhaseCard(phase, crawlerList);
+      } else {
+        // Group 2 (Phases 1-9)
+        if (phase.implemented) {
+          appendPhaseCard(phase, activeList);
+        } else {
+          appendPhaseCard(phase, plannedContent);
+        }
+      }
+    });
+
+    phaseListContainer.appendChild(allGroup);
+    phaseListContainer.appendChild(phaseGroup);
+    phaseListContainer.appendChild(crawlerGroup);
+
+    // Setup Accordions using the helper function
+    const allGroupToggle = allGroup.querySelector('#all-group-toggle');
+    setupAccordion(allGroupToggle, allContent, false); // 기본 펼침
+
+    const phaseGroupToggle = phaseGroup.querySelector('#phase-group-toggle');
+    setupAccordion(phaseGroupToggle, phaseContent, false); // 기본 펼침
+
+    const crawlerGroupToggle = crawlerGroup.querySelector('#crawler-group-toggle');
+    setupAccordion(crawlerGroupToggle, crawlerContent, false); // 기본 펼침
+
+    const plannedToggle = phaseGroup.querySelector('#planned-toggle');
+    setupAccordion(plannedToggle, plannedContent, true); // 기본 접힘
 
     // Default select first item (all)
     selectPhase(allPhase);
   }
 
-  function appendPhaseCard(phase) {
+  function appendPhaseCard(phase, parentContainer) {
     const card = document.createElement('div');
     card.className = 'phase-card';
     card.dataset.id = phase.id;
@@ -112,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     card.addEventListener('click', () => selectPhase(phase));
-    phaseListContainer.appendChild(card);
+    parentContainer.appendChild(card);
   }
 
   // Handle phase card selection
