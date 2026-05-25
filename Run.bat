@@ -28,9 +28,9 @@ if %errorlevel% equ 0 (
   exit /b 0
 )
 
-rem 2. Start the server in a minimized cmd window so user can see it's active and check logs if needed
+rem 2. Start the server in a hidden window
 echo [INFO] Starting WSOP Web Dashboard server...
-start /min "WSOP Web Dashboard" cmd /k "cd WSOP-Web-Automation && node scripts\web-runner-server.js"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'node' -ArgumentList 'scripts\web-runner-server.js' -WorkingDirectory 'WSOP-Web-Automation' -WindowStyle Hidden"
 
 rem 3. Wait a moment for server to initialize
 timeout /t 2 /nobreak >nul

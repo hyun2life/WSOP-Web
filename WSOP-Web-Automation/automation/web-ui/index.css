@@ -614,6 +614,7 @@ body {
 }
 
 .btn-kill {
+  flex-grow: 1;
   background: linear-gradient(135deg, var(--accent-red) 0%, hsl(350, 80%, 48%) 100%);
   color: white;
   box-shadow: 0 4px 14px var(--accent-red-glow);
