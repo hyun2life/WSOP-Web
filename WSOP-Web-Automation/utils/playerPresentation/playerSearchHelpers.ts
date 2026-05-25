@@ -36,15 +36,7 @@ export async function searchPlayerIfSearchInputExists(page: Page, keyword: strin
     return false;
   }
 
-  await input.click();
-  await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
-  await input.fill(keyword);
-
-  const currentValue = await input.inputValue().catch(() => '');
-  if (currentValue.trim() !== keyword.trim()) {
-    await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
-    await input.type(keyword, { delay: 20 });
-  }
+  await enterSearchKeyword(input, keyword);
 
   const clickedButton = await clickFirstVisibleSearchButton(page);
   if (!clickedButton) {
@@ -62,8 +54,7 @@ export async function searchPlayerIfSearchInputExists(page: Page, keyword: strin
   const inputStillHasKeyword = (await input.inputValue().catch(() => '')).toLowerCase().includes(keyword.toLowerCase());
 
   if (!keywordVisible && !inputStillHasKeyword) {
-    await input.click().catch(() => undefined);
-    await input.fill(keyword).catch(() => undefined);
+    await enterSearchKeyword(input, keyword);
     const retriedButton = await clickFirstVisibleSearchButton(page);
     if (!retriedButton) {
       await input.press('Enter').catch(() => undefined);
@@ -80,16 +71,18 @@ export async function expectPlayerAutocompleteVisible(page: Page, player: Player
   const input = await findSearchInput(page);
   expect(input, `Player Search input should be visible before checking autocomplete for ${player.displayName}`).not.toBeNull();
 
-  await input!.click();
-  await input!.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
-  await input!.fill(keyword);
-  await page.waitForTimeout(1_500);
+  await enterSearchKeyword(input!, keyword);
 
-  const visible = await isPlayerVisibleInSearchSurface(page, player);
-  expect(
-    visible,
-    `${player.displayName} should be visible in autocomplete/search preview after typing "${keyword}"`,
-  ).toBeTruthy();
+  const suggestion = autocompleteSuggestion(page, player);
+  await expect
+    .poll(async () => (await suggestion.count()) > 0 && (await suggestion.first().isVisible().catch(() => false)), {
+      message: `${player.displayName} should be visible in autocomplete/search preview after typing "${keyword}"`,
+      timeout: 6_000,
+      intervals: [500, 1_000, 1_500],
+    })
+    .toBeTruthy();
+
+  await expectAutocompleteSuggestionCountryOrFlag(suggestion.first(), player, testName);
 
   void testName;
 }
@@ -176,6 +169,22 @@ async function findSearchInput(page: Page): Promise<Locator | null> {
   }
 
   return null;
+}
+
+async function enterSearchKeyword(input: Locator, keyword: string) {
+  await input.click();
+  await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
+  await input.fill('').catch(() => undefined);
+  await input.type(keyword, { delay: 35 });
+
+  const currentValue = await input.inputValue().catch(() => '');
+  if (currentValue.trim() === keyword.trim()) {
+    return;
+  }
+
+  await input.click().catch(() => undefined);
+  await input.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => undefined);
+  await input.fill(keyword).catch(() => undefined);
 }
 
 async function clickFirstVisibleSearchButton(page: Page) {
@@ -288,6 +297,53 @@ function matchingPlayerRows(page: Page, player: PlayerFixture) {
   return page.getByRole('row').filter({ hasText: playerNamePattern(player.displayName) });
 }
 
+function autocompleteSuggestion(page: Page, player: PlayerFixture) {
+  return page
+    .locator('.autocomplete-container li, [class*="autocomplete" i] li')
+    .filter({ hasText: playerNamePattern(player.displayName) });
+}
+
+async function expectAutocompleteSuggestionCountryOrFlag(suggestion: Locator, player: PlayerFixture, testName: string) {
+  if (!player.expectedCountry) {
+    addWarning(testName, `No expectedCountry fixture value for autocomplete suggestion: ${player.displayName}`, {
+      player: player.displayName,
+    });
+    return;
+  }
+
+  const aliases = countryAliases(player.expectedCountry);
+  const countryCodes = countryFlagCodes(player.expectedCountry);
+  const text = await suggestion.innerText().catch(() => '');
+  if (aliases.some((alias) => new RegExp(`\\b${escapeRegExp(alias)}\\b`, 'i').test(text))) {
+    return;
+  }
+
+  const flagImages = await suggestion
+    .locator('img')
+    .evaluateAll((images) =>
+      images.map((image) => ({
+        alt: image.getAttribute('alt') || '',
+        title: image.getAttribute('title') || '',
+        src: image.getAttribute('src') || '',
+        srcset: image.getAttribute('srcset') || '',
+        className: image.getAttribute('class') || '',
+      })),
+    )
+    .catch(() => []);
+
+  const expectedNeedles = [...aliases, ...countryCodes].map(normalizeComparable);
+  const matched = flagImages.some((image) =>
+    [image.alt, image.title, image.src, image.srcset, image.className].some((value) =>
+      expectedNeedles.some((needle) => normalizeComparable(value).includes(needle)),
+    ),
+  );
+
+  expect(
+    matched,
+    `${player.displayName} autocomplete suggestion should show expected country/flag: ${player.expectedCountry}. Found flags: ${JSON.stringify(flagImages)}`,
+  ).toBeTruthy();
+}
+
 async function isPlayerVisibleInSearchSurface(page: Page, player: PlayerFixture) {
   const matchingRows = matchingPlayerRows(page, player);
   if ((await matchingRows.count()) > 0 && (await matchingRows.first().isVisible().catch(() => false))) {
@@ -301,4 +357,28 @@ async function isPlayerVisibleInSearchSurface(page: Page, player: PlayerFixture)
 
   const bodyText = await page.locator('body').innerText().catch(() => '');
   return playerNamePattern(player.displayName).test(bodyText);
+}
+
+function normalizeComparable(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function countryAliases(country: string): string[] {
+  const normalized = normalizeComparable(country);
+  const aliases: Record<string, string[]> = {
+    unitedstates: ['United States', 'USA', 'US', 'Country Code - US'],
+    canada: ['Canada', 'CAN', 'CA', 'Country Code - CA'],
+  };
+
+  return aliases[normalized] ?? [country];
+}
+
+function countryFlagCodes(country: string): string[] {
+  const normalized = normalizeComparable(country);
+  const codes: Record<string, string[]> = {
+    unitedstates: ['US'],
+    canada: ['CA'],
+  };
+
+  return codes[normalized] ?? [];
 }

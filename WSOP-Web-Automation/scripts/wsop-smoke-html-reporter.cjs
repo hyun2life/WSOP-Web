@@ -41,6 +41,7 @@ class WsopSmokeHtmlReporter {
         name: attachment.name,
         contentType: attachment.contentType,
         path: attachment.path ? path.relative(process.cwd(), attachment.path) : '',
+        body: attachment.body && attachment.body.length <= 1_000_000 ? attachment.body.toString('utf8') : '',
       })),
     });
   }
@@ -105,12 +106,13 @@ function normalizeOverallStatus(status, results) {
 }
 
 function renderDashboard(report, isKo) {
-  const t = dictionary(isKo);
+  const t = dictionary(isKo, report.suite);
   const summary = report.summary;
   const failedTests = report.results.filter((item) => ['failed', 'timedOut', 'interrupted'].includes(item.status));
   const skippedTests = report.results.filter((item) => item.status === 'skipped');
   const bySuite = groupBy(report.results, (item) => item.suiteTitle);
   const statusClass = summary.status;
+  const playerCoverage = collectPlayerPresentationCoverage(report);
 
   return `<!doctype html>
 <html lang="${isKo ? 'ko' : 'en'}">
@@ -182,11 +184,28 @@ function renderDashboard(report, isKo) {
     .badge { display:inline-block; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 800; border: 1px solid currentColor; white-space: nowrap; }
     .badge.passed { color: var(--pass); background: rgba(46,160,67,.10); }
     .badge.failed, .badge.timedOut, .badge.interrupted { color: var(--fail); background: rgba(248,81,73,.10); }
-    .badge.skipped { color: var(--warn); background: rgba(210,153,34,.10); }
+    .badge.skipped, .badge.warn { color: var(--warn); background: rgba(210,153,34,.10); }
     .muted { color: var(--muted); }
     .error { white-space: pre-wrap; max-width: 760px; color: #ffb4ad; }
     .attachments { display:flex; gap: 7px; flex-wrap: wrap; }
     .attachment { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; }
+    .coverage-summary { display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; margin-bottom: 18px; }
+    .coverage-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .coverage-card .value { font-size: 24px; margin-top: 6px; }
+    .category-strip { display:flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .category-pill { border: 1px solid var(--border); background: rgba(255,255,255,.03); border-radius: 999px; padding: 6px 10px; color: var(--muted); font-size: 12px; }
+    .player-card-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+    .player-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 184px; display:flex; flex-direction:column; gap: 10px; }
+    .player-card.fail { border-color: rgba(248,81,73,.68); }
+    .player-card.warn { border-color: rgba(210,153,34,.68); }
+    .player-card.pass { border-color: rgba(46,160,67,.42); }
+    .player-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap: 12px; }
+    .player-name { font-size: 16px; font-weight: 850; line-height: 1.25; }
+    .player-meta { color: var(--muted); font-size: 12px; overflow-wrap:anywhere; }
+    .check-grid { display:flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+    .check-pill { border-radius: 999px; padding: 4px 8px; border: 1px solid currentColor; font-size: 11px; font-weight: 800; }
+    .check-pill.pass { color: var(--pass); background: rgba(46,160,67,.10); }
+    .check-pill.fail { color: var(--fail); background: rgba(248,81,73,.10); }
     details { border-bottom: 1px solid var(--border); }
     details:last-child { border-bottom: 0; }
     summary { cursor:pointer; padding: 15px 20px; font-weight: 800; display:flex; justify-content:space-between; gap: 16px; }
@@ -196,10 +215,12 @@ function renderDashboard(report, isKo) {
     @media (max-width: 980px) {
       .hero, .grid { grid-template-columns: 1fr; }
       .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .coverage-summary, .player-card-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
     @media (max-width: 560px) {
       .wrap { padding: 20px; }
       .kpis { grid-template-columns: 1fr; }
+      .coverage-summary, .player-card-grid { grid-template-columns: 1fr; }
       th, td { padding: 9px; }
     }
   </style>
@@ -255,6 +276,7 @@ function renderDashboard(report, isKo) {
 
     ${failedTests.length ? renderFailurePanel(failedTests, t) : renderEmptyPanel(t.noCriticalFailuresTitle, t.noCriticalFailuresBody)}
     ${skippedTests.length ? renderSkippedPanel(skippedTests, t) : ''}
+    ${playerCoverage ? renderPlayerPresentationCoverage(playerCoverage, t) : ''}
 
     <section class="panel">
       <h2>${escapeHtml(t.suiteDirectory)}</h2>
@@ -443,6 +465,154 @@ function renderAttachments(attachments) {
   }).join('')}</div>`;
 }
 
+function renderPlayerPresentationCoverage(coverage, t) {
+  return `<section class="panel">
+    <h2>${escapeHtml(t.playerCoverageTitle)}</h2>
+    <div class="panel-body">
+      <div class="note">${escapeHtml(t.playerCoverageNote)}</div>
+      <div class="coverage-summary" style="margin-top:18px">
+        ${coverageCard(t.coverageTotal, coverage.total)}
+        ${coverageCard(t.coveragePassed, coverage.passed, 'pass')}
+        ${coverageCard(t.coverageWarned, coverage.warned, coverage.warned ? 'warn' : '')}
+        ${coverageCard(t.coverageFailed, coverage.failed, coverage.failed ? 'fail' : '')}
+        ${coverageCard(t.coverageCategories, coverage.categories.length)}
+      </div>
+      <div class="category-strip">
+        ${coverage.categories.map((category) => `<span class="category-pill">${escapeHtml(category.name)}: ${escapeHtml(category.total)} (${escapeHtml(category.passed)}/${escapeHtml(category.warned)}/${escapeHtml(category.failed)})</span>`).join('')}
+      </div>
+      <div class="player-card-grid">
+        ${coverage.players.map((player) => renderCoveragePlayerCard(player, t)).join('')}
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderCoveragePlayerCard(player, t) {
+  const rank = player.rank == null ? '-' : `#${player.rank}`;
+  const profileText = player.actualProfileUrl || player.expectedProfileUrl || '';
+  const profileHref = toWsopUrl(profileText || player.expectedProfileUrl);
+
+  return `<article class="player-card ${escapeHtml(player.status)}">
+    <div class="player-card-top">
+      <div>
+        <div class="player-name">${escapeHtml(player.name)}</div>
+        <div class="player-meta">${escapeHtml(player.category)} ${escapeHtml(rank)}</div>
+      </div>
+      <span class="badge ${escapeHtml(player.status)}">${escapeHtml(formatCoverageStatus(player.status, t))}</span>
+    </div>
+    <div class="player-meta">${escapeHtml(t.coverageSource)}: ${escapeHtml(player.sourcePath || '-')}</div>
+    <div class="player-meta">${escapeHtml(t.coverageProfile)}: ${profileText ? `<a href="${escapeHtml(profileHref)}">${escapeHtml(profileText)}</a>` : '-'}</div>
+    <div class="check-grid">
+      ${checkPill(t.coverageRow, player.checks.row)}
+      ${checkPill(t.coverageName, player.checks.name)}
+      ${checkPill(t.coverageProfileLink, player.checks.profileLink)}
+      ${checkPill(t.coverageCountryFlag, player.checks.countryOrFlag)}
+      ${checkPill(t.coverageImage, player.checks.playerImage)}
+    </div>
+  </article>`;
+}
+
+function collectPlayerPresentationCoverage(report) {
+  if (report.suite !== 'player-presentation') {
+    return null;
+  }
+
+  const byKey = new Map();
+  for (const result of report.results) {
+    for (const attachment of result.attachments || []) {
+      if (attachment.name !== 'player-presentation-crawler-coverage') {
+        continue;
+      }
+
+      const payloadText = attachment.body || readAttachmentBody(attachment);
+      if (!payloadText) {
+        continue;
+      }
+
+      try {
+        const payload = JSON.parse(payloadText);
+        for (const player of payload.players || []) {
+          const key = `${player.sourcePath}|${player.rank}|${player.name}|${player.expectedProfileUrl}`;
+          byKey.set(key, player);
+        }
+      } catch {
+        // Keep the report renderable even if a single attachment is malformed.
+      }
+    }
+  }
+
+  const players = [...byKey.values()].sort((a, b) => {
+    const categoryCompare = String(a.category || '').localeCompare(String(b.category || ''));
+    if (categoryCompare !== 0) return categoryCompare;
+    return (a.rank ?? 9999) - (b.rank ?? 9999);
+  });
+
+  if (players.length === 0) {
+    return null;
+  }
+
+  const categoryMap = new Map();
+  for (const player of players) {
+    const name = player.category || 'Standings';
+    const current = categoryMap.get(name) || { name, total: 0, passed: 0, warned: 0, failed: 0 };
+    current.total += 1;
+    if (player.status === 'pass') current.passed += 1;
+    if (player.status === 'warn') current.warned += 1;
+    if (player.status === 'fail') current.failed += 1;
+    categoryMap.set(name, current);
+  }
+
+  return {
+    total: players.length,
+    passed: players.filter((player) => player.status === 'pass').length,
+    warned: players.filter((player) => player.status === 'warn').length,
+    failed: players.filter((player) => player.status === 'fail').length,
+    categories: [...categoryMap.values()],
+    players,
+  };
+}
+
+function readAttachmentBody(attachment) {
+  if (!attachment.path || !/json/i.test(attachment.contentType || '')) {
+    return '';
+  }
+
+  const filePath = path.resolve(process.cwd(), attachment.path);
+  if (!fs.existsSync(filePath)) {
+    return '';
+  }
+
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+function toWsopUrl(value) {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    return new URL(value, 'https://www.wsop.com').toString();
+  } catch {
+    return value;
+  }
+}
+
+function coverageCard(label, value, tone = '') {
+  return `<div class="coverage-card"><div class="label">${escapeHtml(label)}</div><div class="value ${tone}">${escapeHtml(String(value))}</div></div>`;
+}
+
+function checkPill(label, ok) {
+  const tone = ok ? 'pass' : 'fail';
+  const mark = ok ? 'OK' : 'MISS';
+  return `<span class="check-pill ${tone}">${escapeHtml(label)} ${mark}</span>`;
+}
+
+function formatCoverageStatus(status, t) {
+  if (status === 'pass') return t.coverageStatusPass;
+  if (status === 'warn') return t.coverageStatusWarn;
+  return t.coverageStatusFail;
+}
+
 function kpi(label, value, tone = '') {
   return `<div class="card"><div class="label">${escapeHtml(label)}</div><div class="value ${tone}">${escapeHtml(String(value))}</div></div>`;
 }
@@ -518,5 +688,146 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+dictionary = function dictionaryOverride(isKo, suite = '') {
+  const isPlayerPresentation = suite === 'player-presentation';
+
+  return isKo
+    ? {
+        title: isPlayerPresentation ? 'WSOP Phase 3 플레이어 표현 리포트' : 'WSOP Web 자동화 리포트',
+        subtitle: isPlayerPresentation
+          ? '크롤러가 수집한 스탠딩 TOP 대상자를 기준으로 공개 웹의 이름, 프로필 링크, 국가/국기, 이미지 표현 상태를 확인한 결과입니다.'
+          : '공개 페이지 접근, 핵심 콘텐츠, 상단 내비게이션, 콘솔 오류, 내부 링크 샘플을 빠르게 확인한 결과입니다.',
+        total: '전체 테스트',
+        passed: '통과',
+        failed: '실패',
+        skipped: '건너뜀',
+        passRate: '통과율',
+        duration: '총 실행 시간',
+        executionSummary: '실행 요약',
+        baseUrl: '대상 사이트',
+        projects: '브라우저 프로젝트',
+        generated: '생성 시간',
+        suiteLabel: '리포트 구분',
+        statusDistribution: '상태 분포',
+        readMeFirst: '먼저 볼 내용',
+        noCriticalFailuresTitle: '치명 실패 없음',
+        noCriticalFailuresBody: '이번 실행에서 실패 또는 타임아웃 테스트가 없습니다. warning 항목은 환경 차이 또는 선택 검증 여부를 함께 확인하세요.',
+        failures: '실패 상세',
+        skippedTests: '건너뜀 항목',
+        suiteDirectory: '검증 영역별 목록',
+        allTests: '전체 테스트 목록',
+        artifacts: '산출물 및 환경',
+        playwrightReport: 'Playwright 기본 HTML 리포트',
+        platform: '실행 환경',
+        footer: '이 리포트는 Playwright 실행 결과에서 자동 생성되었습니다. 외부 사이트 부하를 줄이기 위해 검증 범위는 단계별 샘플과 크롤러 대상자로 제한됩니다.',
+        testName: '테스트명',
+        suite: '검증 영역',
+        project: '프로젝트',
+        status: '상태',
+        time: '시간',
+        file: '파일',
+        detail: '상세',
+        attachment: '첨부',
+        playerCoverageTitle: '크롤러 대상 플레이어 UI 커버리지',
+        playerCoverageNote: '스탠딩 크롤러의 최신 output에 포함된 대상자와 같은 인원을 기준으로 공개 UI의 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. 이미지는 stage/prod asset 차이로 warning이 될 수 있습니다.',
+        coverageTotal: '대상 행',
+        coveragePassed: '정상',
+        coverageWarned: '주의',
+        coverageFailed: '실패',
+        coverageCategories: '카테고리',
+        coverageSource: '출처',
+        coverageProfile: '프로필',
+        coverageRow: '행',
+        coverageName: '이름',
+        coverageProfileLink: '링크',
+        coverageCountryFlag: '국가/국기',
+        coverageImage: '이미지',
+        coverageStatusPass: '정상',
+        coverageStatusWarn: '주의',
+        coverageStatusFail: '실패',
+      }
+    : {
+        title: isPlayerPresentation ? 'WSOP Phase 3 Player Presentation Report' : 'WSOP Web Automation Report',
+        subtitle: isPlayerPresentation
+          ? 'A public UI presentation check for crawler-targeted standings players: name, profile link, country/flag, and image candidates.'
+          : 'A public web check for page access, core content, top navigation, console errors, and sampled internal links.',
+        total: 'Total Tests',
+        passed: 'Passed',
+        failed: 'Failed',
+        skipped: 'Skipped',
+        passRate: 'Pass Rate',
+        duration: 'Total Duration',
+        executionSummary: 'Execution Summary',
+        baseUrl: 'Base URL',
+        projects: 'Browser Projects',
+        generated: 'Generated',
+        suiteLabel: 'Report Suite',
+        statusDistribution: 'Status Distribution',
+        readMeFirst: 'Read Me First',
+        noCriticalFailuresTitle: 'No Critical Failures',
+        noCriticalFailuresBody: 'No failed or timed out tests were found in this run. Review warning items for environment differences or optional checks.',
+        failures: 'Failure Details',
+        skippedTests: 'Skipped Tests',
+        suiteDirectory: 'Validation Area Directory',
+        allTests: 'All Tests',
+        artifacts: 'Artifacts & Environment',
+        playwrightReport: 'Playwright HTML Report',
+        platform: 'Platform',
+        footer: 'This report was generated from Playwright results. External-site checks intentionally use phase samples and crawler-targeted players to avoid excessive traffic.',
+        testName: 'Test Name',
+        suite: 'Area',
+        project: 'Project',
+        status: 'Status',
+        time: 'Time',
+        file: 'File',
+        detail: 'Detail',
+        attachment: 'Attachment',
+        playerCoverageTitle: 'Crawler Target Player UI Coverage',
+        playerCoverageNote: 'Uses the same target players from the latest standings crawler output and checks public UI presentation for name, profile link, country/flag, and image candidates.',
+        coverageTotal: 'Target Rows',
+        coveragePassed: 'Pass',
+        coverageWarned: 'Warn',
+        coverageFailed: 'Fail',
+        coverageCategories: 'Categories',
+        coverageSource: 'Source',
+        coverageProfile: 'Profile',
+        coverageRow: 'Row',
+        coverageName: 'Name',
+        coverageProfileLink: 'Link',
+        coverageCountryFlag: 'Country/Flag',
+        coverageImage: 'Image',
+        coverageStatusPass: 'PASS',
+        coverageStatusWarn: 'WARN',
+        coverageStatusFail: 'FAIL',
+      };
+};
+
+readMeFirst = function readMeFirstOverride(report, isKo) {
+  if (report.summary.failed > 0) {
+    return isKo
+      ? '실패 항목이 있습니다. 아래 실패 상세에서 오류 메시지와 screenshot, trace, video 첨부를 먼저 확인하세요.'
+      : 'There are failed checks. Start with the failure details below and review screenshot, trace, and video attachments.';
+  }
+  if (report.summary.skipped > 0) {
+    return isKo
+      ? '치명 실패는 없지만 건너뜀 항목이 있습니다. 현재 사이트 구조 또는 테스트 기준과 맞지 않는 항목인지 확인하세요.'
+      : 'No critical failures were found, but some checks were skipped. Review whether the current site structure differs from the test target.';
+  }
+  if (report.suite === 'player-presentation') {
+    return isKo
+      ? 'Phase 3는 수치 정합성이 아니라 공개 화면에서 플레이어가 올바르게 식별되고 표현되는지 확인합니다. 이미지/마크 일부는 환경 차이에 따라 warning으로 분류될 수 있습니다.'
+      : 'Phase 3 checks public player identity presentation, not numeric data integrity. Some image or mark differences may be warning-only depending on environment.';
+  }
+  return isKo
+    ? '모든 검증이 통과했습니다. 브라우저 실행 상세는 Playwright 기본 HTML 리포트에서 확인할 수 있습니다.'
+    : 'All checks passed. Browser-level run details are available in the Playwright HTML report.';
+};
+
+formatOverallStatus = function formatOverallStatusOverride(status, isKo) {
+  if (status === 'pass') return isKo ? '통과' : 'PASS';
+  if (status === 'warn') return isKo ? '주의' : 'WARN';
+  return isKo ? '실패' : 'FAIL';
+};
 
 module.exports = WsopSmokeHtmlReporter;

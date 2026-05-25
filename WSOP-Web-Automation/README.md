@@ -240,7 +240,8 @@ automation/output/
 검증 범위:
 
 - Player Standings 상위 플레이어 노출 및 profile 연결
-- Player Search에서 주요 플레이어 이름 입력 시 자동완성/미리보기와 검색 결과에 해당 인물이 노출되는지 확인
+- Player Standings UI는 최신 `WSOP-Player-Standings-Crawler/automation/output/*-data.json`의 `players[].standingsSources[]`를 기준으로, 크롤러가 수집한 standings target들이 각 source category에서 이름, profile link, 국가/국기 후보로 보이는지 확인
+- Player Search에서 모든 플레이어를 전수 입력하지 않고, fixture에 정의한 대표 탑랭커 중심으로 이름 입력 시 검색창 하단 자동완성 row와 검색 결과에 해당 인물이 노출되는지 확인
 - Player Profile의 이름, 국가/국기, avatar/profile image 후보 확인
 - Hall of Fame, Player of the Year, 내부 Legend 그룹의 주요 플레이어 표현 확인
 - stage 환경의 avatar/image 미노출, optional badge/mark 미노출은 warning으로 수집
@@ -267,6 +268,10 @@ tests/player-presentation/
 fixtures/player-presentation/
 utils/playerPresentation/
 ```
+
+Standings UI 검증은 크롤러 산출물이 있으면 해당 산출물 중 충분한 standings target을 포함한 최신 `*-data.json`을 사용합니다. 이 기준은 크롤러가 실제 Result 상세 검증 대상으로 삼은 스탠딩 TOP 인원과 Phase 3 UI 검증 대상을 맞추기 위한 것입니다. 단, Phase 3 자체는 Result 상세 크롤링을 필요로 하지 않으므로 매번 full crawler를 오래 돌릴 필요는 없습니다. 중간에 중단된 부분 output처럼 target 수가 너무 적은 파일은 Phase 3 기준에서 제외합니다.
+
+Phase 3 custom 리포트는 크롤러 리포트와 같은 판단 흐름을 따르도록, 최신 크롤러 대상자 기준의 **플레이어 UI 커버리지 카드**를 포함합니다. 각 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. `국가/국기`까지는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
 
 ## Phase registry
 
@@ -361,6 +366,7 @@ Run.bat
 
 - **대상 환경 실시간 스위칭**: `Target Environment` 선택 드롭다운을 통해 별도의 콘솔 타이핑이나 환경변수 수동 세팅 없이, 마우스 클릭만으로 `Live (https://www.wsop.com)` / `Stage (https://wsop-stage.ggnweb.com)` / `Custom URL` 환경을 즉각 오버라이딩하여 테스트 및 크롤러 구동 가능
 - **페이즈 카드 선택 및 실행**: 좌측 카드 목록에서 대상을 원클릭으로 선택 및 실행
+- **한글 Phase 안내**: 좌측 카드에는 한글 Phase 이름과 짧은 요약을 표시하고, 상세 패널에는 목적 설명과 검증 스텝을 한글로 표시합니다. Phase 3은 크롤러 대상 TOP 플레이어 UI 검증 흐름을 단계별로 확인할 수 있습니다.
 - **실행 옵션 및 모드 튜닝**: Normal / Headed / UI 모드 선택 및 체크박스 기반 추가 매개변수(Limit, Concurrency, Grep, Timeout 등) 실시간 토글링 및 텍스트박스 입력
 - **실시간 터미널 로그 스트리밍**: SSE 채널을 활용해 백그라운드 테스트 실행 콘솔 로그를 컬러풀하게 스트리밍 및 자동 스크롤
 - **원클릭 프로세스 제어**: 실행 도중 언제든지 즉시 중단 가능한 **Stop Test** 및 로그 복사/비우기 기능 제공
@@ -377,7 +383,7 @@ Run.bat
 - public site의 접근성 role/name이 바뀔 수 있어 role 기반 selector를 우선 사용하되, 필요 시 `a[href*="..."]` 및 `filter({ hasText })` 기반 selector를 함께 사용합니다.
 - News와 Schedule은 live content가 계속 바뀌므로 fixed title 검증 대신 list에서 읽은 제목/이벤트명을 detail에서 다시 확인합니다.
 - Player Search 결과가 동적 검색으로 즉시 필터링되지 않을 수 있어 `Phil Hellmuth` link 우선, 현재 노출된 첫 player link fallback 순서로 검증합니다.
-- Phase 3의 Player Search identity 검증은 이름 입력 후 자동완성/검색 결과에 해당 인물이 보이지 않거나 프로필 접근 경로를 전혀 찾지 못하면 hard fail로 처리합니다. 동일 이름이 여러 profile target으로 보이는 경우는 현재 Phase 3에서는 warning으로 남기고, 수치/DB/API 정합성은 Phase 6에서 다룹니다.
+- Phase 3의 Player Search identity 검증은 모든 사용자를 전수 검색하지 않고 `fixtures/player-presentation/top-players.fixture.json`의 대표 탑랭커 샘플을 기준으로 합니다. 이름 입력 후 검색창 하단 `.autocomplete-container`의 suggestion row에 해당 인물과 기대 국가/국기 후보가 보이지 않거나, 검색 결과에 해당 인물이 보이지 않으면 hard fail로 처리합니다. 동일 이름이 여러 profile target으로 보이는 문제는 현재 Phase 3의 검색 UI 기준에서는 hard fail로 삼지 않고, 수치/DB/API 정합성은 Phase 6에서 다룹니다.
 
 ## 검증 범위에서 제외한 것
 

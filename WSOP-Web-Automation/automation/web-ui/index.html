@@ -5,7 +5,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WSOP Web Automation Dashboard</title>
-  <!-- Modern Premium Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -15,10 +14,7 @@
 </head>
 
 <body>
-
   <div class="app-container">
-
-    <!-- 1. Left Sidebar: Target Phases -->
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-glow"></div>
@@ -28,24 +24,17 @@
       <div class="sidebar-divider"></div>
       <h2 class="section-title">검증 단계</h2>
       <div class="phase-list" id="phase-list-container">
-        <!-- Dynamically rendered phase cards will appear here -->
-        <div class="loading-spinner">페이즈 데이터 로딩 중...</div>
+        <div class="loading-spinner">Phase 정보를 불러오는 중...</div>
       </div>
-      <!-- Shutdown Footer -->
       <div class="sidebar-footer" style="margin-top: auto; padding-top: 15px; border-top: 1px solid var(--border-color);">
         <button id="btn-shutdown" class="btn btn-shutdown" style="width: 100%; background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.03) 100%); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--accent-red); font-size: 0.85rem; padding: 10px 0; border-radius: var(--button-radius); transition: all 0.2s; cursor: pointer;">대시보드 종료</button>
       </div>
     </aside>
 
-    <!-- 2. Main Content Area -->
     <main class="main-content">
-
-      <!-- Upper Section: Settings & Controls -->
       <section class="control-panel">
-
-        <!-- Left Column: Details Card -->
         <div class="card details-card">
-          <h2 class="card-title">단계 정보</h2>
+          <h2 class="card-title">Phase 정보</h2>
           <div class="card-divider"></div>
           <div class="details-content">
             <div class="detail-item">
@@ -53,7 +42,7 @@
               <span class="detail-value" id="detail-id">-</span>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Suite Name</span>
+              <span class="detail-label">검증 이름</span>
               <span class="detail-value text-accent" id="detail-name">-</span>
             </div>
             <div class="detail-item">
@@ -65,19 +54,23 @@
               <span class="detail-value text-muted" id="detail-dir">-</span>
             </div>
             <div class="detail-item full-width">
-              <span class="detail-label">Description</span>
-              <p class="detail-desc" id="detail-desc">페이즈를 선택하면 세부 정보가 표시됩니다.</p>
+              <span class="detail-label">설명</span>
+              <p class="detail-desc" id="detail-desc">Phase를 선택하면 설명이 표시됩니다.</p>
+            </div>
+            <div class="detail-item full-width">
+              <span class="detail-label">검증 스텝</span>
+              <ol class="phase-step-list" id="detail-steps">
+                <li>Phase를 선택하면 세부 검증 스텝이 표시됩니다.</li>
+              </ol>
             </div>
           </div>
         </div>
 
-        <!-- Right Column: Settings Card -->
         <div class="card settings-card">
           <h2 class="card-title">실행 설정</h2>
           <div class="card-divider"></div>
 
           <div class="settings-form">
-            <!-- Target Environment Selection -->
             <div class="form-group">
               <label for="env-select" class="form-label">Target Environment</label>
               <div class="custom-select-wrapper">
@@ -89,13 +82,11 @@
               </div>
             </div>
 
-            <!-- Custom URL Input (Only visible when Custom is selected) -->
             <div id="custom-env-url-container" class="form-group hidden" style="margin-top: 4px;">
               <label for="custom-env-url" class="form-label">Custom Environment URL</label>
               <input type="url" id="custom-env-url" class="form-input" placeholder="https://example.com" style="width: 100%; text-align: left; padding: 10px 14px; border-radius: var(--button-radius);">
             </div>
 
-            <!-- Execution Mode Combo -->
             <div class="form-group">
               <label for="mode-select" class="form-label">Execution Mode</label>
               <div class="custom-select-wrapper">
@@ -107,10 +98,7 @@
               </div>
             </div>
 
-            <!-- Dynamic Overridable Options Panel -->
             <div class="options-container">
-
-              <!-- A. Crawler Options (Only visible for crawler) -->
               <div id="crawler-options" class="options-panel hidden">
                 <span class="options-panel-title">Crawler Options</span>
                 <div class="options-grid">
@@ -149,7 +137,6 @@
                 </div>
               </div>
 
-              <!-- B. Playwright Options (Visible for non-crawler, non-all) -->
               <div id="pw-options" class="options-panel hidden">
                 <span class="options-panel-title">Playwright Options</span>
                 <div class="options-grid">
@@ -187,19 +174,15 @@
                   </div>
                 </div>
               </div>
-
             </div>
 
-            <!-- Action Buttons Group -->
             <div class="action-buttons-group">
-              <button id="btn-run" class="btn btn-run" disabled>선택 단계 실행</button>
-              <button id="btn-kill" class="btn btn-kill hidden">중지</button>
+              <button id="btn-run" class="btn btn-run" disabled>선택 Phase 실행</button>
+              <button id="btn-kill" class="btn btn-kill hidden">중단</button>
             </div>
 
-            <!-- Utility Divider -->
             <div class="card-divider" style="margin: 15px 0;"></div>
 
-            <!-- Report Operations Panel -->
             <div class="reports-section">
               <span class="form-label" style="margin-bottom: 8px; display: block;">Report Utilities</span>
               <div class="report-buttons-grid">
@@ -208,13 +191,10 @@
                 <button id="btn-report-pw" class="btn btn-report" disabled>PW Report</button>
               </div>
             </div>
-
           </div>
         </div>
-
       </section>
 
-      <!-- Lower Section: Console Log Output -->
       <section class="console-section">
         <div class="card console-card">
           <div class="console-header">
@@ -230,9 +210,7 @@
           </div>
         </div>
       </section>
-
     </main>
-
   </div>
 
   <script src="index.js"></script>

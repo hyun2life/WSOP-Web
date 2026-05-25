@@ -3,13 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedPhase = null;
   let isRunning = false;
 
-  // DOM Elements
   const phaseListContainer = document.getElementById('phase-list-container');
   const detailId = document.getElementById('detail-id');
   const detailName = document.getElementById('detail-name');
   const detailReport = document.getElementById('detail-report');
   const detailDir = document.getElementById('detail-dir');
   const detailDesc = document.getElementById('detail-desc');
+  const detailSteps = document.getElementById('detail-steps');
 
   const modeSelect = document.getElementById('mode-select');
   const envSelect = document.getElementById('env-select');
@@ -21,17 +21,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRun = document.getElementById('btn-run');
   const btnKill = document.getElementById('btn-kill');
   const btnShutdown = document.getElementById('btn-shutdown');
-
   const btnReportKo = document.getElementById('btn-report-ko');
   const btnReportEn = document.getElementById('btn-report-en');
   const btnReportPw = document.getElementById('btn-report-pw');
-
   const btnClearLog = document.getElementById('btn-clear-log');
   const btnCopyLog = document.getElementById('btn-copy-log');
   const consoleOutput = document.getElementById('console-output');
   const statusIndicator = document.getElementById('status-indicator');
 
-  // Checkbox & Inputs Elements mapping
   const crawlerOpts = {
     limit: { chk: document.getElementById('opt-limit-check'), input: document.getElementById('opt-limit-input'), arg: 'limit' },
     auth: { chk: document.getElementById('opt-auth-check'), input: document.getElementById('opt-auth-input'), arg: 'auth-wait-ms' },
@@ -46,134 +43,74 @@ document.addEventListener('DOMContentLoaded', () => {
     retries: { chk: document.getElementById('opt-retries-check'), input: document.getElementById('opt-retries-input'), arg: 'retries' },
   };
 
-  // Bind checkbox toggle states
   setupCheckboxToggles(crawlerOpts);
   setupCheckboxToggles(pwOpts);
 
-  // Target environment custom URL selector toggle
   envSelect.addEventListener('change', () => {
-    if (envSelect.value === 'Custom') {
-      customEnvUrlContainer.classList.remove('hidden');
-    } else {
-      customEnvUrlContainer.classList.add('hidden');
-    }
+    customEnvUrlContainer.classList.toggle('hidden', envSelect.value !== 'Custom');
   });
 
-  // Initialize SSE (Server-Sent Events) for real-time console streaming
   initSse();
+  loadPhases();
 
-  // 1. Fetch available phases config from backend
-  fetch('/api/phases')
-    .then(res => {
-      if (!res.ok) throw new Error('Failed to load phases registry');
-      return res.json();
-    })
-    .then(data => {
-      phases = data.phases || [];
-      renderPhaseCards();
-    })
-    .catch(err => {
-      appendSystemLog(`[ERROR] 페이즈 설정을 불러오지 못했습니다: ${err.message}`, 'text-error');
-    });
+  function loadPhases() {
+    fetch('/api/phases')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load phases registry');
+        return res.json();
+      })
+      .then((data) => {
+        phases = data.phases || [];
+        renderPhaseCards();
+      })
+      .catch((err) => {
+        appendSystemLog(`Phase 설정을 불러오지 못했습니다: ${err.message}`, 'text-error');
+      });
+  }
 
-  // 1. Helper function for toggleable accordion binding
   function setupAccordion(toggleEl, contentEl, defaultCollapsed = false) {
+    if (!toggleEl || !contentEl) return;
+
     const icon = toggleEl.querySelector('.accordion-icon');
     const text = toggleEl.querySelector('.toggle-text');
 
-    if (defaultCollapsed) {
-      contentEl.classList.add('collapsed');
+    const applyState = (collapsed) => {
+      contentEl.classList.toggle('collapsed', collapsed);
       if (icon) {
-        icon.classList.add('collapsed');
-        icon.textContent = '▼';
+        icon.classList.toggle('collapsed', collapsed);
+        icon.textContent = '▾';
       }
-      if (text) text.textContent = '펼치기';
-    } else {
-      contentEl.classList.remove('collapsed');
-      if (icon) {
-        icon.classList.remove('collapsed');
-        icon.textContent = '▲';
-      }
-      if (text) text.textContent = '접기';
-    }
+      if (text) text.textContent = collapsed ? '펼치기' : '접기';
+    };
 
-    toggleEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isCollapsed = contentEl.classList.contains('collapsed');
-      if (isCollapsed) {
-        contentEl.classList.remove('collapsed');
-        if (icon) {
-          icon.classList.remove('collapsed');
-          icon.textContent = '▲';
-        }
-        if (text) text.textContent = '접기';
-      } else {
-        contentEl.classList.add('collapsed');
-        if (icon) {
-          icon.classList.add('collapsed');
-          icon.textContent = '▼';
-        }
-        if (text) text.textContent = '펼치기';
-      }
+    applyState(defaultCollapsed);
+
+    toggleEl.addEventListener('click', (event) => {
+      event.stopPropagation();
+      applyState(!contentEl.classList.contains('collapsed'));
     });
   }
 
-  // Render Sidebar Cards with Hierarchical (Nested) Accordion
   function renderPhaseCards() {
     phaseListContainer.innerHTML = '';
 
-    // 1. Create All Group (전체 점검)
-    const allGroup = document.createElement('div');
-    allGroup.className = 'phase-group';
-    
-    const allHeader = document.createElement('div');
-    allHeader.className = 'phase-group-header';
-    allHeader.innerHTML = `
-      <span>전체 점검 (All)</span>
-      <button class="accordion-toggle" id="all-group-toggle" type="button">
-        <span class="accordion-icon">▲</span>
-        <span class="toggle-text">접기</span>
-      </button>
-    `;
-    allGroup.appendChild(allHeader);
+    const allGroup = createPhaseGroup('전체 실행', 'all-group-toggle');
+    const phaseGroup = createPhaseGroup('Playwright 검증 Phase', 'phase-group-toggle');
+    const crawlerGroup = createPhaseGroup('데이터 크롤러', 'crawler-group-toggle');
 
-    const allContent = document.createElement('div');
-    allContent.className = 'phase-group-content';
-    allGroup.appendChild(allContent);
+    const allContent = allGroup.querySelector('.phase-group-content');
+    const phaseContent = phaseGroup.querySelector('.phase-group-content');
+    const crawlerContent = crawlerGroup.querySelector('.phase-group-content');
 
-    // 2. Create Playwright Phase Group (Playwright 검증)
-    const phaseGroup = document.createElement('div');
-    phaseGroup.className = 'phase-group';
-
-    const phaseHeader = document.createElement('div');
-    phaseHeader.className = 'phase-group-header';
-    phaseHeader.innerHTML = `
-      <span>Playwright 검증 (Phases)</span>
-      <button class="accordion-toggle" id="phase-group-toggle" type="button">
-        <span class="accordion-icon">▲</span>
-        <span class="toggle-text">접기</span>
-      </button>
-    `;
-    phaseGroup.appendChild(phaseHeader);
-
-    const phaseContent = document.createElement('div');
-    phaseContent.className = 'phase-group-content';
-    phaseGroup.appendChild(phaseContent);
-
-    const activeList = document.createElement('div');
-    activeList.className = 'phase-group-list';
-    activeList.style.display = 'flex';
-    activeList.style.flexDirection = 'column';
-    activeList.style.gap = '8px';
+    const activeList = createListContainer();
     phaseContent.appendChild(activeList);
 
-    // Subgroup Accordion for Inactive (Planned) Phases inside Phase Group
     const plannedSubHeader = document.createElement('div');
     plannedSubHeader.className = 'sub-group-header';
     plannedSubHeader.innerHTML = `
-      <span>준비 중인 단계</span>
+      <span>준비 중인 Phase</span>
       <button class="accordion-toggle" id="planned-toggle" type="button">
-        <span class="accordion-icon collapsed">▼</span>
+        <span class="accordion-icon collapsed">▾</span>
         <span class="toggle-text">펼치기</span>
       </button>
     `;
@@ -184,55 +121,35 @@ document.addEventListener('DOMContentLoaded', () => {
     plannedContent.id = 'planned-accordion-content';
     phaseContent.appendChild(plannedContent);
 
-    // 3. Create Crawler Group (데이터 크롤러)
-    const crawlerGroup = document.createElement('div');
-    crawlerGroup.className = 'phase-group';
-
-    const crawlerHeader = document.createElement('div');
-    crawlerHeader.className = 'phase-group-header';
-    crawlerHeader.innerHTML = `
-      <span>데이터 크롤러 (Crawler)</span>
-      <button class="accordion-toggle" id="crawler-group-toggle" type="button">
-        <span class="accordion-icon">▲</span>
-        <span class="toggle-text">접기</span>
-      </button>
-    `;
-    crawlerGroup.appendChild(crawlerHeader);
-
-    const crawlerContent = document.createElement('div');
-    crawlerContent.className = 'phase-group-content';
-    crawlerGroup.appendChild(crawlerContent);
-
-    const crawlerList = document.createElement('div');
-    crawlerList.className = 'phase-group-list';
-    crawlerList.style.display = 'flex';
-    crawlerList.style.flexDirection = 'column';
-    crawlerList.style.gap = '8px';
+    const crawlerList = createListContainer();
     crawlerContent.appendChild(crawlerList);
 
-    // Add virtual 'all' phase card in Group 1
     const allPhase = {
       id: 'all',
       name: 'All Implemented Phases',
+      nameKo: '준비 완료 Phase 전체 실행',
       reportSuite: 'all',
       testDir: 'All active test directories',
-      description: 'ready 상태의 모든 단계를 순차적으로 실행합니다. 전체 점검이 필요할 때 사용합니다.',
-      implemented: true
+      implemented: true,
+      shortSummaryKo: 'ready 상태의 모든 Phase를 순차적으로 실행합니다.',
+      descriptionKo: '현재 구현되어 ready 상태인 모든 Playwright Phase를 순차적으로 실행합니다. 전체 점검이 필요할 때 사용합니다.',
+      stepsKo: [
+        'ready 상태의 Phase 목록 확인',
+        'Phase 1 Smoke 실행',
+        'Phase 2 Functional Flow 실행',
+        'Phase 3 Player Presentation 실행',
+        '각 Phase별 리포트 생성 확인',
+      ],
     };
     appendPhaseCard(allPhase, allContent);
 
-    // Distribute phases
-    phases.forEach(phase => {
+    phases.forEach((phase) => {
       if (phase.id === 'crawler') {
-        // Group 3
         appendPhaseCard(phase, crawlerList);
+      } else if (phase.implemented) {
+        appendPhaseCard(phase, activeList);
       } else {
-        // Group 2 (Phases 1-9)
-        if (phase.implemented) {
-          appendPhaseCard(phase, activeList);
-        } else {
-          appendPhaseCard(phase, plannedContent);
-        }
+        appendPhaseCard(phase, plannedContent);
       }
     });
 
@@ -240,73 +157,85 @@ document.addEventListener('DOMContentLoaded', () => {
     phaseListContainer.appendChild(phaseGroup);
     phaseListContainer.appendChild(crawlerGroup);
 
-    // Setup Accordions using the helper function
-    const allGroupToggle = allGroup.querySelector('#all-group-toggle');
-    setupAccordion(allGroupToggle, allContent, false); // 기본 펼침
+    setupAccordion(allGroup.querySelector('#all-group-toggle'), allContent, false);
+    setupAccordion(phaseGroup.querySelector('#phase-group-toggle'), phaseContent, false);
+    setupAccordion(crawlerGroup.querySelector('#crawler-group-toggle'), crawlerContent, false);
+    setupAccordion(phaseGroup.querySelector('#planned-toggle'), plannedContent, true);
 
-    const phaseGroupToggle = phaseGroup.querySelector('#phase-group-toggle');
-    setupAccordion(phaseGroupToggle, phaseContent, false); // 기본 펼침
-
-    const crawlerGroupToggle = crawlerGroup.querySelector('#crawler-group-toggle');
-    setupAccordion(crawlerGroupToggle, crawlerContent, false); // 기본 펼침
-
-    const plannedToggle = phaseGroup.querySelector('#planned-toggle');
-    setupAccordion(plannedToggle, plannedContent, true); // 기본 접힘
-
-    // Default select first item (all)
     selectPhase(allPhase);
+  }
+
+  function createPhaseGroup(title, toggleId) {
+    const group = document.createElement('div');
+    group.className = 'phase-group';
+
+    const header = document.createElement('div');
+    header.className = 'phase-group-header';
+    header.innerHTML = `
+      <span>${title}</span>
+      <button class="accordion-toggle" id="${toggleId}" type="button">
+        <span class="accordion-icon">▾</span>
+        <span class="toggle-text">접기</span>
+      </button>
+    `;
+    group.appendChild(header);
+
+    const content = document.createElement('div');
+    content.className = 'phase-group-content';
+    group.appendChild(content);
+
+    return group;
+  }
+
+  function createListContainer() {
+    const list = document.createElement('div');
+    list.className = 'phase-group-list';
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '8px';
+    return list;
   }
 
   function appendPhaseCard(phase, parentContainer) {
     const card = document.createElement('div');
+    const statusText = phase.implemented ? 'ready' : 'planned';
+    const statusKo = phase.implemented ? '준비됨' : '예정';
+
     card.className = 'phase-card';
     card.dataset.id = phase.id;
-
-    const statusText = phase.implemented ? 'ready' : 'planned';
     card.innerHTML = `
       <div class="phase-header">
-        <span class="phase-id">${phase.id}</span>
-        <span class="phase-badge ${statusText}">${statusText}</span>
+        <span class="phase-id">${escapeHtml(phase.id)}</span>
+        <span class="phase-badge ${statusText}">${statusKo}</span>
       </div>
-      <div class="phase-name">${phase.name}</div>
+      <div class="phase-name">${escapeHtml(displayName(phase))}</div>
+      <div class="phase-summary">${escapeHtml(phase.shortSummaryKo || phase.descriptionKo || phase.description || '')}</div>
+      ${phase.stepsKo?.length ? `<div class="phase-step-count">${phase.stepsKo.length}개 검증 스텝</div>` : ''}
     `;
 
     card.addEventListener('click', () => selectPhase(phase));
     parentContainer.appendChild(card);
   }
 
-  // Handle phase card selection
   function selectPhase(phase) {
     selectedPhase = phase;
 
-    // Highlight card
-    document.querySelectorAll('.phase-card').forEach(c => {
-      c.classList.toggle('active', c.dataset.id === phase.id);
+    document.querySelectorAll('.phase-card').forEach((card) => {
+      card.classList.toggle('active', card.dataset.id === phase.id);
     });
 
-    // Populate Details Card
     detailId.textContent = phase.id;
-    detailName.textContent = phase.name;
-    detailReport.textContent = phase.reportSuite;
-    detailDir.textContent = phase.testDir;
-    detailDesc.textContent = phase.description;
+    detailName.textContent = displayName(phase);
+    detailReport.textContent = phase.reportSuite || '-';
+    detailDir.textContent = phase.testDir || '-';
+    detailDesc.textContent = phase.descriptionKo || phase.description || '-';
+    renderPhaseSteps(phase.stepsKo || []);
 
-    // Adjust Options Panels Visibility based on phase ID
-    if (phase.id === 'crawler') {
-      crawlerOptionsPanel.classList.remove('hidden');
-      pwOptionsPanel.classList.add('hidden');
-    } else if (phase.id === 'all') {
-      crawlerOptionsPanel.classList.add('hidden');
-      pwOptionsPanel.classList.add('hidden');
-    } else {
-      crawlerOptionsPanel.classList.add('hidden');
-      pwOptionsPanel.classList.remove('hidden');
-    }
+    crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler');
+    pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'all');
 
-    // Adjust run button
     btnRun.disabled = !phase.implemented || isRunning;
 
-    // Adjust Report Buttons permissions
     if (!phase.implemented || phase.id === 'all') {
       btnReportKo.disabled = true;
       btnReportEn.disabled = true;
@@ -314,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (phase.id === 'crawler') {
       btnReportKo.disabled = false;
       btnReportEn.disabled = false;
-      btnReportPw.disabled = true; // Crawler does not have a playwright trace report
+      btnReportPw.disabled = true;
     } else {
       btnReportKo.disabled = false;
       btnReportEn.disabled = false;
@@ -322,16 +251,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Setup options checkbox interactive inputs
+  function renderPhaseSteps(steps) {
+    detailSteps.innerHTML = '';
+
+    if (!steps.length) {
+      const item = document.createElement('li');
+      item.textContent = '아직 세부 검증 스텝이 등록되지 않았습니다.';
+      detailSteps.appendChild(item);
+      return;
+    }
+
+    steps.forEach((step) => {
+      const item = document.createElement('li');
+      item.textContent = step;
+      detailSteps.appendChild(item);
+    });
+  }
+
   function setupCheckboxToggles(optGroup) {
-    Object.values(optGroup).forEach(item => {
+    Object.values(optGroup).forEach((item) => {
       item.chk.addEventListener('change', () => {
         item.input.disabled = !item.chk.checked;
       });
     });
   }
 
-  // 2. Initialize SSE connection
   function initSse() {
     const sse = new EventSource('/api/logs');
 
@@ -347,17 +291,16 @@ document.addEventListener('DOMContentLoaded', () => {
           updateExecutionStatus(message.status);
         }
       } catch (err) {
-        console.error('SSE Message parsing error:', err);
+        console.error('SSE message parsing error:', err);
       }
     };
 
     sse.onerror = (err) => {
       console.error('SSE connection lost. Reconnecting...', err);
-      appendSystemLog('SSE connection disconnected. Reconnecting in background...', 'text-muted');
+      appendSystemLog('SSE 연결이 끊겼습니다. 백그라운드에서 재연결을 시도합니다.', 'text-muted');
     };
   }
 
-  // Append dynamic text to Virtual Terminal Log
   function appendConsoleLog(text) {
     const lines = text.split('\n');
     lines.forEach((line, index) => {
@@ -366,7 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const div = document.createElement('div');
       div.className = 'console-line';
 
-      // Advanced Log coloring based on level/prefix text
       if (line.includes('[SERVER_ERROR]') || line.includes('[ERROR]') || line.includes('fail')) {
         div.classList.add('text-error');
       } else if (line.includes('[SERVER]') || line.includes('Starting')) {
@@ -381,7 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
       consoleOutput.appendChild(div);
     });
 
-    // Smooth Auto Scroll to Bottom
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
   }
 
@@ -393,11 +334,9 @@ document.addEventListener('DOMContentLoaded', () => {
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
   }
 
-  // Sync state indicators
   function updateExecutionStatus(status) {
     statusIndicator.className = `status-indicator ${status}`;
 
-    // Status dot color mapping
     let label = 'Ready';
     if (status === 'running') {
       label = 'Running';
@@ -414,83 +353,74 @@ document.addEventListener('DOMContentLoaded', () => {
         btnRun.disabled = !selectedPhase.implemented;
       }
     }
+
     statusIndicator.innerHTML = `<span class="status-dot"></span>${label}`;
   }
 
-  // 3. Execution Control Buttons
   btnRun.addEventListener('click', () => {
     if (!selectedPhase || isRunning) return;
 
     const mode = modeSelect.value;
     const customArgs = {};
-
-    // Get Target Environment URL
     let baseUrl = '';
-    const envVal = envSelect.value;
-    if (envVal === 'Live') {
+
+    if (envSelect.value === 'Live') {
       baseUrl = 'https://www.wsop.com';
-    } else if (envVal === 'Stage') {
+    } else if (envSelect.value === 'Stage') {
       baseUrl = 'https://wsop-stage.ggnweb.com';
-    } else if (envVal === 'Custom') {
+    } else if (envSelect.value === 'Custom') {
       baseUrl = customEnvUrl.value.trim();
     }
 
-    // Collect custom arguments
     if (selectedPhase.id === 'crawler') {
-      Object.values(crawlerOpts).forEach(opt => {
-        if (opt.chk.checked) {
-          customArgs[opt.arg] = opt.input.value.trim();
-        }
+      Object.values(crawlerOpts).forEach((opt) => {
+        if (opt.chk.checked) customArgs[opt.arg] = opt.input.value.trim();
       });
     } else if (selectedPhase.id !== 'all') {
-      Object.values(pwOpts).forEach(opt => {
-        if (opt.chk.checked) {
-          customArgs[opt.arg] = opt.input.value.trim();
-        }
+      Object.values(pwOpts).forEach((opt) => {
+        if (opt.chk.checked) customArgs[opt.arg] = opt.input.value.trim();
       });
     }
 
-    // Call run API
     fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phaseId: selectedPhase.id, mode, customArgs, baseUrl })
+      body: JSON.stringify({ phaseId: selectedPhase.id, mode, customArgs, baseUrl }),
     })
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error('API request failed');
         return res.json();
       })
-      .catch(err => {
-        appendSystemLog(`[ERROR] 테스트 실행 요청 실패: ${err.message}`, 'text-error');
+      .catch((err) => {
+        appendSystemLog(`테스트 실행 요청 실패: ${err.message}`, 'text-error');
       });
   });
 
   btnKill.addEventListener('click', () => {
     fetch('/api/kill', { method: 'POST' })
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error('API request failed');
         return res.json();
       })
-      .catch(err => {
-        appendSystemLog(`[ERROR] 중단 요청 실패: ${err.message}`, 'text-error');
+      .catch((err) => {
+        appendSystemLog(`중단 요청 실패: ${err.message}`, 'text-error');
       });
   });
 
-  // 4. Report Operations API
   function triggerOpenReport(reportMode) {
     if (!selectedPhase) return;
 
     fetch('/api/open-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ suite: selectedPhase.reportSuite, mode: reportMode })
+      body: JSON.stringify({ suite: selectedPhase.reportSuite, mode: reportMode }),
     })
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error('Report API request failed');
         return res.json();
       })
-      .catch(err => {
-        appendSystemLog(`[ERROR] 리포트 열기 실패: ${err.message}`, 'text-error');
+      .catch((err) => {
+        appendSystemLog(`리포트 열기 실패: ${err.message}`, 'text-error');
       });
   }
 
@@ -498,49 +428,57 @@ document.addEventListener('DOMContentLoaded', () => {
   btnReportEn.addEventListener('click', () => triggerOpenReport('en'));
   btnReportPw.addEventListener('click', () => triggerOpenReport('playwright'));
 
-  // 5. Console Utility Actions
   btnClearLog.addEventListener('click', () => {
     consoleOutput.innerHTML = '';
-    appendSystemLog('Console screen cleared.', 'text-muted');
+    appendSystemLog('Console 화면을 비웠습니다.', 'text-muted');
   });
 
   btnCopyLog.addEventListener('click', () => {
-    const text = consoleOutput.innerText;
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        appendSystemLog('Console logs copied to clipboard.', 'text-muted');
+    navigator.clipboard.writeText(consoleOutput.innerText)
+      .then(() => appendSystemLog('Console 로그를 클립보드에 복사했습니다.', 'text-muted'))
+      .catch((err) => console.error('Copy failed:', err));
+  });
+
+  btnShutdown.addEventListener('click', () => {
+    if (!confirm('대시보드 서버를 종료할까요?\n종료 후에는 Run.bat을 다시 실행해야 합니다.')) {
+      return;
+    }
+
+    appendSystemLog('대시보드 서버 종료 요청 중...', 'text-system');
+    fetch('/api/shutdown', { method: 'POST' })
+      .then((res) => {
+        if (!res.ok) throw new Error('Shutdown request failed');
+        return res.json();
       })
-      .catch(err => {
-        console.error('Copy failed:', err);
+      .then(() => {
+        appendSystemLog('서버가 정상 종료되었습니다. 브라우저 창을 닫아주세요.', 'text-muted');
+        alert('대시보드 서버가 종료되었습니다. 브라우저 창을 닫아주세요.');
+        btnRun.disabled = true;
+        btnKill.disabled = true;
+        btnShutdown.disabled = true;
+        document.body.innerHTML = `
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background-color:#060913; color:#9CA3AF; font-family:sans-serif; gap:15px;">
+            <h1 style="color:#EF4444; margin-bottom:5px; font-size:2.5rem; font-weight:700;">Dashboard Stopped</h1>
+            <p style="font-size:1.1rem;">WSOP Web 대시보드 서버가 안전하게 종료되었습니다.</p>
+            <p style="font-size:0.85rem; color:#4B5563; margin-top:10px;">브라우저 창을 닫아도 됩니다. 다시 실행하려면 Run.bat을 더블클릭하세요.</p>
+          </div>
+        `;
+      })
+      .catch((err) => {
+        appendSystemLog(`종료 요청 실패: ${err.message}`, 'text-error');
       });
   });
 
-  // 6. Server Shutdown Action
-  btnShutdown.addEventListener('click', () => {
-    if (confirm('대시보드 서버를 종료하시겠습니까?\n종료 후에는 대시보드를 다시 켤 때까지 실행할 수 없습니다.')) {
-      appendSystemLog('대시보드 서버 종료 요청 중...', 'text-system');
-      fetch('/api/shutdown', { method: 'POST' })
-        .then(res => {
-          if (!res.ok) throw new Error('Shutdown request failed');
-          return res.json();
-        })
-        .then(data => {
-          appendSystemLog('서버가 성공적으로 종료되었습니다. 이 브라우저 창을 닫아주세요.', 'text-muted');
-          alert('대시보드 서버가 종료되었습니다. 이 브라우저 탭을 닫아주세요.');
-          btnRun.disabled = true;
-          btnKill.disabled = true;
-          btnShutdown.disabled = true;
-          document.body.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #060913; color: #9CA3AF; font-family: sans-serif; gap: 15px;">
-              <h1 style="color: #EF4444; margin-bottom: 5px; font-size: 2.5rem; font-weight: 700; letter-spacing: -1px;">Dashboard Stopped</h1>
-              <p style="font-size: 1.1rem;">웹 러너 대시보드 서버가 안전하게 완전히 종료되었습니다.</p>
-              <p style="font-size: 0.85rem; color: #4B5563; margin-top: 10px;">이 브라우저 탭을 안전하게 닫으셔도 됩니다. 다시 구동하려면 Run.bat을 더블클릭하세요.</p>
-            </div>
-          `;
-        })
-        .catch(err => {
-          appendSystemLog(`[ERROR] 종료 요청 실패: ${err.message}`, 'text-error');
-        });
-    }
-  });
+  function displayName(phase) {
+    return phase.nameKo || phase.name || phase.id;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 });

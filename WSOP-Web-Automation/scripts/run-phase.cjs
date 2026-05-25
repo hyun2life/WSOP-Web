@@ -107,7 +107,7 @@ function runPhasePromise(phase, rawArgs) {
     const passthrough = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
     const testDir = path.resolve(process.cwd(), phase.testDir);
 
-    let spawnCommand, spawnArgs, commandDisplay;
+    let spawnCommand, spawnArgs, commandDisplay, workingDirectory;
     const env = {
       ...process.env,
       WSOP_REPORT_SUITE: phase.reportSuite,
@@ -117,6 +117,7 @@ function runPhasePromise(phase, rawArgs) {
       spawnCommand = process.platform === 'win32' ? 'cmd.exe' : 'sh';
       spawnArgs = process.platform === 'win32' ? ['/d', '/s', '/c', phase.scriptPath] : ['./' + phase.scriptPath];
       commandDisplay = `${phase.scriptPath}`;
+      workingDirectory = testDir;
 
       // Default to headless unless overridden by GUI passthrough flags
       env.HEADED = 'false';
@@ -138,6 +139,7 @@ function runPhasePromise(phase, rawArgs) {
       const otherArgs = passthrough.filter(arg => arg !== '--ui' && arg !== '--headed');
       spawnArgs = [scriptPath, ...extraNodeArgs, ...otherArgs];
       commandDisplay = `node ${scriptPath} ${[...extraNodeArgs, ...otherArgs].join(' ')}`;
+      workingDirectory = process.cwd();
     } else {
       // Playwright test runner
       const project = phase.project || 'chromium-desktop';
@@ -146,18 +148,19 @@ function runPhasePromise(phase, rawArgs) {
       spawnCommand = process.platform === 'win32' ? 'cmd.exe' : command;
       spawnArgs = process.platform === 'win32' ? ['/d', '/s', '/c', command, ...args] : args;
       commandDisplay = `${command} ${args.join(' ')}`;
+      workingDirectory = process.cwd();
     }
 
     console.log(`Running ${phase.id}: ${phase.name}`);
     console.log(`Report suite: ${phase.reportSuite}`);
-    console.log(`WorkingDirectory: ${testDir}`);
+    console.log(`WorkingDirectory: ${workingDirectory}`);
     console.log(`Command: ${commandDisplay}`);
 
     const child = spawn(spawnCommand, spawnArgs, {
       env,
       stdio: 'inherit',
       shell: false,
-      cwd: testDir, // Resolve path relative to the test project root
+      cwd: workingDirectory,
     });
 
     child.on('exit', (code, signal) => {

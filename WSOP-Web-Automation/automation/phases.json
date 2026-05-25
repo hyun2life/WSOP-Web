@@ -8,7 +8,17 @@
       "testDir": "tests/smoke",
       "project": "chromium-desktop",
       "implemented": true,
-      "description": "Public page access, core content, navigation, console errors, and sampled internal links."
+      "nameKo": "공개 페이지 기본 점검",
+      "shortSummaryKo": "주요 공개 페이지가 열리고 기본 UI가 깨지지 않는지 빠르게 확인합니다.",
+      "description": "Public page access, core content, navigation, console errors, and sampled internal links.",
+      "descriptionKo": "배포 후 주요 공개 페이지가 정상 접근되는지, 핵심 문구와 내비게이션이 보이는지, 콘솔 오류나 내부 링크 문제가 눈에 띄는지 빠르게 확인합니다.",
+      "stepsKo": [
+        "주요 공개 페이지 접근 및 HTTP 상태 확인",
+        "페이지별 핵심 콘텐츠 노출 확인",
+        "상단 내비게이션 및 내부 링크 샘플 확인",
+        "브라우저 콘솔 오류 수집",
+        "Smoke 한글/영문 리포트 생성"
+      ]
     },
     {
       "id": "phase2",
@@ -18,7 +28,17 @@
       "testDir": "tests/functional",
       "project": "chromium-desktop",
       "implemented": true,
-      "description": "Tournament schedule, player search, standings, and news user exploration flows."
+      "nameKo": "공개 웹 기능 흐름 점검",
+      "shortSummaryKo": "사용자가 실제로 이동하는 Schedule, Search, Standings, News 흐름을 확인합니다.",
+      "description": "Tournament schedule, player search, standings, and news user exploration flows.",
+      "descriptionKo": "단순 페이지 접근을 넘어 사용자가 공개 웹에서 실제로 정보를 탐색하는 대표 기능 흐름이 이어지는지 확인합니다.",
+      "stepsKo": [
+        "Tournament Schedule 탐색 및 상세 진입 확인",
+        "Player Search 페이지 접근과 검색 흐름 확인",
+        "Player Standings 주요 영역 확인",
+        "News 목록에서 상세 페이지 진입 확인",
+        "Functional 한글/영문 리포트 생성"
+      ]
     },
     {
       "id": "phase3",
@@ -28,7 +48,19 @@
       "testDir": "tests/player-presentation",
       "project": "chromium-desktop",
       "implemented": true,
-      "description": "Validates player identity presentation, flags, avatars, badges, Hall of Fame, POY, and profile linking without DB/API value checks."
+      "nameKo": "플레이어 표현 및 식별 UI",
+      "shortSummaryKo": "크롤러 대상 TOP 플레이어가 공개 화면에서 이름, 국기, 이미지, 마크, 프로필로 올바르게 보이는지 확인합니다.",
+      "description": "Validates player identity presentation, flags, avatars, badges, Hall of Fame, POY, and profile linking without DB/API value checks.",
+      "descriptionKo": "Data/API 정합성이 아니라, 플레이어가 WSOP.com 공개 웹 화면에서 올바르게 식별되고 표현되는지 검증합니다. 수치 계산이나 DB/API 값 비교는 Phase 6에서 다룹니다.",
+      "stepsKo": [
+        "Player Standings에서 충분한 standings target을 포함한 최근 output 기준 TOP 대상자 행 노출 확인",
+        "각 대상자의 이름, 프로필 링크, 국가/국기, 이미지 후보 확인",
+        "Player Search에서 탑랭커 이름 입력 시 자동완성 row와 검색 결과 노출 확인",
+        "대표 Player Profile에서 이름, 국가/국기, avatar/profile image 후보 확인",
+        "Hall of Fame, Player of the Year, 내부 Legend 그룹의 표시 및 프로필 연결 확인",
+        "stage avatar/image 미노출 및 optional badge/mark 미노출은 warning으로 수집",
+        "크롤러 대상 플레이어 UI 커버리지 카드가 포함된 Phase 3 리포트 생성"
+      ]
     },
     {
       "id": "phase4",
@@ -38,7 +70,17 @@
       "testDir": "tests/search-filter-sort",
       "project": "chromium-desktop",
       "implemented": false,
-      "description": "Reserved for deeper filter, sort, pagination, and search behavior checks."
+      "nameKo": "검색, 필터, 정렬 심화 검증",
+      "shortSummaryKo": "검색 조건, 필터, 정렬, 페이지네이션의 세부 동작을 검증할 예정입니다.",
+      "description": "Reserved for deeper filter, sort, pagination, and search behavior checks.",
+      "descriptionKo": "검색/필터/정렬/페이지네이션처럼 목록 UI의 조작성이 복잡해지는 영역을 별도 단계로 분리해 검증할 예정입니다.",
+      "stepsKo": [
+        "검색어 입력과 결과 필터링 확인",
+        "필터 조합별 결과 목록 갱신 확인",
+        "정렬 조건 변경 확인",
+        "페이지네이션 이동 확인",
+        "느슨하지 않은 selector 기준 정리"
+      ]
     },
     {
       "id": "phase5",
@@ -48,7 +90,17 @@
       "testDir": "tests/result-detail",
       "project": "chromium-desktop",
       "implemented": false,
-      "description": "Reserved for tournament/result detail page validation."
+      "nameKo": "토너먼트/결과 상세 검증",
+      "shortSummaryKo": "Tournament 및 Result 상세 페이지 표현을 검증할 예정입니다.",
+      "description": "Reserved for tournament/result detail page validation.",
+      "descriptionKo": "토너먼트와 결과 상세 페이지가 공개 웹에서 정상적으로 연결되고 필요한 UI 영역을 노출하는지 검증할 예정입니다.",
+      "stepsKo": [
+        "Tournament 상세 페이지 접근 확인",
+        "Result 상세 페이지 접근 확인",
+        "상세 테이블과 핵심 영역 노출 확인",
+        "상세 페이지 내부 링크 확인",
+        "수치 정합성 검증 범위와 분리"
+      ]
     },
     {
       "id": "phase6",
@@ -58,7 +110,17 @@
       "testDir": "tests/data-integrity",
       "project": "chromium-desktop",
       "implemented": false,
-      "description": "Reserved for DB/API consistency, playerId/onepassId mapping, and calculated value checks against public UI data."
+      "nameKo": "데이터/API 정합성 검증",
+      "shortSummaryKo": "DB/API 값과 공개 UI 값, playerId/onepassId 매핑을 비교 검증할 예정입니다.",
+      "description": "Reserved for DB/API consistency, playerId/onepassId mapping, and calculated value checks against public UI data.",
+      "descriptionKo": "공개 UI의 수치와 DB/API 응답, playerId/onepassId 매핑, 계산 값의 정합성을 검증하는 단계입니다. Phase 3의 UI 표현 검증과 분리합니다.",
+      "stepsKo": [
+        "API 응답과 공개 UI 값 비교",
+        "DB 조회 값과 공개 UI 값 비교",
+        "playerId/onepassId 매핑 확인",
+        "earnings, bracelets, rings 등 계산 값 검증",
+        "known exception 별도 관리"
+      ]
     },
     {
       "id": "phase7",
@@ -68,7 +130,17 @@
       "testDir": "tests/performance-stability",
       "project": "chromium-desktop",
       "implemented": false,
-      "description": "Reserved for basic load timing, retry, stability, and error budget checks."
+      "nameKo": "성능 및 안정성 점검",
+      "shortSummaryKo": "로드 시간, 재시도, 안정성, 오류 예산을 점검할 예정입니다.",
+      "description": "Reserved for basic load timing, retry, stability, and error budget checks.",
+      "descriptionKo": "공개 웹 자동화가 반복 실행에서도 안정적으로 동작하는지, 기본 로딩 시간과 실패/재시도 패턴을 확인할 예정입니다.",
+      "stepsKo": [
+        "주요 페이지 로드 시간 측정",
+        "반복 실행 안정성 확인",
+        "네트워크/asset 지연 패턴 수집",
+        "retry 기준 정리",
+        "오류 예산 기준 수립"
+      ]
     },
     {
       "id": "phase8",
@@ -78,7 +150,17 @@
       "testDir": "tests/visual-regression",
       "project": "chromium-desktop",
       "implemented": false,
-      "description": "Reserved for screenshot baseline and layout regression checks."
+      "nameKo": "화면 회귀 검증",
+      "shortSummaryKo": "스크린샷 baseline 기반의 레이아웃 회귀를 검증할 예정입니다.",
+      "description": "Reserved for screenshot baseline and layout regression checks.",
+      "descriptionKo": "UI 요소가 깨지거나 겹치는 문제를 스크린샷 baseline 기준으로 비교하는 단계입니다.",
+      "stepsKo": [
+        "주요 화면 screenshot baseline 생성",
+        "desktop/mobile viewport 비교",
+        "레이아웃 겹침과 깨짐 탐지",
+        "동적 콘텐츠 영역 ignore 기준 정의",
+        "visual snapshot 리포트 생성"
+      ]
     },
     {
       "id": "phase9",
@@ -88,7 +170,17 @@
       "testDir": "tests/regression",
       "project": "chromium-desktop",
       "implemented": false,
-      "description": "Reserved for curated release regression coverage across prior phases."
+      "nameKo": "전체 회귀 검증",
+      "shortSummaryKo": "릴리즈 전 주요 Phase를 묶어 최종 회귀 범위를 검증할 예정입니다.",
+      "description": "Reserved for curated release regression coverage across prior phases.",
+      "descriptionKo": "이전 Phase에서 안정화된 핵심 검증을 릴리즈 전 회귀 세트로 묶어 실행하는 단계입니다.",
+      "stepsKo": [
+        "Phase 1~8 주요 검증 선별",
+        "릴리즈 전 필수 체크 목록 구성",
+        "known issue와 skip 기준 반영",
+        "최종 회귀 리포트 생성",
+        "팀 배포 전 승인 기준 정리"
+      ]
     },
     {
       "id": "crawler",
@@ -99,7 +191,17 @@
       "implemented": true,
       "runnerType": "batch",
       "scriptPath": "RUN_WSOP_PLAYER_CRAWLER_LIVE.bat",
-      "description": "Runs player standings crawler automation script to collect latest rankings and verify DB."
+      "nameKo": "플레이어 스탠딩 크롤러",
+      "shortSummaryKo": "스탠딩 TOP 플레이어와 상세 Result를 수집하고 크롤러 리포트를 생성합니다.",
+      "description": "Runs player standings crawler automation script to collect latest rankings and verify DB.",
+      "descriptionKo": "Player Standings 기준 TOP 플레이어를 수집하고, 각 플레이어의 상세 Result 검증 및 크롤러 리포트를 생성합니다. Phase 3 UI 검증의 대상자 기준으로도 사용됩니다.",
+      "stepsKo": [
+        "Player Standings 카테고리별 TOP 대상자 수집",
+        "플레이어 프로필과 Result 상세 접근",
+        "상세 결과 데이터 수집 및 검증",
+        "크롤러 output JSON/HTML 리포트 생성",
+        "Phase 3 UI 커버리지 기준 데이터로 활용"
+      ]
     }
   ]
 }

@@ -219,11 +219,34 @@ body {
 }
 
 .phase-name {
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-size: 0.86rem;
+  color: var(--text-primary);
+  font-weight: 700;
   white-space: normal;
   word-break: keep-all;
   line-height: 1.35;
+}
+
+.phase-summary {
+  margin-top: 6px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.phase-step-count {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 9px;
+  padding: 3px 7px;
+  border: 1px solid rgba(88, 166, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(88, 166, 255, 0.08);
+  color: var(--accent-blue);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .loading-spinner {
@@ -326,6 +349,46 @@ body {
   color: var(--text-muted);
   line-height: 1.5;
   white-space: pre-line;
+}
+
+.phase-step-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: phase-step;
+}
+
+.phase-step-list li {
+  counter-increment: phase-step;
+  position: relative;
+  min-height: 30px;
+  padding: 7px 10px 7px 38px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.phase-step-list li::before {
+  content: counter(phase-step);
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(214, 31, 44, 0.15);
+  color: #f7c948;
+  font-size: 0.68rem;
+  font-weight: 800;
 }
 
 /* Right Card: Settings Card */
@@ -800,4 +863,3 @@ body {
   margin: 0;
   pointer-events: none;
 }
-
