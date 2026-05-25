@@ -11,6 +11,7 @@ const PHASES_JSON_PATH = path.join(PROJECT_ROOT, 'automation', 'phases.json');
 const WEB_UI_DIR = path.join(PROJECT_ROOT, 'automation', 'web-ui');
 
 let activeProcess = null;
+let activePhaseId = null;
 let sseClients = [];
 
 // Helper to strip ANSI codes from logs for clean terminal view
@@ -150,6 +151,7 @@ const server = http.createServer((req, res) => {
           env: spawnEnv,
           shell: true
         });
+        activePhaseId = phaseId;
 
         activeProcess.stdout.on('data', data => {
           const text = stripAnsi(data.toString());
@@ -165,6 +167,7 @@ const server = http.createServer((req, res) => {
           sendToSse('log', { text: `[SERVER_ERROR] Failed to start process: ${err.message}\n` });
           sendToSse('status', { status: 'failed', code: -1 });
           activeProcess = null;
+          activePhaseId = null;
         });
 
         activeProcess.on('exit', (code, signal) => {
@@ -172,6 +175,7 @@ const server = http.createServer((req, res) => {
           sendToSse('log', { text: `\n[SERVER] Process finished: ${reason}\n` });
           sendToSse('status', { status: code === 0 ? 'success' : 'failed', code });
           activeProcess = null;
+          activePhaseId = null;
         });
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -261,6 +265,16 @@ const server = http.createServer((req, res) => {
       console.log('WSOP Web Runner dashboard server has been shutdown by user request.');
       process.exit(0);
     }, 1000);
+    return;
+  }
+
+  // 8. GET /api/status
+  if (method === 'GET' && url === '/api/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      isRunning: activeProcess !== null,
+      phaseId: activePhaseId
+    }));
     return;
   }
 

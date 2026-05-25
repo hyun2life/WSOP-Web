@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .then((data) => {
         phases = data.phases || [];
         renderPhaseCards();
+        checkRunningStatus();
       })
       .catch((err) => {
         appendSystemLog(`Phase 설정을 불러오지 못했습니다: ${err.message}`, 'text-error');
@@ -299,6 +300,46 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('SSE connection lost. Reconnecting...', err);
       appendSystemLog('SSE 연결이 끊겼습니다. 백그라운드에서 재연결을 시도합니다.', 'text-muted');
     };
+  }
+
+  function checkRunningStatus() {
+    fetch('/api/status')
+      .then((res) => {
+        if (!res.ok) throw new Error('Status check failed');
+        return res.json();
+      })
+      .then((data) => {
+        if (data.isRunning && data.phaseId) {
+          updateExecutionStatus('running');
+
+          const allPhase = {
+            id: 'all',
+            name: 'All Implemented Phases',
+            nameKo: '준비 완료 Phase 전체 실행',
+            reportSuite: 'all',
+            testDir: 'All active test directories',
+            implemented: true,
+            shortSummaryKo: 'ready 상태의 모든 Phase를 순차적으로 실행합니다.',
+            descriptionKo: '현재 구현되어 ready 상태인 모든 Playwright Phase를 순차적으로 실행합니다. 전체 점검이 필요할 때 사용합니다.',
+            stepsKo: [
+              'ready 상태의 Phase 목록 확인',
+              'Phase 1 Smoke 실행',
+              'Phase 2 Functional Flow 실행',
+              'Phase 3 Player Presentation 실행',
+              '각 Phase별 리포트 생성 확인',
+            ],
+          };
+
+          const phaseToSelect = data.phaseId === 'all' ? allPhase : phases.find(p => p.id === data.phaseId);
+          if (phaseToSelect) {
+            selectPhase(phaseToSelect);
+          }
+          appendSystemLog(`[SYSTEM] 이전 테스트(${data.phaseId})가 백그라운드에서 여전히 실행 중입니다.`, 'text-system');
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to restore running status:', err);
+      });
   }
 
   function appendConsoleLog(text) {
