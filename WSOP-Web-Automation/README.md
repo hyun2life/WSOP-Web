@@ -133,6 +133,7 @@ automation/output/wsop-public-search-filter-sort-*-report-ko.html
 automation/output/wsop-public-search-filter-sort-*-report.html
 automation/output/wsop-public-search-filter-sort-*-report.json
 automation/output/wsop-public-search-filter-sort-*-playwright-report/index.html
+automation/output/wsop-public-*-attachments/
 test-results/
 ```
 

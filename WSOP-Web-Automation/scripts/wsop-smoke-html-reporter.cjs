@@ -41,6 +41,9 @@ class WsopSmokeHtmlReporter {
         name: attachment.name,
         contentType: attachment.contentType,
         path: attachment.path ? path.relative(process.cwd(), attachment.path) : '',
+        href: '',
+        copiedPath: '',
+        missing: false,
         body: attachment.body && attachment.body.length <= 1_000_000 ? attachment.body.toString('utf8') : '',
       })),
     });
@@ -64,6 +67,7 @@ class WsopSmokeHtmlReporter {
     };
 
     report.summary = summarize(report);
+    materializeAttachmentFiles(report);
 
     const jsonPath = path.join(OUTPUT_DIR, `${REPORT_PREFIX}-${RUN_ID}-report.json`);
     const htmlPath = path.join(OUTPUT_DIR, `${REPORT_PREFIX}-${RUN_ID}-report.html`);
@@ -774,9 +778,41 @@ function renderResultsTable(items, t, includeErrors = false) {
 function renderAttachments(attachments) {
   if (!attachments || attachments.length === 0) return '<span class="muted">-</span>';
   return `<div class="attachments">${attachments.map((item) => {
-    if (!item.path) return `<span class="attachment">${escapeHtml(item.name)}</span>`;
-    return `<a class="attachment" href="../../${escapeHtml(item.path)}">${escapeHtml(item.name)}</a>`;
+    if (item.href) {
+      return `<a class="attachment" href="${escapeHtml(item.href)}">${escapeHtml(item.name)}</a>`;
+    }
+
+    const label = item.missing ? `${item.name} (missing)` : item.name;
+    return `<span class="attachment">${escapeHtml(label)}</span>`;
   }).join('')}</div>`;
+}
+
+function materializeAttachmentFiles(report) {
+  const attachmentDirName = `${report.reportPrefix}-${report.runId}-attachments`;
+  const attachmentDir = path.join(OUTPUT_DIR, attachmentDirName);
+
+  for (const result of report.results) {
+    (result.attachments || []).forEach((attachment, index) => {
+      if (!attachment.path) {
+        return;
+      }
+
+      const sourcePath = path.resolve(process.cwd(), attachment.path);
+      if (!fs.existsSync(sourcePath)) {
+        attachment.missing = true;
+        return;
+      }
+
+      fs.mkdirSync(attachmentDir, { recursive: true });
+      const sourceBaseName = path.basename(sourcePath);
+      const safeFileName = sanitizeFileName(`${String(result.id).padStart(3, '0')}-${index + 1}-${attachment.name}-${sourceBaseName}`);
+      const destinationPath = path.join(attachmentDir, safeFileName);
+      fs.copyFileSync(sourcePath, destinationPath);
+
+      attachment.copiedPath = toPosixPath(path.relative(process.cwd(), destinationPath));
+      attachment.href = toPosixPath(path.relative(OUTPUT_DIR, destinationPath));
+    });
+  }
 }
 
 function renderPlayerPresentationCoverage(coverage, t) {
@@ -998,6 +1034,19 @@ function normalizeReportSuite(value) {
   }
 
   return value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function sanitizeFileName(value) {
+  return String(value || 'attachment')
+    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 180) || 'attachment';
+}
+
+function toPosixPath(value) {
+  return String(value || '').replace(/\\/g, '/');
 }
 
 function escapeHtml(value) {
