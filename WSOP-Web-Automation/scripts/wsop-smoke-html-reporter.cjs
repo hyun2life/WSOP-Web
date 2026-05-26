@@ -844,6 +844,36 @@ function getTestStepsEn(title = '', suiteTitle = '') {
     }
   }
 
+  // Phase 2 Functional flows
+  if (/first news item opens a detail page/i.test(t)) {
+    return [
+      'Navigate to the news page and click on the first news item in the list.',
+      'Observe if the browser redirects to the news detail page and renders the article body (paragraphs and title).',
+      'Assert that the article title on the detail page matches the clicked item and contains valid content.'
+    ];
+  }
+  if (/search or trending list opens a player profile/i.test(t)) {
+    return [
+      'Open the player search section, type a search keyword (or click a player from the trending list) and select the player.',
+      'Observe if the page redirects to the player\'s profile page and displays core stats (such as bracelets, cashes, earnings).',
+      'Assert that the loaded player profile corresponds to the selected player with accurate summary stats.'
+    ];
+  }
+  if (/ranking sections link through to player profiles/i.test(t)) {
+    return [
+      'Navigate to the Player Standings page and click on a player name link in one of the ranking tables.',
+      'Observe if the browser transitions successfully to the player\'s profile details page.',
+      'Assert that the player profile URL is valid and the header displays the matching player identity.'
+    ];
+  }
+  if (/filters are clickable and a tournament detail/i.test(t)) {
+    return [
+      'Navigate to the Tournament Schedule page, interact with various filters (Year/Month/Type), and click on a tournament item.',
+      'Observe if the schedule list filters correctly and redirects to the tournament details page upon selection.',
+      'Assert that the tournament detail page loads successfully and preserves the identical event title.'
+    ];
+  }
+
   if (/opens and shows core content/i.test(t)) {
     return [
       `Perform web interaction (page navigation) to open the ${targetPageName}.`,
@@ -1017,6 +1047,36 @@ function getTestStepsKo(title = '', suiteTitle = '') {
       targetPageKey = key;
       break;
     }
+  }
+
+  // Phase 2 Functional flows
+  if (/first news item opens a detail page/i.test(t)) {
+    return [
+      '뉴스 목록 페이지에 진입하여 가장 상단에 위치한 첫 번째 뉴스 아이템을 클릭하는 웹 인터랙션을 수행합니다.',
+      '상세 기사 페이지로 정상적으로 이동하고, 기사의 본문 내용(텍스트 단락, 이미지, 제목)이 올바르게 로드되는지 관찰합니다.',
+      '로드된 상세 페이지의 제목이 클릭한 뉴스 아이템과 정확히 일치하며 유효한 기사 내용을 포함하고 있는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/search or trending list opens a player profile/i.test(t)) {
+    return [
+      '플레이어 검색/조회 탭을 활성화하여 키워드 검색을 수행하거나 트렌딩 목록의 선수를 클릭하는 웹 인터랙션을 수행합니다.',
+      '해당 선수의 상세 프로필 페이지로 라우팅되며 요약 스탯(브레이슬릿 수, 입상 횟수, 총 상금 등)이 정상 렌더링되는지 관찰합니다.',
+      '상세 프로필 화면의 선수 정보 및 통계 데이터가 실제 선택한 선수와 일치하는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/ranking sections link through to player profiles/i.test(t)) {
+    return [
+      '플레이어 Standings 화면에 진입하여 대표 순위 섹션 테이블 내의 특정 선수 링크를 클릭하는 웹 인터랙션을 수행합니다.',
+      '해당 선수의 상세 프로필 페이지로 유실 없이 라우팅이 완료되는지 관찰합니다.',
+      '이동한 프로필 페이지의 헤더 영역 정보가 클릭한 선수 정보와 일치하는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/filters are clickable and a tournament detail/i.test(t)) {
+    return [
+      '토너먼트 일정 페이지에 진입하여 연도/월/종류 등 필터 버튼을 조작하고 특정 토너먼트 상세 링크를 클릭하는 웹 인터랙션을 수행합니다.',
+      '일정 데이터가 필터에 맞게 정렬 및 갱신되며, 상세 화면으로 자연스럽게 라우팅되는지 관찰합니다.',
+      '로드된 토너먼트 상세 페이지의 헤더에 동일한 대회 타이틀이 유실 없이 그대로 보존되어 있는지 단언(Assertion)하여 판독합니다.'
+    ];
   }
 
   // 1. [Smoke] * opens and shows core content
