@@ -842,6 +842,11 @@ function renderCoveragePlayerCard(player, t) {
   const rank = player.rank == null ? '-' : `#${player.rank}`;
   const profileText = player.actualProfileUrl || player.expectedProfileUrl || player.profileUrl || '';
   const profileHref = toWsopUrl(profileText || player.expectedProfileUrl || player.profileUrl);
+  const isLegendSpecialPage = player.kind === 'legend-special-page';
+  const sourceLabel = player.usedSearchFallback ? `${player.sourcePath || '-'} · search fallback` : (player.sourcePath || '-');
+  const signalText = Array.isArray(player.matchedSignals) && player.matchedSignals.length
+    ? player.matchedSignals.join(', ')
+    : '';
 
   return `<article class="player-card ${escapeHtml(player.status)}" data-category="${escapeHtml(player.category || 'Standings')}" data-status="${escapeHtml(player.status)}">
     <div class="player-card-top">
@@ -851,14 +856,23 @@ function renderCoveragePlayerCard(player, t) {
       </div>
       <span class="badge ${escapeHtml(player.status)}">${escapeHtml(formatCoverageStatus(player.status, t))}</span>
     </div>
-    <div class="player-meta">${escapeHtml(t.coverageSource)}: ${escapeHtml(player.sourcePath || '-')}</div>
+    <div class="player-meta">${escapeHtml(t.coverageSource)}: ${escapeHtml(sourceLabel)}</div>
     <div class="player-meta">${escapeHtml(t.coverageProfile)}: ${profileText ? `<a href="${escapeHtml(profileHref)}">${escapeHtml(profileText)}</a>` : '-'}</div>
+    ${isLegendSpecialPage && signalText ? `<div class="player-meta">${escapeHtml(t.coverageLegendSignals)}: ${escapeHtml(signalText)}</div>` : ''}
     <div class="check-grid">
-      ${checkPill(t.coverageRow, player.checks.row)}
-      ${checkPill(t.coverageName, player.checks.name)}
-      ${checkPill(t.coverageProfileLink, player.checks.profileLink)}
-      ${checkPill(t.coverageCountryFlag, player.checks.countryOrFlag)}
-      ${checkPill(t.coverageImage, player.checks.playerImage)}
+      ${isLegendSpecialPage
+        ? [
+          checkPill(t.coverageProfileReachable, player.checks.profileReachable),
+          checkPill(t.coverageSpecialPage, player.checks.specialPage),
+          checkPill(t.coverageSpecialSignals, player.checks.specialSignals),
+        ].join('')
+        : [
+          checkPill(t.coverageRow, player.checks.row),
+          checkPill(t.coverageName, player.checks.name),
+          checkPill(t.coverageProfileLink, player.checks.profileLink),
+          checkPill(t.coverageCountryFlag, player.checks.countryOrFlag),
+          checkPill(t.coverageImage, player.checks.playerImage),
+        ].join('')}
     </div>
   </article>`;
 }
@@ -871,7 +885,10 @@ function collectPlayerPresentationCoverage(report) {
   const byKey = new Map();
   for (const result of report.results) {
     for (const attachment of result.attachments || []) {
-      if (attachment.name !== 'player-presentation-standings-coverage') {
+      if (![
+        'player-presentation-standings-coverage',
+        'player-presentation-legend-special-page-coverage',
+      ].includes(attachment.name)) {
         continue;
       }
 
@@ -884,17 +901,35 @@ function collectPlayerPresentationCoverage(report) {
         const payload = JSON.parse(payloadText);
         for (const player of payload.players || []) {
           const profileUrl = player.expectedProfileUrl || player.actualProfileUrl || player.profileUrl || '';
-          const key = `${player.sourcePath}|${player.rank}|${player.name}|${profileUrl}`;
-          byKey.set(key, {
-            ...player,
-            category: player.category || 'Standings-only crawler',
-            expectedProfileUrl: player.expectedProfileUrl || profileUrl,
-            actualProfileUrl: player.actualProfileUrl || profileUrl,
-            checks: {
-              row: true,
-              ...(player.checks || {}),
-            },
-          });
+          if (attachment.name === 'player-presentation-legend-special-page-coverage') {
+            const key = `legend-special-page|${player.name}|${profileUrl}`;
+            byKey.set(key, {
+              ...player,
+              kind: 'legend-special-page',
+              category: player.category || 'Legend special profile',
+              expectedProfileUrl: player.expectedProfileUrl || profileUrl,
+              actualProfileUrl: player.actualProfileUrl || profileUrl,
+              checks: {
+                profileReachable: true,
+                specialPage: true,
+                specialSignals: true,
+                ...(player.checks || {}),
+              },
+            });
+          } else {
+            const key = `${player.sourcePath}|${player.rank}|${player.name}|${profileUrl}`;
+            byKey.set(key, {
+              ...player,
+              kind: 'standings-row',
+              category: player.category || 'Standings-only crawler',
+              expectedProfileUrl: player.expectedProfileUrl || profileUrl,
+              actualProfileUrl: player.actualProfileUrl || profileUrl,
+              checks: {
+                row: true,
+                ...(player.checks || {}),
+              },
+            });
+          }
         }
       } catch {
         // Keep the report renderable even if a single attachment is malformed.
@@ -1147,8 +1182,8 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         file: '파일',
         detail: '상세',
         attachment: '첨부',
-        playerCoverageTitle: '스탠딩 플레이어 UI 커버리지',
-        playerCoverageNote: '기존 크롤러의 standings-only 모드가 추출한 선수 대상자를 기준으로 공개 UI의 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. Profile/Result 상세 크롤링은 수행하지 않으며, 이미지는 stage/prod asset 차이로 warning이 될 수 있습니다.',
+        playerCoverageTitle: 'Phase 3 플레이어 UI 커버리지',
+        playerCoverageNote: '기존 크롤러의 standings-only 모드가 추출한 선수와 Legend 10 특수 프로필 대상자를 기준으로 공개 UI의 이름, 프로필 링크, 국가/국기, 이미지 후보, 특수 페이지 신호를 확인합니다. Profile/Result 상세 크롤링은 수행하지 않으며, 이미지는 stage/prod asset 차이로 warning이 될 수 있습니다.',
         coverageTotal: '검증 행',
         coveragePassed: '정상',
         coverageWarned: '주의',
@@ -1161,6 +1196,10 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         coverageProfileLink: '링크',
         coverageCountryFlag: '국가/국기',
         coverageImage: '이미지',
+        coverageProfileReachable: '프로필 접근',
+        coverageSpecialPage: '특수 페이지',
+        coverageSpecialSignals: '특수 신호',
+        coverageLegendSignals: '확인 신호',
         coverageStatusPass: '정상',
         coverageStatusWarn: '주의',
         coverageStatusFail: '실패',
@@ -1200,8 +1239,8 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         file: 'File',
         detail: 'Detail',
         attachment: 'Attachment',
-        playerCoverageTitle: 'Standings Player UI Coverage',
-        playerCoverageNote: 'Uses player targets collected by the existing crawler in standings-only mode and checks public UI presentation for name, profile link, country/flag, and image candidates. Profile and Result detail crawling is skipped.',
+        playerCoverageTitle: 'Phase 3 Player UI Coverage',
+        playerCoverageNote: 'Uses standings-only crawler targets and the Legend 10 special profile targets to check public UI presentation for name, profile links, country/flag, image candidates, and special page signals. Profile and Result detail crawling is skipped.',
         coverageTotal: 'Checked Rows',
         coveragePassed: 'Pass',
         coverageWarned: 'Warn',
@@ -1214,6 +1253,10 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         coverageProfileLink: 'Link',
         coverageCountryFlag: 'Country/Flag',
         coverageImage: 'Image',
+        coverageProfileReachable: 'Profile',
+        coverageSpecialPage: 'Special Page',
+        coverageSpecialSignals: 'Signals',
+        coverageLegendSignals: 'Matched Signals',
         coverageStatusPass: 'PASS',
         coverageStatusWarn: 'WARN',
         coverageStatusFail: 'FAIL',

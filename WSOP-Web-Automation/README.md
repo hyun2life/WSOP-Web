@@ -77,6 +77,8 @@ WSOP-Web/
 ### Windows BAT (통합 웹 대시보드 실행 및 종료)
 
 - **대시보드 실행 (`..\Run.bat`)**: 상위 `WSOP-Web` 폴더의 `Run.bat`을 더블클릭하면 백그라운드(콘솔 창 숨김 모드)에서 웹 서버가 기동되며, 브라우저 새 탭에서 **Web UI 테스팅 대시보드**가 자동으로 열립니다.
+- **대시보드 실행 로그**: 연결 거부나 브라우저 자동 열림 실패가 발생하면 `automation/output/web-runner-server.out.log`와 `automation/output/web-runner-server.err.log`를 확인합니다.
+- **대시보드 강제 종료 (`..\Stop-Dashboard.bat`)**: 서버가 남아 있거나 브라우저 연결이 꼬였을 때만 수동 실행합니다. 실행 중인 대시보드 테스트까지 종료될 수 있으므로 라이브 테스트 중에는 사용하지 않습니다.
 - **대시보드 종료**: 대시보드 웹 화면 좌측 사이드바 하단에 있는 **`Shutdown Dashboard`** 버튼을 클릭하면, 실행 중인 백그라운드 서버 프로세스가 스스로 안전하게 종료되고 연결을 해제합니다.
 
 ### npm scripts
@@ -254,7 +256,7 @@ automation/output/
 - Player Standings UI는 기존 크롤러의 `--standings-only` 모드로 빠르게 추출한 최신 standings 대상자를 기준으로 이름, profile link, 국가/국기 후보로 보이는지 확인
 - Player Search에서 모든 플레이어를 전수 입력하지 않고, fixture에 정의한 대표 탑랭커 중심으로 이름 입력 시 검색창 하단 자동완성 row와 검색 결과에 해당 인물이 노출되는지 확인
 - Player Profile의 이름, 국가/국기, avatar/profile image 후보 확인
-- Hall of Fame, Player of the Year, 내부 Legend 그룹의 주요 플레이어 표현 확인
+- Hall of Fame, Player of the Year, Legend 10인 특수 프로필 페이지 표현 확인
 - stage 환경의 avatar/image 미노출, optional badge/mark 미노출은 warning으로 수집
 
 의도적으로 제외한 항목:
@@ -284,7 +286,9 @@ utils/playerPresentation/
 
 Standings UI 검증은 full crawler 산출물에 의존하지 않습니다. Phase 3 runner가 먼저 `WSOP-Player-Standings-Crawler`의 `--standings-only` 모드를 실행해 standings 카테고리별 선수 이름, rank, profile URL, source URL만 빠르게 추출하고, 이 최신 대상자 기준으로 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. Profile/Result 상세 크롤링은 수행하지 않습니다.
 
-Phase 3 custom 리포트는 standings-only crawler가 추출한 선수 대상자 기준의 **플레이어 UI 커버리지 카드**를 포함합니다. 각 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. `국가/국기`까지는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
+Phase 3 custom 리포트는 standings-only crawler가 추출한 선수 대상자와 Legend 10 특수 프로필 대상자를 기준으로 **플레이어 UI 커버리지 카드**를 포함합니다. Standings 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. Legend 특수 프로필 카드에는 profile/source와 함께 `프로필 접근`, `특수 페이지`, `특수 신호` 상태와 실제 확인된 legend 신호가 표시됩니다. `국가/국기` 및 특수 페이지 신호는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
+
+Legend 검증 기준은 Johnny Moss, David Reese, Stu Ungar, Phil Hellmuth, Erik Seidel, Daniel Negreanu, Christopher Moneymaker, Phil Ivey, Johnny Chan, Doyle Brunson 10명입니다. 각 선수는 `/players/{slug}/` 특수 프로필 페이지에서 이름, 국가/국기, avatar/profile image 후보와 함께 `Hall of Famer`, `Poker Hall of Fame Inductee`, 별칭 또는 `Story` 탭 등 legend 전용 신호가 노출되는지 확인합니다.
 
 ## Phase 4 search / filter / sort depth tests
 
@@ -417,6 +421,7 @@ Run.bat
 ```
 
 상위 `Run.bat`은 이 프로젝트의 로컬 웹 서버를 구동시켜 브라우저에서 웹 대시보드를 띄웁니다. 대시보드는 `automation/phases.json`을 읽기 때문에 새로운 phase가 추가되면 자동으로 사이드바 목록에 연동됩니다. 웹 대시보드에서 할 수 있는 작업은 다음과 같습니다.
+실행 배치는 `Get-NetTCPConnection`으로 `localhost:3000` 리스닝 상태를 확인하며, 서버 시작 stdout/stderr 로그를 `automation/output/web-runner-server.*.log`에 남깁니다.
 
 - **대상 환경 실시간 스위칭**: `Target Environment` 선택 드롭다운을 통해 별도의 콘솔 타이핑이나 환경변수 수동 세팅 없이, 마우스 클릭만으로 `Live (https://www.wsop.com)` / `Stage (https://wsop-stage.ggnweb.com)` / `Custom URL` 환경을 즉각 오버라이딩하여 테스트 및 크롤러 구동 가능
 - **페이즈 카드 선택 및 실행**: 좌측 카드 목록에서 대상을 원클릭으로 선택 및 실행

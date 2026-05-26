@@ -1,10 +1,43 @@
 [
   {
+    "displayName": "Johnny Moss",
+    "searchKeyword": "Johnny Moss",
+    "profileUrl": "/players/johnny-moss/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "The Grand Old Man of Poker", "Poker Hall of Fame Inductee", "Story"]
+  },
+  {
+    "displayName": "David Reese",
+    "searchKeyword": "David Reese",
+    "profileUrl": "/players/david-reese/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "Chip", "Poker Hall of Fame Inductee", "Story"]
+  },
+  {
+    "displayName": "Stu Ungar",
+    "searchKeyword": "Stu Ungar",
+    "profileUrl": "/players/stu-ungar/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "The Kid", "Poker Hall of Fame Inductee", "Story"]
+  },
+  {
     "displayName": "Phil Hellmuth",
     "searchKeyword": "Phil Hellmuth",
     "profileUrl": "/players/phil-hellmuth/",
     "expectedCountry": "United States",
-    "expectedMarks": ["Bracelets", "Hall of Fame"]
+    "expectedMarks": ["Bracelets", "Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "Poker Brat", "Poker Hall of Fame Inductee", "Story"]
+  },
+  {
+    "displayName": "Erik Seidel",
+    "searchKeyword": "Erik Seidel",
+    "profileUrl": "/players/erik-seidel/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "Poker Hall of Fame Inductee", "Story"]
   },
   {
     "displayName": "Daniel Negreanu",
@@ -12,62 +45,39 @@
     "profileUrl": "/players/daniel-negreanu/",
     "expectedCountry": "Canada",
     "expectedMarks": ["Player of the Year", "Hall of Fame"],
-    "knownExceptionKey": "daniel-negreanu"
+    "knownExceptionKey": "daniel-negreanu",
+    "legendSignals": ["Hall of Famer", "Kid Poker", "Poker Hall of Fame Inductee", "Story"]
+  },
+  {
+    "displayName": "Christopher Moneymaker",
+    "searchKeyword": "Christopher Moneymaker",
+    "profileUrl": "/players/christopher-moneymaker/",
+    "expectedCountry": "United States",
+    "expectedMarks": ["Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "Moneymaker", "Poker Hall of Fame Inductee", "Story"]
   },
   {
     "displayName": "Phil Ivey",
     "searchKeyword": "Phil Ivey",
     "profileUrl": "/players/phil-ivey/",
     "expectedCountry": "United States",
-    "expectedMarks": ["Bracelets", "Hall of Fame"]
-  },
-  {
-    "displayName": "Doyle Brunson",
-    "searchKeyword": "Doyle Brunson",
-    "profileUrl": "/players/doyle-brunson/",
-    "expectedCountry": "United States",
-    "expectedMarks": ["Hall of Fame"]
+    "expectedMarks": ["Bracelets", "Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "Poker Hall of Fame Inductee", "Story"]
   },
   {
     "displayName": "Johnny Chan",
     "searchKeyword": "Johnny Chan",
     "profileUrl": "/players/johnny-chan/",
     "expectedCountry": "United States",
-    "expectedMarks": ["Hall of Fame"]
+    "expectedMarks": ["Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "Orient Express", "Poker Hall of Fame Inductee", "Story"]
   },
   {
-    "displayName": "Erik Seidel",
-    "searchKeyword": "Erik Seidel",
-    "profileUrl": "/players/erik-seidel/",
+    "displayName": "Doyle Brunson",
+    "searchKeyword": "Doyle Brunson",
+    "profileUrl": "/players/doyle-brunson/",
     "expectedCountry": "United States",
-    "expectedMarks": ["Hall of Fame"]
-  },
-  {
-    "displayName": "Johnny Moss",
-    "searchKeyword": "Johnny Moss",
-    "profileUrl": "/players/johnny-moss/",
-    "expectedCountry": "United States",
-    "expectedMarks": ["Hall of Fame"]
-  },
-  {
-    "displayName": "Antonio Esfandiari",
-    "searchKeyword": "Antonio Esfandiari",
-    "profileUrl": "/players/antonio-esfandiari/",
-    "expectedCountry": "United States",
-    "expectedMarks": []
-  },
-  {
-    "displayName": "Michael Mizrachi",
-    "searchKeyword": "Michael Mizrachi",
-    "profileUrl": "/players/michael-mizrachi/",
-    "expectedCountry": "United States",
-    "expectedMarks": ["Bracelets"]
-  },
-  {
-    "displayName": "Vanessa Selbst",
-    "searchKeyword": "Vanessa Selbst",
-    "profileUrl": "/players/vanessa-selbst/",
-    "expectedCountry": "United States",
-    "expectedMarks": ["Bracelets"]
+    "expectedMarks": ["Hall of Fame"],
+    "legendSignals": ["Hall of Famer", "The Godfather of Poker", "Poker Hall of Fame Inductee", "Story"]
   }
 ]

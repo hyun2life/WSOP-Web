@@ -15,6 +15,32 @@ let activePhaseId = null;
 let sseClients = [];
 let phaseStatuses = {};
 
+function terminateProcessTree(childProcess, reason = 'termination request') {
+  if (!childProcess || !childProcess.pid) {
+    return;
+  }
+
+  const pid = childProcess.pid;
+  if (process.platform === 'win32') {
+    exec(`taskkill /PID ${pid} /T /F`, (err, stdout, stderr) => {
+      const output = [stdout, stderr].filter(Boolean).join('').trim();
+      if (output) {
+        sendToSse('log', { text: `${output}\n` });
+      }
+      if (err) {
+        sendToSse('log', { text: `[SERVER_WARN] Failed to terminate process tree ${pid}: ${err.message}\n` });
+      }
+    });
+    return;
+  }
+
+  try {
+    childProcess.kill('SIGINT');
+  } catch (err) {
+    sendToSse('log', { text: `[SERVER_WARN] Failed to terminate process ${pid}: ${err.message}\n` });
+  }
+}
+
 // Helper to strip ANSI codes from logs for clean terminal view
 function stripAnsi(str) {
   return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
@@ -108,9 +134,7 @@ const server = http.createServer((req, res) => {
 
         // Kill any existing run
         if (activeProcess) {
-          try {
-            activeProcess.kill('SIGINT');
-          } catch (e) { }
+          terminateProcessTree(activeProcess, 'new run requested');
           activeProcess = null;
         }
 
@@ -247,10 +271,10 @@ const server = http.createServer((req, res) => {
   if (method === 'POST' && url === '/api/kill') {
     if (activeProcess) {
       try {
-        activeProcess.kill('SIGINT');
-        sendToSse('log', { text: '\n[SERVER] Kill request received. Terminating process...\n' });
+        terminateProcessTree(activeProcess, 'kill request received');
+        sendToSse('log', { text: '\n[SERVER] Kill request received. Terminating process tree...\n' });
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message: 'Process termination signal sent' }));
+        res.end(JSON.stringify({ success: true, message: 'Process tree termination requested' }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
@@ -310,9 +334,7 @@ const server = http.createServer((req, res) => {
 
     // Terminate active child processes if any
     if (activeProcess) {
-      try {
-        activeProcess.kill('SIGINT');
-      } catch (e) {}
+      terminateProcessTree(activeProcess, 'shutdown requested');
     }
 
     // Delay exit to allow response to flush to the client

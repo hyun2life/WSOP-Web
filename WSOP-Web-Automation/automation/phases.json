@@ -59,7 +59,7 @@
         "수집한 대상자의 이름, 프로필 링크, 국가/국기, 이미지 후보 확인",
         "Player Search에서 탑랭커 이름 입력 시 자동완성 row와 검색 결과 노출 확인",
         "대표 Player Profile에서 이름, 국가/국기, avatar/profile image 후보 확인",
-        "Hall of Fame, Player of the Year, 내부 Legend 그룹의 표시 및 프로필 연결 확인",
+        "Hall of Fame, Player of the Year, Legend 10인 특수 프로필 페이지 표시 및 프로필 연결 확인",
         "stage avatar/image 미노출 및 optional badge/mark 미노출은 warning으로 수집",
         "standings-only crawler 대상자 기준 플레이어 UI 커버리지 카드가 포함된 Phase 3 리포트 생성"
       ]

@@ -61,6 +61,8 @@ Run.bat
 ```
 
 `Run.bat`은 `WSOP-Web-Automation` 대시보드 서버를 백그라운드로 띄우고 브라우저에서 실행 콘솔을 엽니다. 대시보드에서 smoke, functional, player presentation, crawler 단계를 선택해 실행할 수 있습니다.
+대시보드가 바로 열리지 않거나 `localhost:3000` 연결 거부가 보이면 `WSOP-Web-Automation/automation/output/web-runner-server.out.log`와 `web-runner-server.err.log`를 확인합니다.
+대시보드 서버가 남아 있어 수동 종료가 필요할 때만 `Stop-Dashboard.bat`을 실행합니다. 이 파일은 확인 입력 후 대시보드 서버와 그 하위 프로세스를 강제 종료하므로, 테스트 실행 중에는 사용하지 않습니다.
 
 크롤러만 단독 실행해야 할 때는 아래 BAT를 직접 사용할 수 있습니다.
 
@@ -104,6 +106,7 @@ npm run crawl:self-test
 대부분의 실행 설정은 각 BAT 파일과 하위 프로젝트 README에서 관리합니다.
 
 - `Run.bat`: 통합 대시보드 실행
+- `Stop-Dashboard.bat`: 대시보드 서버 강제 종료
 - `Setup.bat`: Web Automation 및 Crawler 의존성/Playwright 준비
 - `WSOP-Player-Standings-Crawler/RUN_WSOP_PLAYER_CRAWLER_LIVE.bat`: 크롤러 범위, 동시성, headed/headless 설정
 
@@ -134,4 +137,4 @@ npm run crawl:self-test
 - `wsop.com`의 UI/라우팅/보안 정책 변경 시 일부 selector 또는 링크 검증이 실패할 수 있습니다.
 - 크롤러는 사이트 응답 속도와 인증/접근 상태에 영향을 받습니다.
 - Web Automation의 phase 중 일부는 예약 항목이며, 구현 여부는 `WSOP-Web-Automation/automation/phases.json`에서 관리합니다.
-- Phase 3은 Data/API Integrity가 아니라 공개 웹 화면의 플레이어 이름, 국가/국기, avatar/profile image, HOF/POY/Legend 표현 상태를 확인하는 UI 검증입니다. 수치 계산과 API/DB 정합성은 Phase 6 범위로 분리합니다.
+- Phase 3은 Data/API Integrity가 아니라 공개 웹 화면의 플레이어 이름, 국가/국기, avatar/profile image, HOF/POY/Legend 표현 상태를 확인하는 UI 검증입니다. 리포트에는 standings 대상자 커버리지와 Legend 10 특수 프로필 페이지 검증 결과를 별도 카드로 남기며, 수치 계산과 API/DB 정합성은 Phase 6 범위로 분리합니다.
