@@ -27,12 +27,14 @@ const STAT_DEFS = [
 ];
 
 // 크롤러 진입점으로 사용하는 공개 standings 카테고리.
+// path: null + sectionSelector가 있으면 메인 standings 페이지에서 해당 섹션만 추출한다.
 const STANDINGS_CATEGORIES = [
   { label: "2026 Standings", path: "2026-standings" },
   { label: "All-Time Earnings - Men", path: "all-time-earnings-men" },
   { label: "All-Time Earnings - Women", path: "all-time-earnings-women" },
   { label: "All-Time Bracelets", path: "all-time-bracelets" },
-  { label: "All-Time Rings", path: "all-time-rings" }
+  { label: "All-Time Rings", path: "all-time-rings" },
+  { label: "All Player Stats", path: null, sectionSelector: ".standings-all-player-stats" }
 ];
 
 // ALL 탭과 별도로 독립 검증할 프로필 지표 탭.
@@ -958,10 +960,12 @@ async function clickControlWithFallback(control, timeout = 5000) {
   }).catch(() => false);
 }
 
-async function extractStandingPlayerLinks(page, limit) {
-  const links = await page.evaluate(() => {
+async function extractStandingPlayerLinks(page, limit, containerSelector) {
+  const links = await page.evaluate((selector) => {
     const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
-    return Array.from(document.querySelectorAll("a[href]"))
+    const root = selector ? document.querySelector(selector) : document;
+    if (!root) return [];
+    return Array.from(root.querySelectorAll("a[href]"))
       .map((anchor) => {
         const row = anchor.closest('tr, li, [class*="row" i], [class*="item" i], [class*="card" i]');
         return {
@@ -979,7 +983,7 @@ async function extractStandingPlayerLinks(page, limit) {
           return false;
         }
       });
-  });
+  }, containerSelector || null);
 
   const seen = new Set();
   const rows = [];
@@ -999,7 +1003,9 @@ async function extractStandingPlayerLinks(page, limit) {
 }
 
 // standings 카테고리 URL을 만든다. 기존 stage URL과 공개 wsop.com 경로 형식을 모두 지원한다.
+// path가 null인 카테고리 (예: All Player Stats)는 URL을 생성하지 않고 null을 반환한다.
 function categoryUrlFor(playersUrl, category) {
+  if (!category.path) return null;
   try {
     const url = new URL(playersUrl);
     return new URL(`/player-standings/${category.path}/`, url.origin).href;
@@ -1007,6 +1013,7 @@ function categoryUrlFor(playersUrl, category) {
     return null;
   }
 }
+
 
 async function collectPlayerEntries(page, playersUrl, limit, authWaitMs) {
   if (limit <= 0) return [];
@@ -1023,7 +1030,28 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs) {
   for (const category of STANDINGS_CATEGORIES) {
     const categoryUrl = categoryUrlFor(playersUrl, category);
     let selected = false;
-    if (categoryUrl) {
+
+    if (category.sectionSelector) {
+      // path 없이 sectionSelector만 있는 카테고리 (예: All Player Stats).
+      // 이미 메인 페이지에 있으므로 재이동 없이 해당 섹션에서 바로 추출한다.
+      // 메인 페이지가 아직 로드된 상태여야 하므로 현재 URL을 확인하고 필요 시 재방문한다.
+      try {
+        const currentUrl = page.url();
+        const isOnMainPage = /\/player-standings\/?$/i.test(new URL(currentUrl).pathname);
+        if (!isOnMainPage) {
+          await retryWithBackoff(async () => {
+            await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+            await waitForAccessLogin(page, authWaitMs);
+          }, 2, 1500);
+        }
+        // 섹션이 DOM에 존재하는지 확인
+        const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
+        selected = sectionExists;
+      } catch {
+        selected = false;
+      }
+    } else if (categoryUrl) {
       try {
         await retryWithBackoff(async () => {
           await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
@@ -1038,7 +1066,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs) {
       selected = await clickExactTextControl(page, category.label);
     }
     if (!selected) continue;
-    const rows = await extractStandingPlayerLinks(page, limit);
+    const rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
     if (!rows.length) continue;
     selectedAnyCategory = true;
 
