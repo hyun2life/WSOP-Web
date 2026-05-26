@@ -308,12 +308,12 @@ function resultPlayerMatches(rowPlayer, player) {
 // 금액 파싱 헬퍼는 프로필 row, Result 표, 본문 텍스트 fallback에서 함께 쓴다.
 // 비교를 위해 소수점은 반올림해 정수 금액으로 맞춘다.
 function parseMoneyFromText(value) {
-  const match = normalizeText(value).match(/(?:[$\u20ac\u00a3]|[A-Z]{1,3}\$)\s*(-?\d[\d,]*(?:\.\d+)?)/);
+  const match = normalizeText(value).match(/(?:[$\u20ac\u00a3\u20a9\u20b1₱₩]|[A-Z]{1,4}\$?)\s*(-?\d[\d,]*(?:\.\d+)?)/);
   return match ? Math.round(Number(match[1].replace(/[,\s]/g, ""))) : null;
 }
 
 function parseLastMoneyFromText(value) {
-  const matches = Array.from(normalizeText(value).matchAll(/(?:[$\u20ac\u00a3]|[A-Z]{1,3}\$)\s*(-?\d[\d,]*(?:\.\d+)?)/g));
+  const matches = Array.from(normalizeText(value).matchAll(/(?:[$\u20ac\u00a3\u20a9\u20b1₱₩]|[A-Z]{1,4}\$?)\s*(-?\d[\d,]*(?:\.\d+)?)/g));
   const match = matches[matches.length - 1];
   return match ? Math.round(Number(match[1].replace(/[,\s]/g, ""))) : null;
 }
@@ -327,7 +327,7 @@ function parseMoneyNearPlayerName(text, rawNames) {
     if (nameIndex < 0) continue;
     const afterName = normalizedText.slice(nameIndex + normalizedName.length);
     const beforeNextRank = afterName.split(/\s+\d{1,6}\s+/)[0] || afterName;
-    const match = beforeNextRank.match(/(?:[$\u20ac\u00a3]|[A-Z]{1,3}\$)\s*(-?\d[\d,]*(?:\.\d+)?)/);
+    const match = beforeNextRank.match(/(?:[$\u20ac\u00a3\u20a9\u20b1₱₩]|[A-Z]{1,4}\$?)\s*(-?\d[\d,]*(?:\.\d+)?)/);
     if (match) return Math.round(Number(match[1].replace(/[,\s]/g, "")));
   }
   return null;
@@ -400,7 +400,7 @@ function findResultRowInBodyText(bodyText, player, targetRank, targetEarnings) {
     ? null
     : targetEarnings.toLocaleString("en-US");
   const moneyPattern = moneyText
-    ? new RegExp(`(?:[$€£]\\s*)?${escapeRegExp(moneyText)}\\b`, "g")
+    ? new RegExp(`(?:[$€£₩\u20a9₱\u20b1]\\s*)?${escapeRegExp(moneyText)}\\b`, "g")
     : null;
   const matchIndexes = new Set(moneyPattern ? Array.from(text.matchAll(moneyPattern)).map((match) => match.index ?? -1) : []);
   for (const name of rawTargetNames) {
@@ -415,7 +415,7 @@ function findResultRowInBodyText(bodyText, player, targetRank, targetEarnings) {
     if (!nameMatches) continue;
 
     const beforeMoney = nearbyText.slice(0, Math.max(0, index - Math.max(0, index - 180)));
-    const rankMatch = beforeMoney.match(/(?:^|\s)(\d{1,6})\s+[^$€£]{2,180}$/);
+    const rankMatch = beforeMoney.match(/(?:^|\s)(\d{1,6})\s+[^$€£₩\u20a9₱\u20b1]{2,180}$/);
     const parsedRank = rankMatch ? Number(rankMatch[1].replace(/,/g, "")) : targetRank;
     if (targetRank && parsedRank && parsedRank !== targetRank) continue;
 
@@ -522,7 +522,7 @@ function parseSummary(bodyText) {
 
   for (const stat of STAT_DEFS) {
     const escapedLabel = stat.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const valuePattern = stat.type === "money" ? "(\\$\\s*[\\d,]+(?:\\.\\d+)?)" : "([\\d,]+)";
+    const valuePattern = stat.type === "money" ? "([$\\u20ac\\u00a3\\u20a9\\u20b1₱₩]?\\s*[\\d,]+(?:\\.\\d+)?)" : "([\\d,]+)";
     const match = compact.match(new RegExp(`${escapedLabel}\\s+${valuePattern}`, "i"));
     summary[stat.key] = match
       ? stat.type === "money"
@@ -538,7 +538,7 @@ function classifyAward(textValue) {
   const text = textValue.toLowerCase();
   if (/national championship/i.test(text)) return "bracelet";
   if (/(wsopc|wsop-c|wsop circuit|\bring\b|\bcircuit\b)/i.test(text)) return "ring";
-  if (/\b(bracelet|wsop|world series of poker|online bracelet)\b/i.test(text)) return "bracelet";
+  if (/\b(bracelet|wsop\d*|world series of poker|online bracelet)\b/i.test(text)) return "bracelet";
   return "other";
 }
 
@@ -563,11 +563,11 @@ function normalizeEvent(row) {
     "";
   const earningSource =
     valueByHeader(row, [/earning/i, /prize/i, /winnings/i, /cash/i]) ||
-    row.cells.find((cell) => /[$₩₱€£¥]/.test(cell)) ||
+    row.cells.find((cell) => /[$₩₱€£¥\u20a9\u20b1]/.test(cell)) ||
     "";
   const eventSource =
     valueByHeader(row, [/event/i, /tournament/i, /series/i]) ||
-    row.cells.find((cell) => !/[$₩₱€£¥]/.test(cell) && parseRank(cell) === null && !/^result$/i.test(cell)) ||
+    row.cells.find((cell) => !/[$₩₱€£¥\u20a9\u20b1]/.test(cell) && parseRank(cell) === null && !/^result$/i.test(cell)) ||
     row.text;
 
   return {
@@ -796,12 +796,12 @@ function formatValue(label, value) {
 
 function formatLabel(label) {
   return {
-    Title: "타이틀",
-    Bracelets: "브레이슬릿",
-    Rings: "링",
-    "Final Tables": "파이널 테이블",
-    Cashes: "입상 수",
-    "Total Earnings": "총 상금"
+    Title: "Title",
+    Bracelets: "Bracelets",
+    Rings: "Rings",
+    "Final Tables": "Final Tables",
+    Cashes: "Cashes",
+    "Total Earnings": "Total Earnings"
   }[label] || label;
 }
 
@@ -1179,7 +1179,7 @@ async function extractEventRows(page) {
     }
 
     function looksLikeEventRow(text) {
-      return /[$₩₱€£¥]\s*[\d,]+/.test(text) || /\b(result|results|place|rank|finish|event|bracelet|ring|circuit|wsop)\b/i.test(text);
+      return /[$₩₱€£¥\u20a9\u20b1]\s*[\d,]+/.test(text) || /\b(result|results|place|rank|finish|event|bracelet|ring|circuit|wsop)\b/i.test(text);
     }
 
     function isVisibleElement(element) {
@@ -1211,7 +1211,7 @@ async function extractEventRows(page) {
       for (const row of tableRows) {
         if (!isVisibleElement(row)) continue;
         const cells = Array.from(row.querySelectorAll("td, th")).map((cell) => normalize(cell.textContent));
-        const text = normalize(row.textContent);
+        const text = cells.length ? cells.join(" ") : normalize(row.textContent);
         if (!cells.length || !looksLikeEventRow(text)) continue;
 
         row.setAttribute("data-wsop-crawler-row", String(rowIndex));
@@ -1482,6 +1482,11 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
+      if (expected && events.length < expected && stalledClicks < 3) {
+        stalledClicks += 1;
+        await page.waitForTimeout(2000);
+        continue;
+      }
       console.log(`[디버그] ALL 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
       expansion.stoppedReason = "complete";
       break;
@@ -1530,6 +1535,11 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   while (expected && events.length < expected && expansion.loadMoreClicks < maxLoadMore) {
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
+      if (expected && events.length < expected && stalledClicks < 3) {
+        stalledClicks += 1;
+        await page.waitForTimeout(2000);
+        continue;
+      }
       console.log(`[디버그] 단일 지표 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
       expansion.stoppedReason = "complete";
       break;
@@ -1708,7 +1718,7 @@ async function extractFinalResultRows(page) {
     const headerStart = bodyText.search(/\bNo\s+Player\s+Country\s+Earnings\b/i);
     const start = headerStart >= 0 ? headerStart : resultStart;
     const finalResultText = start >= 0 ? bodyText.slice(start) : bodyText;
-    const rowPattern = /(?:^|\s)(\d{1,6})\s+(.{2,180}?)\s+[$€£]([\d,]+)(?=\s+\d{1,6}\s+|$)/g;
+    const rowPattern = /(?:^|\s)(\d{1,6})\s+(.{2,180}?)\s+[$€£₩\u20a9₱\u20b1]([\d,]+)(?=\s+\d{1,6}\s+|$)/g;
     let match = null;
     while ((match = rowPattern.exec(finalResultText)) !== null) {
       const no = Number(match[1].replace(/,/g, ""));
@@ -2366,8 +2376,7 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
   directPageClicked = searchStart.directPageClicked;
 
   for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
-    // 각 반복은 이동 전에 현재 페이지를 저장한다.
-    // 리포트의 searchedPages/rankRange가 실제 확인 범위를 설명한다.
+    await page.waitForTimeout(1000);
     const url = page.url();
 
     const rows = await extractFinalResultRows(page);
@@ -2379,8 +2388,6 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
     targetGap = targetGap || targetRankGap(previousRange, range, targetRank);
     const pageContentSignature = resultRowsSignature(rows, bodyText);
     if (visitedPageContentSignatures.has(pageContentSignature)) {
-      // 같은 시그니처가 반복되면 클릭이 전진하지 않았을 가능성이 크다.
-      // pagination 정체로 결론내기 전에 더 강한 전진 경로를 한 번 더 시도한다.
       const nextTargetPageNumber = resultPageNumber < searchStart.searchStartPageNumber ? searchStart.searchStartPageNumber : null;
       const advance = await advanceResultPage(page, resultPageNumber, nextTargetPageNumber, true);
       if (!advance.advanced) break;
@@ -2404,8 +2411,6 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
 
     if (foundRow) break;
     if (targetRank && range && range.min > targetRank) {
-      // target rank를 지나쳤다. 가능하면 뒤로 이동하고,
-      // 불가능하면 앞쪽 pagination 창 누락을 피하기 위해 1페이지부터 한 번 다시 시작한다.
       const retreat = await retreatResultPage(page, resultPageNumber);
       if (!retreat.advanced) {
         if (!resetFromOvershotFirstPage) {
@@ -2512,8 +2517,7 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
     directPageClicked = searchStart.directPageClicked;
 
     for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
-      // 직접 Result URL 경로에서도 extractResultPageData와 같은 방식으로 탐색한다.
-      // 동시에 이후 선수/이벤트 재사용을 위해 공유 캐시에 페이지를 적재한다.
+      await page.waitForTimeout(1000);
       const url = page.url();
 
       const rows = await extractFinalResultRows(page);
@@ -2525,8 +2529,6 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
       targetGap = targetGap || targetRankGap(previousRange, range, targetRank);
       const pageContentSignature = resultRowsSignature(rows, bodyText);
       if (visitedPageContentSignatures.has(pageContentSignature)) {
-        // 페이지가 바뀌지 않았다면 pagination 정체로 판단하기 전에
-        // 다른 전진 경로를 한 번 더 시도한다.
         const nextTargetPageNumber = resultPageNumber < searchStart.searchStartPageNumber ? searchStart.searchStartPageNumber : null;
         const advance = await advanceResultPage(page, resultPageNumber, nextTargetPageNumber, true);
         if (!advance.advanced) break;
@@ -2552,8 +2554,6 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
 
       if (foundRow) break;
       if (targetRank && range && range.min > targetRank) {
-        // target rank를 지나쳤다. 뒤로 복구하고,
-        // 이전 컨트롤이 없으면 1페이지 reload를 한 번 시도한다.
         const retreat = await retreatResultPage(page, resultPageNumber);
         if (!retreat.advanced) {
           if (!resetFromOvershotFirstPage) {
@@ -2680,6 +2680,7 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
       const cachedResult = evaluateResultFromCachedPages(resultPageRowsCache.get(finalUrl), player, event, finalUrl);
       if (cachedResult) {
         console.log(`    [Cache Hit via Navigation] 결과 페이지 캐시 데이터 사용 (${player.name}): ${finalUrl}`);
+        await popup.close().catch(() => {});
         return cachedResult;
       }
       console.log(`    [Cache Miss via Navigation] 캐시 범위 밖 Result입니다. 실제 페이지를 확인합니다 (${player.name}): ${finalUrl}`);
@@ -3048,13 +3049,13 @@ function renderDashboardTemplate(report, isKo) {
     searchEventsPlaceholder: isKo ? "이벤트명 검색..." : "Search events...",
     rulesData: isKo ? [
       ["Standings 카테고리", `${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}에서 상위 선수를 수집합니다.`],
-      ["타이틀", "ALL 탭 이벤트 중 Rank가 1인 row를 계산합니다."],
-      ["브레이슬릿", "Rank 1 이벤트 중 WSOP 브레이슬릿 이벤트로 분류되는 row를 계산합니다."],
-      ["링", "Rank 1 이벤트 중 Circuit/Ring 이벤트로 분류되는 row를 계산합니다."],
-      ["파이널 테이블", "ALL 탭 이벤트 중 Rank가 1~9인 row를 계산합니다."],
-      ["입상 수", "Load more로 펼친 ALL 탭 row 중 프로필 Cashes 개수까지만 비교 계산에 사용합니다."],
-      ["총 상금", "프로필 Total Earnings와 ALL 탭 계산 합계가 다르면 환율/통화/원본값 차이 가능성이 있어 주의로 표시하고 실패 집계에서는 제외합니다."],
-      ["프로필 탭", "Title, Bracelets, Rings, Final Tables 탭을 눌러 표시 row 수와 프로필 요약값을 비교합니다."],
+      ["Title", "ALL 탭 이벤트 중 Rank가 1인 row를 계산합니다."],
+      ["Bracelets", "Rank 1 이벤트 중 WSOP 브레이슬릿 이벤트로 분류되는 row를 계산합니다."],
+      ["Rings", "Rank 1 이벤트 중 Circuit/Ring 이벤트로 분류되는 row를 계산합니다."],
+      ["Final Tables", "ALL 탭 이벤트 중 Rank가 1~9인 row를 계산합니다."],
+      ["Cashes", "Load more로 펼친 ALL 탭 row 중 프로필 Cashes 개수까지만 비교 계산에 사용합니다."],
+      ["Total Earnings", "프로필 Total Earnings와 ALL 탭 계산 합계가 다르면 환율/통화/원본값 차이 가능성이 있어 주의로 표시하고 실패 집계에서는 제외합니다."],
+      ["Profile tabs", "Title, Bracelets, Rings, Final Tables 탭을 눌러 표시 row 수와 프로필 요약값을 비교합니다."],
       ["Result", "Result 페이지를 열어 최종 결과표에서 No, 선수명, 상금이 모두 정확히 맞는지 확인합니다."]
     ] : [
       ["Standings categories", `Collect top players from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
