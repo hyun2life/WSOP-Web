@@ -171,7 +171,7 @@ export async function checkAvatarOrPlayerImage(
     if (!isLoaded) return false;
 
     const srcLower = candidate.src.toLowerCase();
-    const isDefault = srcLower.includes('profile_default') || srcLower.includes('/default/');
+    const isDefault = srcLower.includes('profile_default') || (srcLower.includes('/default/') && !srcLower.includes('good-game-service.com'));
     return !isDefault;
   });
 

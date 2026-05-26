@@ -275,7 +275,7 @@ async function collectStandingRowUi(row: Locator, target: StandingTarget): Promi
         (image) =>
           /avatar|player|profile|headshot|photo|portrait|players/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`) &&
           (image.naturalWidth > 0 || image.width > 10 || image.height > 10) &&
-          !(image.src.toLowerCase().includes('profile_default') || image.src.toLowerCase().includes('/default/'))
+          !(image.src.toLowerCase().includes('profile_default') || (image.src.toLowerCase().includes('/default/') && !image.src.toLowerCase().includes('good-game-service.com')))
       ),
   };
 }
