@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     detailDesc.textContent = phase.descriptionKo || phase.description || '-';
     renderPhaseSteps(phase.stepsKo || []);
 
-    crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler');
+    crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3');
     pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'all');
 
     btnRun.disabled = !phase.implemented || isRunning;
@@ -477,11 +477,12 @@ document.addEventListener('DOMContentLoaded', () => {
       baseUrl = customEnvUrl.value.trim();
     }
 
-    if (selectedPhase.id === 'crawler') {
+    if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3') {
       Object.values(crawlerOpts).forEach((opt) => {
         if (opt.chk.checked) customArgs[opt.arg] = opt.input.value.trim();
       });
-    } else if (selectedPhase.id !== 'all') {
+    }
+    if (selectedPhase.id !== 'crawler' && selectedPhase.id !== 'all') {
       Object.values(pwOpts).forEach((opt) => {
         if (opt.chk.checked) customArgs[opt.arg] = opt.input.value.trim();
       });
