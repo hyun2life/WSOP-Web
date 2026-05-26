@@ -22,7 +22,7 @@ function terminateProcessTree(childProcess, reason = 'termination request') {
 
   const pid = childProcess.pid;
   if (process.platform === 'win32') {
-    exec(`taskkill /PID ${pid} /T /F`, (err, stdout, stderr) => {
+    exec(`chcp 65001 > nul && taskkill /PID ${pid} /T /F`, (err, stdout, stderr) => {
       const output = [stdout, stderr].filter(Boolean).join('').trim();
       if (output) {
         sendToSse('log', { text: `${output}\n` });

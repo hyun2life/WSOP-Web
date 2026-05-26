@@ -771,17 +771,183 @@ function renderResultsTable(items, t, includeErrors = false) {
       </tr>
     </thead>
     <tbody>
-      ${items.map((item) => `<tr>
+      ${items.map((item) => {
+        const stepsHtml = t.isKo ? renderTestStepsKo(item) : '';
+        return `<tr>
         <td><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
-        <td><strong>${escapeHtml(t.isKo ? localizeTestTitleKo(item.title) : item.title)}</strong><br><span class="muted">${escapeHtml(t.isKo ? localizeSuiteTitleKo(item.suiteTitle) : item.suiteTitle)}</span></td>
+        <td>
+          <strong>${escapeHtml(t.isKo ? localizeTestTitleKo(item.title) : item.title)}</strong><br>
+          <span class="muted" style="font-size: 11px;">${escapeHtml(t.isKo ? localizeSuiteTitleKo(item.suiteTitle) : item.suiteTitle)}</span>
+          ${stepsHtml}
+        </td>
         <td>${escapeHtml(item.projectName)}</td>
         <td>${escapeHtml(formatDuration(item.duration))}</td>
         <td><span class="muted">${escapeHtml(item.file)}</span></td>
         ${includeErrors ? `<td class="error">${escapeHtml(item.error || '-')}</td>` : ''}
         <td>${renderAttachments(item.attachments)}</td>
-      </tr>`).join('')}
+      </tr>`;
+      }).join('')}
     </tbody>
   </table>`;
+}
+
+function renderTestStepsKo(item) {
+  const steps = getTestStepsKo(item.title, item.suiteTitle);
+  if (!steps || steps.length === 0) return '';
+  return `
+    <div class="test-steps-ko" style="margin-top: 8px; padding: 8px 12px; background: rgba(255,255,255,0.02); border-left: 3px solid var(--primary-hover); border-radius: 4px; font-size: 12px;">
+      <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 4px; font-size: 11px;">[상세 검증 시나리오]</div>
+      <ol style="margin: 0; padding-left: 18px; color: var(--text-muted); line-height: 1.6;">
+        ${steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}
+      </ol>
+    </div>
+  `;
+}
+
+function getTestStepsKo(title = '', suiteTitle = '') {
+  const t = title.trim();
+  const s = suiteTitle.toLowerCase();
+
+  // 대상 페이지명 추출 및 한글화 맵
+  const pageMap = {
+    'home': '홈화면',
+    'schedule': '이벤트 스케줄 화면',
+    'standings': '플레이어 스탠딩 화면',
+    'news': '뉴스 기사 목록 화면',
+    'photos': '포토 갤러리 화면',
+    'videos': '비디오 클립 화면',
+    'tournaments': '토너먼트 목록 화면',
+    'players': '플레이어 랭킹 화면',
+    'play online': '온라인 게임 화면',
+    'hall of fame': '명예의 전당 화면'
+  };
+
+  // 타이틀에서 어떤 페이지 이름이 쓰였는지 매칭
+  let targetPageName = '해당 화면';
+  let targetPageKey = '';
+  for (const [key, val] of Object.entries(pageMap)) {
+    if (new RegExp(key, 'i').test(t)) {
+      targetPageName = val;
+      targetPageKey = key;
+      break;
+    }
+  }
+
+  // 1. [Smoke] * opens and shows core content
+  if (/opens and shows core content/i.test(t)) {
+    return [
+      `${targetPageName} 오픈 웹 인터랙션(페이지 이동)을 수행합니다.`,
+      `${targetPageName} UI의 상태 변경 및 렌더링 결과에 깨짐이나 오동작이 발생하는지 관찰합니다.`,
+      `${targetPageName}의 예측되는 스펙 상태(헤더, GNB, 메인 슬라이드)와 실제 로드된 요소를 단언(Assertion)하여 일치 여부를 판독합니다.`
+    ];
+  }
+
+  // 2. [Smoke] * top menu is available
+  if (/top menu is available/i.test(t)) {
+    return [
+      `홈화면에 접속한 뒤, GNB 헤더의 [${targetPageName}] 탑 메뉴를 탐색(Hover)하는 웹 인터랙션을 수행합니다.`,
+      `[${targetPageName}] 메뉴 클릭 시 대상 경로로의 화면 전환이 매끄럽게 이루어지고 브라우저 주소가 바뀌는지 관찰합니다.`,
+      `대상 페이지 로딩 후 해당 주소 및 대표 문구가 정상적으로 렌더링되었는지 단언(Assertion)하여 일치 여부를 판독합니다.`
+    ];
+  }
+
+  // 3. [Smoke] * has no unexpected console errors
+  if (/has no unexpected console errors/i.test(t)) {
+    return [
+      `브라우저를 열어 ${targetPageName}에 직접 진입하는 웹 인터랙션을 수행합니다.`,
+      `페이지 로드와 자바스크립트 부트스트랩 실행 중 브라우저 콘솔(Console)에 에러가 수집되는지 관찰합니다.`,
+      `알려진 서드파티 에러를 제외한 치명적인 스크립트 실행 오류가 없음을 단언(Assertion)하여 품질을 판독합니다.`
+    ];
+  }
+
+  // 4. [Smoke] * has no broken sampled internal links
+  if (/has no broken sampled internal links/i.test(t)) {
+    return [
+      `브라우저로 ${targetPageName}에 진입하여 페이지 내부의 모든 하이퍼링크(a[href])를 수집하는 웹 인터랙션을 수행합니다.`,
+      `수집된 링크 중 내부로 연결되는 링크들을 최대 30개까지 샘플링하여 백엔드 API 요청을 날려 관찰합니다.`,
+      `각 링크들의 응답 상태코드(HTTP Status)가 정상(400 미만)인지 단언(Assertion)하여 일치 여부를 판독합니다.`
+    ];
+  }
+
+  // 5. [Phase 3] crawler standings-only target rows expose player identity UI
+  if (t.includes('crawler standings-only target rows') || t.includes('standings-only target rows')) {
+    return [
+      '크롤링 수집된 플레이어 데이터 목록(JSON)을 로드하고 순위 카테고리별 샘플 대상을 선정합니다.',
+      '각 샘플 플레이어가 랭킹 테이블 내에서 정상적으로 식별되는지 행(Row) 탐색 인터랙션을 수행합니다.',
+      '이름, 국가(국기 이미지 또는 텍스트)의 가시성 상태를 관찰합니다.',
+      'All Player Stats를 제외한 카테고리는 실제 선수 아바타 이미지가 비어있지 않은지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 6. [Phase 3] representative top players
+  if (t.includes('representative top players') || t.includes('representative')) {
+    return [
+      '플레이어 Standings 메인 페이지(/player-standings/)에 직접 접속하여 랜드마크 탑 플레이어 3인을 식별합니다.',
+      '선수명을 클릭하여 프로필 상세화면으로 전환되는 과정의 동작을 관찰합니다.',
+      '상세 프로필 화면의 선수 정보(국적, 이름, 아바타)가 정상 로딩되었음을 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 7. [Phase 4] pagination / page count
+  if (t.includes('pagination') || t.includes('page count')) {
+    return [
+      'All Player Stats 하단 테이블이나 검색 결과 목록의 페이지네이션 컨트롤러를 클릭하는 웹 인터랙션을 수행합니다.',
+      '마지막 페이지 번호 버튼을 클릭 시 데이터 목록이 정상 갱신되는지 관찰합니다.',
+      '전체 페이지 수 계산기가 버그로 인해 비정상적으로 계속 증가하거나 오동작하는 에러가 없는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 8. [Phase 4] all player stats filter / filtering and sorting
+  if (t.includes('all player stats filter') || t.includes('filtering and sorting')) {
+    return [
+      'All Player Stats 테이블의 드롭다운 필터(Season, Brand, Country, Gender)들을 선택 및 조작합니다.',
+      '선택한 필터와 정렬 기준에 맞게 테이블 데이터 순서 및 행들이 서버 데이터에 맞게 갱신되는지 관찰합니다.',
+      '정렬된 결과의 수치 및 필터 상태가 정상임을 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 9. [Phase 4] search / trim
+  if (t.includes('search') || t.includes('trim')) {
+    return [
+      '검색 바에 앞뒤 불필요한 공백을 추가한 검색어(예: " Daniel Negreanu ")를 입력하는 인터랙션을 수행합니다.',
+      '어플리케이션이 공백을 다듬고(Trim) 검색 요청을 안정적으로 소화하여 선수 목록을 갱신하는지 관찰합니다.',
+      '검색된 리스트에서 타겟 선수가 정확하게 도출되었는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 10. [Phase 5] result row
+  if (s.includes('phase 5') && (t.includes('result row') || t.includes('row'))) {
+    return [
+      '대회 결과 상세 페이지의 개별 행 데이터를 확인하는 웹 인터랙션을 수행합니다.',
+      '대회 순위 및 우승자 등의 정보가 정상 렌더링되는지 관찰합니다.',
+      '예상되는 우승 및 랭킹 정합성 기준을 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 11. [Phase 5] result detail
+  if (s.includes('phase 5') && (t.includes('result detail') || t.includes('detail'))) {
+    return [
+      '개별 대회 결과 링크를 클릭하여 결과 상세 페이지로 라우팅하는 웹 인터랙션을 수행합니다.',
+      '대회별 이벤트 정보, 테이블 결과 데이터가 깨짐 없이 정상 렌더링되는지 관찰합니다.',
+      '상세 페이지 로딩 상태 및 API 연동 무결성을 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 12. [Phase 5] backlink
+  if (s.includes('phase 5') && (t.includes('backlink') || t.includes('profile'))) {
+    return [
+      '결과 상세 페이지에서 특정 선수의 이름을 클릭하여 해당 플레이어 프로필로 되돌아가는 백링크 웹 인터랙션을 수행합니다.',
+      '플레이어 프로필 페이지로 역추적되어 로드되는 동작을 관찰합니다.',
+      '선택한 플레이어 본인의 프로필 화면으로 올바르게 귀환했음을 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+
+  // 기본 반환용 (Fallback)
+  return [
+    `해당 기능(${title})에 관련된 대상 요소 및 화면 오픈 웹 인터랙션을 수행합니다.`,
+    '브라우저 UI 상태 변경 과정과 렌더링 상태에 이상이 없는지 관찰합니다.',
+    '지정된 타겟 요소의 유효성과 정합성 상태를 단언(Assertion)하여 일치 여부를 판독합니다.'
+  ];
 }
 
 function renderAttachments(attachments) {

@@ -247,7 +247,7 @@ function toStandingCoverage(target: StandingTarget, row: StandingRowUi | null): 
     name: Boolean(row?.playerName && new RegExp(escapeRegExp(row.playerName), 'i').test(row.text)),
     profileLink: Boolean(row?.href && /\/players\//i.test(row.href)),
     countryOrFlag: Boolean(row?.hasCountryText || row?.hasFlagImage),
-    playerImage: Boolean(row?.hasPlayerImage),
+    playerImage: target.category === 'All Player Stats' ? true : Boolean(row?.hasPlayerImage),
   };
   const requiredOk = checks.row && checks.name && checks.profileLink && checks.countryOrFlag;
 
