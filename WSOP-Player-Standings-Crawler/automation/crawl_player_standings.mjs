@@ -485,9 +485,9 @@ function parseNumber(value) {
 
 function parseMoney(value) {
   const text = normalizeText(value);
-  const match = text.match(/\$?\s*-?\d[\d,]*(?:\.\d+)?/);
+  const match = text.match(/(?:[^-\d]*)(-?\d[\d,]*(?:\.\d+)?)/);
   if (!match) return null;
-  const parsed = Number(match[0].replace(/[$,\s]/g, ""));
+  const parsed = Number(match[1].replace(/[,\s]/g, ""));
   return Number.isFinite(parsed) ? Math.round(parsed) : null;
 }
 
@@ -563,11 +563,11 @@ function normalizeEvent(row) {
     "";
   const earningSource =
     valueByHeader(row, [/earning/i, /prize/i, /winnings/i, /cash/i]) ||
-    row.cells.find((cell) => /\$/.test(cell)) ||
+    row.cells.find((cell) => /[$₩₱€£¥]/.test(cell)) ||
     "";
   const eventSource =
     valueByHeader(row, [/event/i, /tournament/i, /series/i]) ||
-    row.cells.find((cell) => !/\$/.test(cell) && parseRank(cell) === null && !/^result$/i.test(cell)) ||
+    row.cells.find((cell) => !/[$₩₱€£¥]/.test(cell) && parseRank(cell) === null && !/^result$/i.test(cell)) ||
     row.text;
 
   return {
@@ -1179,7 +1179,7 @@ async function extractEventRows(page) {
     }
 
     function looksLikeEventRow(text) {
-      return /\$[\d,]+/.test(text) || /\b(result|place|rank|finish|event|bracelet|ring|circuit|wsop)\b/i.test(text);
+      return /[$₩₱€£¥]\s*[\d,]+/.test(text) || /\b(result|results|place|rank|finish|event|bracelet|ring|circuit|wsop)\b/i.test(text);
     }
 
     function isVisibleElement(element) {
@@ -3862,6 +3862,12 @@ function renderDashboardTemplate(report, isKo) {
       if (bar && targetBtn) {
         bar.style.left = targetBtn.offsetLeft + 'px';
         bar.style.width = targetBtn.offsetWidth + 'px';
+      }
+
+      // Render event rows immediately when the Events tab becomes active.
+      if (tabName === 'events') {
+        if (!eventPages[playerName]) eventPages[playerName] = 1;
+        renderPlayerEvents(playerName);
       }
     }
 

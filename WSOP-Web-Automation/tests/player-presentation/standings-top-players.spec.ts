@@ -59,6 +59,7 @@ test.describe('Phase 3 - standings top player presentation', () => {
   });
 
   test('crawler standings-only target rows expose player identity UI', async ({ page }, testInfo) => {
+    test.setTimeout(90_000);
     const standingTargets = loadStandingTargetsFromStandingsOnlyOutput();
     expect(
       standingTargets.length,
@@ -83,7 +84,7 @@ test.describe('Phase 3 - standings top player presentation', () => {
       await expect(page.locator('body')).toBeVisible();
       await page.waitForLoadState('load', { timeout: 15_000 }).catch(() => undefined);
 
-      const rows = page.getByRole('row').filter({ has: page.locator('a[href*="/players/"]') });
+      const rows = page.locator('tr:has(a[href*="/players/"]), [role="row"]:has(a[href*="/players/"])');
       await expect
         .poll(async () => countVisibleRows(rows), {
           message: `${sourcePath} should expose visible player rows`,

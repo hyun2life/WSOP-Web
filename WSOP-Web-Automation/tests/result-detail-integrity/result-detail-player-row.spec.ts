@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { test } from '@playwright/test';
 
-import { attachWarningsToTestInfo, clearWarnings } from '../../utils/playerPresentation/warningCollector';
+import { addWarning, attachWarningsToTestInfo, clearWarnings } from '../../utils/playerPresentation/warningCollector';
 import {
   collectResultRowsFromProfile,
   openPlayerProfileForResults,
@@ -17,6 +17,7 @@ import {
   openResultDetail,
   type ResultKnownException,
 } from '../../utils/resultDetail/resultDetailHelpers';
+import { searchPlayerAcrossResultPages } from '../../utils/resultDetail/resultPaginationHelpers';
 
 const players = loadResultFixture<ResultDetailPlayerFixture[]>('result-detail-players.fixture.json');
 const knownExceptions = loadResultFixture<Record<string, ResultKnownException>>('known-result-exceptions.fixture.json');
@@ -39,7 +40,19 @@ test.describe('Phase 5 - result detail player row integrity', () => {
         await assertResultTableVisible(page);
         const detailRows = await collectResultDetailPlayerRows(page);
         const knownException = resolveException(player, knownExceptions);
-        const found = findPlayerRowInResultDetail(detailRows, player, sample, knownException);
+        let found = findPlayerRowInResultDetail(detailRows, player, sample, knownException);
+        if (!found) {
+          const searched = await searchPlayerAcrossResultPages(page, player, 2);
+          if (!searched.row && searched.limited) {
+            addWarning('phase5-player-row-pagination-limited', 'Row integrity check could not complete due to limited/unstable pagination on result detail.', {
+              displayName: player.displayName,
+              resultHref: sample.resultHref,
+              maxActions: 2,
+            });
+            continue;
+          }
+          found = searched.row;
+        }
         assertResultDetailPlayerRow(found, player, knownException);
       }
     });

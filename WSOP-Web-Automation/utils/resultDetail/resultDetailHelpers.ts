@@ -55,12 +55,48 @@ export async function assertResultTableVisible(page: Page) {
 }
 
 export async function collectResultDetailPlayerRows(page: Page): Promise<ResultDetailPlayerRow[]> {
-  const containers = page.locator('table, [role="table"], [role="grid"], ul, ol, [class*="result" i], [class*="list" i], [class*="player" i]');
-  const rows = containers.locator('tr, [role="row"], li, [class*="row" i], [class*="item" i], article, section, div');
-  const rowCount = await rows.count();
   const collected: ResultDetailPlayerRow[] = [];
 
-  for (let index = 0; index < Math.min(rowCount, 500); index += 1) {
+  // Fast path: collect from player profile links first to avoid scanning every div on large result pages.
+  const linkedRows = await page
+    .locator('a[href*="/players/"]')
+    .evaluateAll((anchors) =>
+      anchors.slice(0, 500).map((anchor) => {
+        const rowNode =
+          anchor.closest('tr, [role="row"], li, article, section, [class*="row"], [class*="item"], [class*="result"]') ||
+          anchor.parentElement;
+        const rowText = (rowNode?.textContent || anchor.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        const playerName = (anchor.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        const playerHref = anchor.getAttribute('href') || '';
+        return { rowText, playerName, playerHref };
+      }),
+    )
+    .catch(() => []);
+
+  for (const row of linkedRows) {
+    if (!row?.rowText || !row?.playerHref) continue;
+    const placeMatch = row.rowText.match(/\b(?:#?\d{1,4}|(?:\d{1,4})(?:st|nd|rd|th)|(?:rank|place)\s*[:#]?\s*\d{1,4})\b/i);
+    const earningsMatch = row.rowText.match(/\$\s?[\d,]+(?:\.\d+)?|\b(?:usd|eur)\s?[\d,]+/i);
+    collected.push({
+      placeText: placeMatch?.[0] ?? '',
+      playerName: row.playerName || inferPlayerName(row.rowText),
+      countryText: inferCountryText(row.rowText),
+      earningsText: earningsMatch?.[0] ?? '',
+      playerHref: row.playerHref,
+      rowText: row.rowText,
+    });
+  }
+
+  if (collected.length > 0) {
+    return dedupeRows(collected);
+  }
+
+  // Fallback path for legacy pages where profile links are missing.
+  const containers = page.locator('table, [role="table"], [role="grid"], ul, ol, [class*="result" i], [class*="list" i], [class*="player" i]');
+  const rows = containers.locator('tr, [role="row"], li, [class*="row" i], [class*="item" i], article, section');
+  const rowCount = await rows.count();
+
+  for (let index = 0; index < Math.min(rowCount, 200); index += 1) {
     const row = rows.nth(index);
     if (!(await row.isVisible().catch(() => false))) continue;
     const parsed = await parseResultDetailRow(row);
@@ -69,23 +105,45 @@ export async function collectResultDetailPlayerRows(page: Page): Promise<ResultD
     collected.push(parsed);
   }
 
-  const unique = dedupeRows(collected);
-  return unique;
+  return dedupeRows(collected);
 }
 
 export function findPlayerRowInResultDetail(
   rows: ResultDetailPlayerRow[],
-  player: { displayName: string },
+  player: { displayName: string; expectedProfileUrlContains?: string },
   expectedRow?: { rowText?: string; earningsText?: string },
   knownException?: ResultKnownException,
 ) {
   const normalizedPlayer = normalizePlayerName(player.displayName);
+  const expectedProfilePath = normalizeText(player.expectedProfileUrlContains || '');
+  const requiresProfileTarget = Boolean(knownException?.requireProfileTarget && expectedProfilePath);
+  const profileTargetMatch = (row: ResultDetailPlayerRow) =>
+    !requiresProfileTarget || normalizeText(row.playerHref).includes(expectedProfilePath);
+
   let found =
     rows.find((row) => normalizePlayerName(row.playerName) === normalizedPlayer) ??
     rows.find((row) => normalizePlayerName(row.rowText).includes(normalizedPlayer));
 
+  if (found && !profileTargetMatch(found)) {
+    found = null;
+  }
+
   if (!found && knownException?.allowMultipleContextMentions) {
-    found = rows.find((row) => normalizeText(row.rowText).includes(normalizeText(player.displayName.split(' ')[0] || player.displayName)));
+    const tokenCandidates = player.displayName
+      .split(/\s+/)
+      .map((item) => normalizeText(item))
+      .filter((item) => item.length > 1);
+    const requiredTokenCount = Math.min(2, tokenCandidates.length || 1);
+    found =
+      rows.find((row) => {
+        if (!profileTargetMatch(row)) return false;
+        const rowText = normalizeText(row.rowText);
+        let matched = 0;
+        for (const token of tokenCandidates) {
+          if (rowText.includes(token)) matched += 1;
+        }
+        return matched >= requiredTokenCount;
+      }) ?? null;
   }
 
   if (found && expectedRow?.earningsText && found.earningsText) {

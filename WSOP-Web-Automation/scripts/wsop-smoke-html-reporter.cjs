@@ -2,6 +2,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// Forward declarations — each is assigned once via the override block at the bottom of this file.
+// Having them declared here avoids JS hoisting confusion and makes the dependency clear.
+var dictionary;
+var readMeFirst;
+var formatOverallStatus;
+
 const OUTPUT_DIR = path.join(process.cwd(), 'automation', 'output');
 const RUN_ID = process.env.WSOP_REPORT_RUN_ID || process.env.SMOKE_REPORT_RUN_ID || timestampForFile();
 const REPORT_SUITE = normalizeReportSuite(process.env.WSOP_REPORT_SUITE) || 'smoke';
@@ -50,6 +56,11 @@ class WsopSmokeHtmlReporter {
   }
 
   async onEnd(fullResult) {
+    if (this.results.length === 0) {
+      console.log(`WSOP ${REPORT_SUITE} report skipped: no executed tests.`);
+      return;
+    }
+
     const report = {
       runId: RUN_ID,
       generatedAt: new Date().toISOString(),
@@ -632,93 +643,9 @@ function renderDashboard(report, isKo) {
 </html>`;
 }
 
-function dictionary(isKo) {
-  return isKo ? {
-    title: 'WSOP Web 자동화 리포트',
-    subtitle: '공개 페이지 접근, 핵심 콘텐츠, 상단 네비게이션, 콘솔 오류, 내부 링크 샘플을 빠르게 확인한 결과입니다.',
-    total: '전체 테스트',
-    passed: '통과',
-    failed: '실패',
-    skipped: '건너뜀',
-    passRate: '통과율',
-    duration: '총 실행 시간',
-    executionSummary: '실행 요약',
-    baseUrl: '대상 사이트',
-    projects: '브라우저 프로젝트',
-    generated: '생성 시간',
-    suiteLabel: '리포트 구분',
-    statusDistribution: '상태 분포',
-    readMeFirst: '먼저 볼 내용',
-    noCriticalFailuresTitle: '치명 실패 없음',
-    noCriticalFailuresBody: '현재 실행에서 실패 또는 타임아웃 테스트가 없습니다. 건너뜀 항목이 있다면 실제 사이트 메뉴 구조와 테스트 기준을 확인하세요.',
-    failures: '실패 상세',
-    skippedTests: '건너뜀 항목',
-    suiteDirectory: '검증 영역별 목록',
-    allTests: '전체 테스트 목록',
-    artifacts: '산출물 및 환경',
-    playwrightReport: 'Playwright 기본 HTML 리포트',
-    platform: '실행 환경',
-    footer: '이 리포트는 Playwright 실행 결과에서 자동 생성되었습니다. 링크 검증은 외부 사이트 부하를 줄이기 위해 페이지별 제한된 샘플만 확인합니다.',
-    testName: '테스트명',
-    suite: '검증 영역',
-    project: '프로젝트',
-    status: '상태',
-    time: '시간',
-    file: '파일',
-    detail: '상세',
-    attachment: '첨부',
-  } : {
-    title: 'WSOP Web Automation Report',
-    subtitle: 'A public web check for page access, core content, top navigation, console errors, and sampled internal links.',
-    total: 'Total Tests',
-    passed: 'Passed',
-    failed: 'Failed',
-    skipped: 'Skipped',
-    passRate: 'Pass Rate',
-    duration: 'Total Duration',
-    executionSummary: 'Execution Summary',
-    baseUrl: 'Base URL',
-    projects: 'Browser Projects',
-    generated: 'Generated',
-    suiteLabel: 'Report Suite',
-    statusDistribution: 'Status Distribution',
-    readMeFirst: 'Read Me First',
-    noCriticalFailuresTitle: 'No Critical Failures',
-    noCriticalFailuresBody: 'No failed or timed out tests were found in this run. Review skipped tests if the live site navigation differs from the test target.',
-    failures: 'Failure Details',
-    skippedTests: 'Skipped Tests',
-    suiteDirectory: 'Validation Area Directory',
-    allTests: 'All Tests',
-    artifacts: 'Artifacts & Environment',
-    playwrightReport: 'Playwright HTML Report',
-    platform: 'Platform',
-    footer: 'This report was generated from Playwright results. Link checks intentionally inspect a limited sample per page to avoid excessive traffic.',
-    testName: 'Test Name',
-    suite: 'Area',
-    project: 'Project',
-    status: 'Status',
-    time: 'Time',
-    file: 'File',
-    detail: 'Detail',
-    attachment: 'Attachment',
-  };
-}
-
-function readMeFirst(report, isKo) {
-  if (report.summary.failed > 0) {
-    return isKo
-      ? '실패 항목이 있습니다. 아래 실패 상세에서 오류 메시지와 screenshot, trace, video 첨부를 먼저 확인하세요.'
-      : 'There are failed checks. Start with the failure details below and review screenshot, trace, and video attachments.';
-  }
-  if (report.summary.skipped > 0) {
-    return isKo
-      ? '치명 실패는 없지만 건너뜀 항목이 있습니다. 현재 wsop.com의 일부 상단 메뉴는 클릭 가능한 내부 링크를 노출하지 않아 smoke 기준에서 제외했습니다.'
-      : 'No critical failures were found, but some checks were skipped because the current wsop.com top navigation does not expose a clickable internal link for that target.';
-  }
-  return isKo
-    ? '모든 smoke 검증이 통과했습니다. 상세한 브라우저 실행 기록은 Playwright 기본 HTML 리포트에서 확인할 수 있습니다.'
-    : 'All smoke checks passed. Browser-level run details are available in the Playwright HTML report.';
-}
+// NOTE: `dictionary`, `readMeFirst`, and `formatOverallStatus` are fully defined
+// in the override block at the bottom of this file (after all helper functions).
+// The var declarations above ensure they are in scope throughout.
 
 function renderFailurePanel(items, t) {
   return `<section class="panel">
@@ -1297,7 +1224,7 @@ function renderPlayerPresentationCoverage(coverage, t) {
       </div>
       <div class="category-strip">
         <span class="category-pill active" data-category-filter="all">${t.allTests || '전체'}</span>
-        ${coverage.categories.map((category) => `<span class="category-pill" data-category-filter="${escapeHtml(category.name)}">${escapeHtml(category.name)}: ${escapeHtml(category.total)} (${escapeHtml(category.passed)}/${escapeHtml(category.warned)}/${escapeHtml(category.failed)})</span>`).join('')}
+        ${coverage.categories.map((category) => `<span class="category-pill" data-category-filter="${escapeHtml(category.name)}">${escapeHtml(category.name)}: ${escapeHtml(String(category.total))} (${escapeHtml(String(category.passed))}/${escapeHtml(String(category.warned))}/${escapeHtml(String(category.failed))})</span>`).join('')}
       </div>
       <div class="player-card-grid">
         ${coverage.players.map((player) => renderCoveragePlayerCard(player, t)).join('')}
@@ -1567,11 +1494,7 @@ function formatDuration(ms) {
   return `${minutes}m ${rest}s`;
 }
 
-function formatOverallStatus(status, isKo) {
-  if (status === 'pass') return isKo ? '통과' : 'PASS';
-  if (status === 'warn') return isKo ? '주의' : 'WARN';
-  return isKo ? '실패' : 'FAIL';
-}
+// formatOverallStatus is defined in the override block at the bottom of this file.
 
 function formatError(error) {
   if (!error) return '';
@@ -1629,6 +1552,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
   const isFunctional = suite === 'functional';
   const isPlayerPresentation = suite === 'player-presentation';
   const isSearchFilterSort = suite === 'search-filter-sort';
+  const isResultDetail = suite === 'result-detail';
 
   let titleKo = 'WSOP Web 자동화 리포트';
   let titleEn = 'WSOP Web Automation Report';
@@ -1665,6 +1589,13 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
     subtitleEn = 'A public UI interaction check for Player Search, Standings, and POY list search, section switching, category navigation, sort controls, and pagination behavior.';
     eyebrowKo = 'WSOP Phase 4 Search / Filter / Sort';
     eyebrowEn = 'WSOP Phase 4 Search / Filter / Sort';
+  } else if (isResultDetail) {
+    titleKo = 'WSOP Phase 5 결과 상세 연결 무결성 리포트';
+    titleEn = 'WSOP Phase 5 Result Detail Integrity Verification Report';
+    subtitleKo = '대회 결과 목록에서 결과 상세 페이지로의 연결 무결성, 렌더링 상태 및 프로필로의 역링크 작동을 확인한 결과입니다.';
+    subtitleEn = 'A validation of hyperlink integrity from tournament results to detail pages, rendering status, and profile backlinks.';
+    eyebrowKo = 'WSOP Phase 5 Result Detail Integrity';
+    eyebrowEn = 'WSOP Phase 5 Result Detail Integrity';
   }
 
   return isKo
@@ -1806,6 +1737,11 @@ readMeFirst = function readMeFirstOverride(report, isKo) {
     return isKo
       ? 'Phase 4는 검색/필터/정렬/페이지네이션 UI 조작이 깨지지 않는지 확인합니다. 수치 계산, API/DB 비교, POY 포인트 정합성은 Phase 6에서 다룹니다.'
       : 'Phase 4 checks search/filter/sort/pagination UI behavior. Numeric calculations, API/DB comparisons, and POY point integrity remain Phase 6 scope.';
+  }
+  if (report.suite === 'result-detail') {
+    return isKo
+      ? 'Phase 5는 대회 결과 상세 화면으로의 링크가 깨지지 않고 정상 로딩되는지, 해당 페이지에서 선수 프로필로 되돌아가는 백링크가 정상 작동하는지 확인합니다.'
+      : 'Phase 5 checks whether links to tournament result detail pages are intact, load correctly, and confirm the backlink to the player profile functions properly.';
   }
   return isKo
     ? '모든 검증이 통과했습니다. 브라우저 실행 상세는 Playwright 기본 HTML 리포트에서 확인할 수 있습니다.'

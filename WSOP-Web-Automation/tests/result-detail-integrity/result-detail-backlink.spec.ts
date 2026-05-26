@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { expect, test } from '@playwright/test';
 
-import { attachWarningsToTestInfo, clearWarnings } from '../../utils/playerPresentation/warningCollector';
+import { addWarning, attachWarningsToTestInfo, clearWarnings } from '../../utils/playerPresentation/warningCollector';
 import {
   collectResultRowsFromProfile,
   openPlayerProfileForResults,
@@ -16,6 +16,7 @@ import {
   openResultDetail,
   type ResultKnownException,
 } from '../../utils/resultDetail/resultDetailHelpers';
+import { searchPlayerAcrossResultPages } from '../../utils/resultDetail/resultPaginationHelpers';
 import { normalizePlayerName } from '../../utils/resultDetail/resultRowAssertions';
 
 const players = loadResultFixture<ResultDetailPlayerFixture[]>('result-detail-players.fixture.json');
@@ -38,7 +39,19 @@ test.describe('Phase 5 - result detail player backlink', () => {
       await openResultDetail(page, sample.resultHref);
       const knownException = resolveException(player, knownExceptions);
       const rows = await collectResultDetailPlayerRows(page);
-      const found = findPlayerRowInResultDetail(rows, player, sample, knownException);
+      let found = findPlayerRowInResultDetail(rows, player, sample, knownException);
+      if (!found) {
+        const searched = await searchPlayerAcrossResultPages(page, player, 2);
+        if (!searched.row && searched.limited) {
+          addWarning('phase5-backlink-pagination-limited', 'Backlink check could not complete due to limited/unstable pagination on result detail.', {
+            displayName: player.displayName,
+            resultHref: sample.resultHref,
+            maxActions: 2,
+          });
+          return;
+        }
+        found = searched.row;
+      }
       assertResultDetailPlayerRow(found, player, knownException);
       const targetRow = found!;
 

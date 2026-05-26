@@ -53,7 +53,8 @@ if (candidates.length === 0) {
   fail(`No ${mode} ${suite} report found in ${outputDir}`);
 }
 
-openFile(candidates[0].path);
+const candidateWithResults = candidates.find((candidate) => hasExecutedResults(candidate.path, mode));
+openFile((candidateWithResults || candidates[0]).path);
 
 function openFile(filePath) {
   console.log(`Opening latest ${mode} ${suite} report: ${filePath}`);
@@ -69,6 +70,37 @@ function openFile(filePath) {
   } catch (err) {
     console.error(`Failed to open report: ${err.message}`);
   }
+}
+
+function hasExecutedResults(reportPath, reportMode) {
+  const jsonPath = inferJsonPath(reportPath, reportMode);
+  if (!jsonPath || !fs.existsSync(jsonPath)) {
+    return true;
+  }
+
+  try {
+    const payload = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    if (!Array.isArray(payload.results)) {
+      return true;
+    }
+    return payload.results.length > 0;
+  } catch {
+    return true;
+  }
+}
+
+function inferJsonPath(reportPath, reportMode) {
+  const normalized = reportPath.replace(/\\/g, '/');
+  if (reportMode === 'ko') {
+    return normalized.endsWith('-report-ko.html') ? normalized.replace(/-report-ko\.html$/, '-report.json') : '';
+  }
+  if (reportMode === 'en') {
+    return normalized.endsWith('-report.html') ? normalized.replace(/-report\.html$/, '-report.json') : '';
+  }
+  if (reportMode === 'playwright') {
+    return normalized.includes('-playwright-report/index.html') ? normalized.replace(/-playwright-report\/index\.html$/, '-report.json') : '';
+  }
+  return '';
 }
 
 function fail(message) {
