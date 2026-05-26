@@ -13,7 +13,9 @@ import {
 import { addWarning, attachWarningsToTestInfo, clearWarnings } from '../../utils/playerPresentation/warningCollector';
 
 const topPlayers = loadPlayerPresentationFixture<PlayerFixture[]>('top-players.fixture.json');
-const MIN_STANDING_TARGETS_FOR_PHASE3 = 150;
+const DEFAULT_STANDINGS_LIMIT = 50;
+const limit = Number(process.env.PHASE3_STANDINGS_LIMIT || DEFAULT_STANDINGS_LIMIT);
+const MIN_STANDING_TARGETS_FOR_PHASE3 = Math.max(1, Math.floor(limit * 3));
 
 test.describe('Phase 3 - standings top player presentation', () => {
   test.beforeEach(() => clearWarnings());

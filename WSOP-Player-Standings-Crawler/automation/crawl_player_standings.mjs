@@ -43,6 +43,7 @@ const PROFILE_TAB_CHECKS = [
   { key: "finalTables", label: "Final Tables", summaryKey: "finalTables", tabLabels: ["FINAL TABLES", "FINAL TABLE"] }
 ];
 
+const DEFAULT_STANDINGS_LIMIT = 50;
 const DEFAULT_CONCURRENCY = 5;
 const MAX_CONCURRENCY = 10;
 const DEFAULT_RESULT_PAGE_LIMIT = 0;
@@ -81,7 +82,7 @@ function parseArgs(argv) {
   const args = {
     playersUrl: DEFAULT_PLAYERS_URL,
     playerUrls: [],
-    limit: 10,
+    limit: Number(process.env.PHASE3_STANDINGS_LIMIT || DEFAULT_STANDINGS_LIMIT),
     resultLimit: 0,
     resultRankLimit: 0,
     maxLoadMore: 100,
@@ -204,7 +205,7 @@ Usage:
 Options:
   --players-url <url>       Players list URL. Default: ${DEFAULT_PLAYERS_URL}
   --player-url <url>        Crawl a specific player URL. Can be repeated.
-  --limit <n>               Number of players to collect per standings category. Default: 10
+  --limit <n>               Number of players to collect per standings category. Default: ${DEFAULT_STANDINGS_LIMIT}
   --result-limit <n>        Result pages to crawl per player. Use 0 for every Result. Default: 0
   --result-rank-limit <n>   Skip Result checks when player rank is above this value. Use 0 for no rank cap. Default: 0
   --max-load-more <n>       Max Load more clicks per player All tab. Default: 50

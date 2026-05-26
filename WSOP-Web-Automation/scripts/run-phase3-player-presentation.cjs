@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
+const DEFAULT_STANDINGS_LIMIT = '50';
 const automationRoot = process.cwd();
 const crawlerRoot = path.resolve(automationRoot, '..', 'WSOP-Player-Standings-Crawler');
 const runId = process.env.WSOP_REPORT_RUN_ID || process.env.SMOKE_REPORT_RUN_ID || timestampForFile();
@@ -34,7 +35,7 @@ async function main() {
       '--players-url',
       standingsUrl,
       '--limit',
-      process.env.PHASE3_STANDINGS_LIMIT || '50',
+      process.env.PHASE3_STANDINGS_LIMIT || DEFAULT_STANDINGS_LIMIT,
       '--browser-channel',
       process.env.PHASE3_CRAWLER_BROWSER_CHANNEL || 'none',
       '--user-data-dir',
