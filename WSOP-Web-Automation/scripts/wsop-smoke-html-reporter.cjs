@@ -742,7 +742,7 @@ function renderSuite(suite, items, t) {
   const failed = items.filter((item) => ['failed', 'timedOut', 'interrupted'].includes(item.status)).length;
   const skipped = items.filter((item) => item.status === 'skipped').length;
   const status = failed ? 'failed' : skipped ? 'skipped' : 'passed';
-  const displaySuite = t.isKo ? localizeSuiteTitleKo(suite) : suite;
+  const displaySuite = suite;
   return `<details open>
     <summary>
       <div class="suite-summary-left">
@@ -776,8 +776,8 @@ function renderResultsTable(items, t, includeErrors = false) {
         return `<tr>
         <td><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
         <td>
-          <strong>${escapeHtml(t.isKo ? localizeTestTitleKo(item.title) : item.title)}</strong><br>
-          <span class="muted" style="font-size: 11px;">${escapeHtml(t.isKo ? localizeSuiteTitleKo(item.suiteTitle) : item.suiteTitle)}</span>
+          <strong>${escapeHtml(item.title)}</strong><br>
+          <span class="muted" style="font-size: 11px;">${escapeHtml(item.suiteTitle)}</span>
           ${stepsHtml}
         </td>
         <td>${escapeHtml(item.projectName)}</td>
