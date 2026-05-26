@@ -1302,50 +1302,110 @@ async function selectProfileTab(page, tabLabel) {
 }
 
 async function findVisibleLoadMoreControl(page) {
-  const controls = page.locator("button, a, [role=button], input[type=button], input[type=submit]");
-  const count = await controls.count().catch(() => 0);
+  const handle = await page.evaluateHandle(() => {
+    const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
+    
+    // button, a, [role=button], input 등과 더보기 관련 텍스트가 있을 만한 div, span 요소를 쿼리합니다.
+    const candidates = Array.from(document.querySelectorAll(
+      "button, a, [role=button], input[type=button], input[type=submit], div, span"
+    ));
 
-  for (let i = count - 1; i >= 0; i -= 1) {
-    const control = controls.nth(i);
-    const candidate = await control.evaluate((element) => {
-      const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
-      const parts = [
-        element.textContent,
-        element.getAttribute("aria-label"),
-        element.getAttribute("title"),
-        element.getAttribute("value"),
-        element.getAttribute("id"),
-        element.getAttribute("class"),
-        element.getAttribute("data-action"),
-        element.getAttribute("data-testid")
-      ].filter(Boolean);
-      const text = normalize(parts.join(" "));
+    // 역순으로 탐색 (더보기 버튼은 보통 하단에 가깝습니다)
+    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+      const element = candidates[i];
+      const tagName = element.tagName.toLowerCase();
+      const textContent = element.textContent || "";
+      const className = element.className || "";
+
+      // div와 span인 경우 텍스트에 관련 키워드가 없으면 빠르게 건너뛰어 성능을 향상시킵니다.
+      if ((tagName === "div" || tagName === "span") && !/more|load|show|view/i.test(textContent)) {
+        continue;
+      }
+
+      // div와 span은 단순 안내 텍스트(예: "Show 10 more results")일 가능성이 크므로, 
+      // 명확한 버튼 형태의 속성이나 스타일(cursor: pointer)을 가진 경우만 후보로 채택합니다.
+      if (tagName === "div" || tagName === "span") {
+        const isClickableClass = /btn|button|click|load-more|show-more|pointer/i.test(className)
+          || /btn|button|click|load-more|show-more|pointer/i.test(element.getAttribute("id") || "")
+          || element.getAttribute("role") === "button";
+        const style = window.getComputedStyle(element);
+        const hasPointerCursor = style.cursor === "pointer";
+
+        if (!isClickableClass && !hasPointerCursor) {
+          continue;
+        }
+      }
+
+      const visibleText = normalize(
+        element.textContent || element.getAttribute("aria-label") || element.getAttribute("title") || element.getAttribute("value") || ""
+      );
+
+      // 고정 loading 클래스로 활성 버튼이 비활성 오인되는 것을 방지
+      const isActuallyLoading = /(^|\s)(is-loading|active-loading|loading-active|loading-state)(\s|$)/i.test(className)
+        || (/(^|\s)loading(\s|$)/i.test(className) && !/lazy|more|placeholder/i.test(className));
+
       const disabled = Boolean(element.disabled)
         || element.getAttribute("aria-disabled") === "true"
-        || /disabled|loading/i.test(element.className || "");
-      const loadMoreLike = /\b(load\s*more|show\s*more|view\s*more|more\s*results|more\s*events)\b/i.test(text)
-        || /\b(loadmore|showmore|more-results|more-events)\b/i.test(text);
-      const wrongControl = /\b(result|results page|search|filter|sort|previous|prev|next)\b/i.test(text)
-        && !/\b(load\s*more|show\s*more|more\s*results|more\s*events|loadmore|showmore)\b/i.test(text);
+        || /disabled/i.test(className)
+        || isActuallyLoading;
 
-      return { text, disabled, loadMoreLike, wrongControl };
-    }).catch(() => ({ text: "", disabled: true, loadMoreLike: false, wrongControl: true }));
-    if (!candidate.loadMoreLike || candidate.wrongControl || candidate.disabled) continue;
-    if (!(await control.isVisible().catch(() => false))) continue;
-    return control;
+      if (disabled) continue;
+
+      // 텍스트 매칭 검사
+      const loadMoreLike = /\b(load\s*more|show\s*more|view\s*more|more\s*results|more\s*events)\b/i.test(visibleText)
+        || /\b(loadmore|showmore|more-results|more-events)\b/i.test(visibleText)
+        || (/\b(more|show|view)\b/i.test(visibleText) && !/\b(less|hide)\b/i.test(visibleText));
+
+      if (!loadMoreLike) continue;
+
+      // wrongControl 검사 (오분류 차단)
+      const wrongControl = /\b(result|results page|search|filter|sort|previous|prev|next)\b/i.test(visibleText)
+        && !/\b(load\s*more|show\s*more|more\s*results|more\s*events|loadmore|showmore)\b/i.test(visibleText);
+
+      if (wrongControl) continue;
+
+      // 요소의 실제 가시성(Visibility) 체크
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      const isVisible = style.display !== "none" 
+        && style.visibility !== "hidden" 
+        && rect.width > 0 
+        && rect.height > 0;
+
+      if (isVisible) {
+        return element;
+      }
+    }
+    return null;
+  }).catch(() => null);
+
+  if (handle) {
+    const element = handle.asElement();
+    if (element) return element;
   }
-
   return null;
 }
 
-async function waitForVisibleLoadMoreControl(page, timeoutMs = 8000) {
+async function waitForVisibleLoadMoreControl(page, timeoutMs = 12000) {
   const deadline = Date.now() + timeoutMs;
   let lastControl = await findVisibleLoadMoreControl(page);
+  let scrollStep = 0;
 
   while (!lastControl && Date.now() < deadline) {
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
-    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {});
-    await page.waitForTimeout(600);
+    if (scrollStep % 2 === 0) {
+      await page.evaluate(() => {
+        const height = document.body.scrollHeight;
+        window.scrollTo(0, height * 0.7);
+        setTimeout(() => window.scrollTo(0, height), 150);
+      }).catch(() => {});
+    } else {
+      await page.keyboard.press("PageDown").catch(() => {});
+      await page.keyboard.press("PageDown").catch(() => {});
+    }
+    scrollStep += 1;
+
+    await page.waitForLoadState("networkidle", { timeout: 400 }).catch(() => {});
+    await page.waitForTimeout(300);
     lastControl = await findVisibleLoadMoreControl(page);
   }
 
@@ -1393,6 +1453,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
+      console.log(`[디버그] ALL 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
       expansion.stoppedReason = "load-more-not-found";
       break;
     }
@@ -1440,6 +1501,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   while (expected && events.length < expected && expansion.loadMoreClicks < maxLoadMore) {
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
+      console.log(`[디버그] 단일 지표 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
       expansion.stoppedReason = "load-more-not-found";
       break;
     }

@@ -339,6 +339,167 @@ Result 페이지가 `1 2 3 ... 10`처럼 페이지 그룹을 나누는 경우에
 *-defects.csv
 ```
 
+정확도를 우선으로 전체 검증에 가깝게 돌릴 때:
+
+```bat
+set "PLAYER_LIMIT=10"
+set "RESULT_LIMIT=0"
+set "RESULT_RANK_LIMIT=0"
+set "MAX_LOAD_MORE=100"
+set "RESULT_PAGE_LIMIT=0"
+set "DISABLED_RESULT_MODE=skip"
+set "CONCURRENCY=8"
+```
+
+이 설정은 시간이 오래 걸릴 수 있지만, 선수 프로필의 Result와 Result 상세 페이지를 최대한 많이 확인합니다.
+
+빠르게 실행 여부만 확인할 때:
+
+```bat
+set "PLAYER_LIMIT=1"
+set "RESULT_LIMIT=1"
+set "RESULT_RANK_LIMIT=0"
+set "MAX_LOAD_MORE=3"
+set "RESULT_PAGE_LIMIT=1"
+set "DISABLED_RESULT_MODE=skip"
+set "CONCURRENCY=3"
+```
+
+이 설정은 설치, 브라우저 실행, 리포트 생성 흐름이 정상인지 보는 용도입니다. 실제 정합성 검증용으로는 부족할 수 있습니다.
+
+PC가 느리거나 브라우저 오류가 자주 날 때:
+
+```bat
+set "CONCURRENCY=3"
+```
+
+`CONCURRENCY`는 동시에 검사하는 선수 수입니다. 값을 높이면 빨라질 수 있지만 PC 부하와 브라우저 오류 가능성도 같이 올라갑니다. 오류가 반복되면 3~5 정도로 낮춰서 다시 실행하세요.
+
+Result 페이지가 매우 길어서 시간이 오래 걸릴 때:
+
+```bat
+set "RESULT_PAGE_LIMIT=50"
+```
+
+`0`은 제한 없이 끝까지 확인한다는 뜻입니다. 시간이 너무 오래 걸릴 때만 `50`처럼 충분히 큰 값으로 제한하세요. 단, 제한한 페이지 밖에 대상 순위가 있으면 실패로 나올 수 있습니다.
+
+비활성 Result 버튼/링크를 결함으로 잡고 싶을 때:
+
+```bat
+set "DISABLED_RESULT_MODE=fail"
+```
+
+모드별 의미는 아래와 같습니다.
+
+| 모드    | 동작                                                                                  |
+| ------- | ------------------------------------------------------------------------------------- |
+| `skip`  | 비활성 Result는 아직 검증 가능한 페이지가 아니라고 보고 실패에서 제외합니다.          |
+| `fail`  | 비활성 Result 자체를 결함으로 보고 리포트에 실패로 기록합니다.                        |
+| `check` | 비활성 상태여도 href가 있으면 해당 URL에 직접 접근해 Result 페이지 검증을 시도합니다. |
+
+### 자주 보이는 실패 메시지 해석
+
+리포트의 `누락:` 항목은 아래 의미입니다.
+
+| 항목                   | 의미                                                                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hasFinalResultRows`   | Result 상세 페이지에서 최종 결과표 row를 찾지 못했습니다. 페이지 로딩, 접근 차단, 페이지 구조 변경 가능성이 있습니다.                          |
+| `rankMatches`          | standings/profile의 순위와 Result 상세 페이지의 순위가 일치하지 않습니다.                                                                      |
+| `playerMatches`        | 선수명이 일치하지 않습니다. 닉네임/실명 병기, 특수문자, 사이트 표기 차이를 확인해야 합니다.                                                    |
+| `earningsMatches`      | Result 상세 페이지의 상금이 profile/event row의 상금과 일치하지 않습니다. Result 검증에서는 상금까지 정확히 일치해야 하므로 실패로 기록합니다. |
+| `resultControlEnabled` | `DISABLED_RESULT_MODE=fail`일 때 비활성 Result 버튼/링크를 결함으로 기록한 항목입니다.                                                         |
+
+실패가 나오면 먼저 열린 브라우저에서 해당 `Link`를 직접 확인하고, 실제 페이지에도 같은 값이 보이는지 비교하세요.
+
+## 크롤링/검증 기준
+
+크롤러는 속도와 정합성을 같이 맞추기 위해 아래 기준으로 데이터를 확인합니다.
+
+### 프로필 요약값 검증
+
+프로필의 ALL 탭을 기준으로 이벤트 row를 수집하고, 수집된 row로 아래 값을 다시 계산합니다.
+
+- `Title`
+- `Bracelets`
+- `Rings`
+- `Final Tables`
+- `Cashes`
+- `Total Earnings`
+
+ALL 탭에서는 `MAX_LOAD_MORE` 값만큼 `Load more`를 눌러 더 많은 row를 펼칩니다. 프로필 상단 `Cashes` 값에 도달하면 더 누르지 않고 멈춥니다.
+
+`Total Earnings` 합계는 환율 변환, 통화 표기, 사이트 원본값 차이로 profile 상단 값과 ALL 탭 계산값이 다를 수 있습니다. 따라서 `Total Earnings` 불일치는 리포트에서 `주의`로 표시하고 실패 집계에서는 제외합니다. 단, Result 상세 페이지 검증의 상금 불일치는 정확성 검증 대상이므로 실패입니다.
+
+`Title`, `Bracelets`, `Rings`, `Final Tables` 탭도 프로필 상단 요약값보다 표시 row 수가 적으면 해당 탭 안에서 `Load more`를 눌러 요약값에 도달할 때까지 펼친 뒤 비교합니다.
+
+### 비활성 Result 처리
+
+`DISABLED_RESULT_MODE=skip`일 때 비활성 Result 버튼/링크는 아직 검증 가능한 Result 페이지가 아니라고 보고 건너뜁니다.
+
+이때 건너뛴 row는 Result 상세 페이지 검증에서만 제외합니다. 프로필 상단 요약값, ALL 탭 계산값, Title/Bracelets/Rings/Final Tables 탭 row 수 비교에는 그대로 포함합니다. 비활성 Result는 상세 결과 페이지 검증만 아직 할 수 없다는 뜻이지, 프로필 이벤트 row 자체가 무효라는 뜻은 아니기 때문입니다.
+
+예를 들어 비활성 Result row가 1건 있고 그 row가 1~9위라면, Result 페이지 검증은 건너뛰지만 `Cashes`, `Total Earnings`, `Final Tables` 계산에는 포함합니다.
+
+비활성 Result 자체를 결함으로 보고 싶으면 BAT에서 아래처럼 바꾸면 됩니다.
+
+```bat
+set "DISABLED_RESULT_MODE=fail"
+```
+
+비활성이어도 href가 있으면 직접 Result URL 접근을 시도하려면 아래처럼 바꿉니다.
+
+```bat
+set "DISABLED_RESULT_MODE=check"
+```
+
+### Result 페이지 검색 기준
+
+각 이벤트의 Result 페이지에서는 최종 결과표에서 아래 3가지를 모두 만족하는 row를 찾습니다.
+
+- 순위 No
+- 선수명
+- 상금
+
+`RESULT_PAGE_LIMIT=0`이면 찾을 때까지 다음 페이지를 계속 확인합니다. 단, 대상 row를 찾으면 즉시 멈춥니다.
+
+속도를 높이기 위해 순위가 51위 이상이면 예상 페이지보다 2페이지 앞에서 검색을 시작합니다. 이후에는 한 페이지씩 뒤로 넘기면서 찾습니다.
+
+예시는 아래와 같습니다.
+
+| 선수 순위 | 예상 페이지 | 실제 검색 시작 |
+| --------- | ----------- | -------------- |
+| 28위      | 1페이지     | 1페이지        |
+| 343위     | 7페이지     | 5페이지        |
+| 501위     | 11페이지    | 9페이지        |
+| 1200위    | 24페이지    | 22페이지       |
+
+이렇게 하는 이유는 WSOP Result 페이지에 순위 누락이나 공백이 있을 수 있어서, 예상 페이지로 바로 이동하면 대상 row를 건너뛸 가능성이 있기 때문입니다.
+
+Result 페이지가 `1 2 3 ... 10`처럼 페이지 그룹을 나누는 경우에는 `Next`, `...`, `»` 계열 컨트롤을 눌러 다음 페이지 그룹으로 이동한 뒤 계속 검색합니다.
+
+리포트의 `searchedPages`에는 각 페이지에서 본 row 수와 `rankRange`가 남습니다. 예를 들어 `rankRange: "501-550"`이면 해당 페이지에서 501~550위 구간을 확인했다는 뜻입니다.
+
+## 검증 범위
+
+크롤러는 선수별로 아래 항목을 검증합니다.
+
+- ALL 탭을 펼쳐서 상단 요약값과 계산값을 비교합니다.
+- Title, Bracelets, Rings, Final Tables 탭을 각각 눌러서 현재 표시된 row 수가 상단 요약값과 같은지 비교합니다.
+- 각 이벤트의 Result 페이지를 열어 최종 결과표에서 선수명, 순위, 상금이 맞는지 확인합니다.
+
+다른 탭들은 일반적으로 row 수가 많지 않기 때문에 `Load more`를 반복하지 않고, 탭 클릭 직후 표시된 row 수를 기준으로 빠르게 검증합니다. ALL 탭은 `Cashes`와 `Total Earnings` 계산에 필요하므로 `MAX_LOAD_MORE` 설정에 따라 더 많이 펼칩니다.
+
+## 출력물
+
+결과 파일은 `automation\output` 아래에 생성됩니다.
+
+```text
+*-data.json
+*-report.html
+*-report-ko.html
+*-defects.csv
+```
+
 `*-report.html`은 기존 영문 리포트이고, `*-report-ko.html`은 같은 내용을 사람이 보기 쉽게 번역한 한글 리포트입니다. BAT 실행 후에는 한글 리포트를 우선으로 엽니다.
 
 크롤러는 실행 중에도 선수 1명 검증이 끝날 때마다 JSON, HTML, CSV 리포트를 갱신합니다. 긴 live 검증 중 결함 후보가 보이면 크롤러가 계속 도는 동안에도 `automation\output`의 최신 한글 리포트를 열어 직접 확인할 수 있습니다. `Ctrl+C`로 중단하면 새 선수 작업은 시작하지 않고, 현재까지 완료된 선수 기준으로 `interrupted` 상태의 부분 리포트를 남깁니다.
@@ -350,3 +511,14 @@ Result 페이지가 `1 2 3 ... 10`처럼 페이지 그룹을 나누는 경우에
 ```powershell
 npm.cmd run crawl:self-test
 ```
+
+## 유지보수 포인트
+
+### Load More 버튼 감지 및 오분류 방지
+프로필 페이지에서 입상 이력을 펼치기 위해 사용하는 `Load More` 버튼은 웹사이트 레이아웃 및 렌더링 방식의 영향을 크게 받아 실행 실패 가능성이 높습니다. 크롤러의 `findVisibleLoadMoreControl` 함수는 다음과 같은 방어적 탐색 로직을 수행합니다.
+
+- **대상 요소 확장**: 표준 `button`, `a` 태그 외에 custom element로 렌더링된 `div` 및 `span`을 모두 검색합니다.
+- **인터랙티브 요소 필터링**: `div`나 `span`을 수집할 때 단순 텍스트 메시지(예: *"Showing 10 more results"*)가 잡히는 것을 막기 위해, 클래스명에 버튼 관련 키워드(`btn`, `button`, `click`, `load-more`, `show-more`)가 존재하거나 마우스 커서 스타일이 `cursor: pointer`로 선언된 요소만 후보로 삼습니다.
+- **로딩 상태 감지**: 클래스명에 상시 포함된 `lazy-loading`, `loading-more` 같은 단어로 인해 활성 버튼이 비활성 상태로 오인되는 것을 방지합니다. 실제 로딩 지시 클래스(`is-loading`, `loading-active` 등)나 단독 `loading` 클래스만 로딩 중(disabled)으로 인식하도록 조율되었습니다.
+- **오분류 차단**: 검색, 필터, 정렬 버튼(`wrongControl`)을 구분할 때 ID나 클래스명 문자열을 통째로 포함하지 않고, 사용자의 화면에 보이는 실제 텍스트(`textContent` 등) 내용만을 기준으로 판별합니다.
+- **점진적 스크롤 및 키보드 모사**: 단순히 윈도우 스크롤을 끝으로 이동시키는 방식 외에, 점진적으로 아래 영역을 스크롤하고 `PageDown` 키 입력을 전송하여 브라우저의 스크롤 이벤트를 강제로 활성화합니다.
