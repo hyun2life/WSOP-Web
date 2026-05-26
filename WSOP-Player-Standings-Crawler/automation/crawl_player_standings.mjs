@@ -97,6 +97,7 @@ function parseArgs(argv) {
     defects: DEFAULT_DEFECTS_PATH,
     outputPathOverrides: { out: false, html: false, defects: false },
     selfTest: false,
+    standingsOnly: false,
     concurrency: DEFAULT_CONCURRENCY,
     help: false
   };
@@ -137,6 +138,7 @@ function parseArgs(argv) {
       args.outputPathOverrides.defects = true;
     }
     else if (arg === "--self-test") args.selfTest = true;
+    else if (arg === "--standings-only") args.standingsOnly = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -219,6 +221,7 @@ Options:
   --html <path>             HTML report path.
   --defects <path>          Defect candidate CSV path.
                             Direct --player-url runs use timestamped output names unless these paths are set.
+  --standings-only          Collect standings player targets only, then skip profile and Result crawling.
   --self-test               Run local data-model checks without opening a browser.
 `);
 }
@@ -4264,6 +4267,39 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
   return report;
 }
 
+function standingOnlyPlayerFromEntry(entry) {
+  const firstSource = (entry.standingsSources || []).find((source) => source?.name) || {};
+  return {
+    name: firstSource.name || playerNameFromUrl(entry.url) || entry.url,
+    url: entry.url,
+    standingsSources: entry.standingsSources || [],
+    summary: {},
+    events: [],
+    calculated: {},
+    comparisons: [],
+    tabChecks: [],
+    warnings: [],
+    defects: [],
+    status: "pass"
+  };
+}
+
+function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries }) {
+  const players = playerEntries.map(standingOnlyPlayerFromEntry);
+  const report = buildCrawlerReport({
+    startedAt,
+    finishedAt,
+    playersUrl,
+    playerEntries,
+    players,
+    runStatus: "complete"
+  });
+
+  report.mode = "standings-only";
+  report.summary.mode = "standings-only";
+  return report;
+}
+
 function writeReportArtifacts(args, report) {
   writeJson(args.out, report);
   fs.mkdirSync(path.dirname(args.html), { recursive: true });
@@ -4685,6 +4721,24 @@ async function main() {
     }
 
     if (!playerEntries.length) throw new Error(`No player links found at ${args.playersUrl}`);
+
+    if (args.standingsOnly) {
+      const report = buildStandingsOnlyReport({
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        playersUrl: args.playersUrl,
+        playerEntries
+      });
+      const koreanHtml = writeReportArtifacts(args, report);
+
+      console.log(`Standings-only JSON: ${args.out}`);
+      console.log(`Standings-only HTML: ${args.html}`);
+      console.log(`Standings-only Korean HTML: ${koreanHtml}`);
+      console.log(`Standings-only players: ${report.players.length}`);
+      console.log(`Overall: ${report.summary.status}`);
+      process.exitCode = report.summary.status === "fail" ? 1 : 0;
+      return;
+    }
 
     const players = [];
     const requestedConcurrency = args.concurrency;

@@ -251,7 +251,7 @@ automation/output/
 검증 범위:
 
 - Player Standings 상위 플레이어 노출 및 profile 연결
-- Player Standings UI는 `WSOP-Player-Standings-Crawler/automation/output/*-data.json` 중 충분한 standings target을 포함한 최근 파일의 `players[].standingsSources[]`를 기준으로, 크롤러가 수집한 standings target들이 각 source category에서 이름, profile link, 국가/국기 후보로 보이는지 확인
+- Player Standings UI는 기존 크롤러의 `--standings-only` 모드로 빠르게 추출한 최신 standings 대상자를 기준으로 이름, profile link, 국가/국기 후보로 보이는지 확인
 - Player Search에서 모든 플레이어를 전수 입력하지 않고, fixture에 정의한 대표 탑랭커 중심으로 이름 입력 시 검색창 하단 자동완성 row와 검색 결과에 해당 인물이 노출되는지 확인
 - Player Profile의 이름, 국가/국기, avatar/profile image 후보 확인
 - Hall of Fame, Player of the Year, 내부 Legend 그룹의 주요 플레이어 표현 확인
@@ -272,6 +272,8 @@ npm run test:player-presentation
 npm run test:phase3
 ```
 
+`npm run test:phase3`와 `npm run test:player-presentation`은 먼저 sibling 프로젝트 `WSOP-Player-Standings-Crawler`의 standings-only 수집을 실행한 뒤 Playwright Phase 3 테스트를 실행합니다. 기본 수집량은 standings 카테고리별 10명이며, 필요하면 `PHASE3_STANDINGS_LIMIT` 환경변수로 조정할 수 있습니다.
+
 주요 파일:
 
 ```text
@@ -280,9 +282,9 @@ fixtures/player-presentation/
 utils/playerPresentation/
 ```
 
-Standings UI 검증은 크롤러 산출물이 있으면 해당 산출물 중 충분한 standings target을 포함한 최신 `*-data.json`을 사용합니다. 이 기준은 크롤러가 실제 Result 상세 검증 대상으로 삼은 스탠딩 TOP 인원과 Phase 3 UI 검증 대상을 맞추기 위한 것입니다. 단, Phase 3 자체는 Result 상세 크롤링을 필요로 하지 않으므로 매번 full crawler를 오래 돌릴 필요는 없습니다. 중간에 중단된 부분 output처럼 target 수가 너무 적은 파일은 Phase 3 기준에서 제외합니다.
+Standings UI 검증은 full crawler 산출물에 의존하지 않습니다. Phase 3 runner가 먼저 `WSOP-Player-Standings-Crawler`의 `--standings-only` 모드를 실행해 standings 카테고리별 선수 이름, rank, profile URL, source URL만 빠르게 추출하고, 이 최신 대상자 기준으로 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. Profile/Result 상세 크롤링은 수행하지 않습니다.
 
-Phase 3 custom 리포트는 크롤러 리포트와 같은 판단 흐름을 따르도록, 충분한 standings target을 포함한 크롤러 대상자 기준의 **플레이어 UI 커버리지 카드**를 포함합니다. 각 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. `국가/국기`까지는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
+Phase 3 custom 리포트는 standings-only crawler가 추출한 선수 대상자 기준의 **플레이어 UI 커버리지 카드**를 포함합니다. 각 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. `국가/국기`까지는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
 
 ## Phase 4 search / filter / sort depth tests
 
@@ -418,7 +420,7 @@ Run.bat
 
 - **대상 환경 실시간 스위칭**: `Target Environment` 선택 드롭다운을 통해 별도의 콘솔 타이핑이나 환경변수 수동 세팅 없이, 마우스 클릭만으로 `Live (https://www.wsop.com)` / `Stage (https://wsop-stage.ggnweb.com)` / `Custom URL` 환경을 즉각 오버라이딩하여 테스트 및 크롤러 구동 가능
 - **페이즈 카드 선택 및 실행**: 좌측 카드 목록에서 대상을 원클릭으로 선택 및 실행
-- **한글 Phase 안내**: 좌측 카드에는 한글 Phase 이름과 짧은 요약을 표시하고, 상세 패널에는 목적 설명과 검증 스텝을 한글로 표시합니다. Phase 3은 크롤러 대상 TOP 플레이어 UI 검증 흐름을 단계별로 확인할 수 있습니다.
+- **한글 Phase 안내**: 좌측 카드에는 한글 Phase 이름과 짧은 요약을 표시하고, 상세 패널에는 목적 설명과 검증 스텝을 한글로 표시합니다. Phase 3은 standings-only crawler로 추출한 플레이어 UI 검증 흐름을 단계별로 확인할 수 있습니다.
 - **실행 옵션 및 모드 튜닝**: Normal / Headed / UI 모드 선택 및 체크박스 기반 추가 매개변수(Limit, Concurrency, Grep, Timeout 등) 실시간 토글링 및 텍스트박스 입력
 - **실시간 터미널 로그 스트리밍**: SSE 채널을 활용해 백그라운드 테스트 실행 콘솔 로그를 컬러풀하게 스트리밍 및 자동 스크롤
 - **원클릭 프로세스 제어**: 실행 도중 언제든지 즉시 중단 가능한 **Stop Test** 및 로그 복사/비우기 기능 제공

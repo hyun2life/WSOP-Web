@@ -46,20 +46,22 @@
       "name": "Player Presentation & Identity UI",
       "reportSuite": "player-presentation",
       "testDir": "tests/player-presentation",
+      "runnerType": "node",
+      "scriptPath": "scripts/run-phase3-player-presentation.cjs",
       "project": "chromium-desktop",
       "implemented": true,
       "nameKo": "플레이어 표현 및 식별 UI",
-      "shortSummaryKo": "크롤러 대상 TOP 플레이어가 공개 화면에서 이름, 국기, 이미지, 마크, 프로필로 올바르게 보이는지 확인합니다.",
+      "shortSummaryKo": "standings-only crawler 대상 플레이어가 공개 화면에서 이름, 국기, 이미지, 마크, 프로필로 올바르게 보이는지 확인합니다.",
       "description": "Validates player identity presentation, flags, avatars, badges, Hall of Fame, POY, and profile linking without DB/API value checks.",
       "descriptionKo": "Data/API 정합성이 아니라, 플레이어가 WSOP.com 공개 웹 화면에서 올바르게 식별되고 표현되는지 검증합니다. 수치 계산이나 DB/API 값 비교는 Phase 6에서 다룹니다.",
       "stepsKo": [
-        "Player Standings에서 충분한 standings target을 포함한 최근 output 기준 TOP 대상자 행 노출 확인",
-        "각 대상자의 이름, 프로필 링크, 국가/국기, 이미지 후보 확인",
+        "기존 크롤러의 standings-only 모드로 Player Standings 대상자 수집",
+        "수집한 대상자의 이름, 프로필 링크, 국가/국기, 이미지 후보 확인",
         "Player Search에서 탑랭커 이름 입력 시 자동완성 row와 검색 결과 노출 확인",
         "대표 Player Profile에서 이름, 국가/국기, avatar/profile image 후보 확인",
         "Hall of Fame, Player of the Year, 내부 Legend 그룹의 표시 및 프로필 연결 확인",
         "stage avatar/image 미노출 및 optional badge/mark 미노출은 warning으로 수집",
-        "크롤러 대상 플레이어 UI 커버리지 카드가 포함된 Phase 3 리포트 생성"
+        "standings-only crawler 대상자 기준 플레이어 UI 커버리지 카드가 포함된 Phase 3 리포트 생성"
       ]
     },
     {
@@ -195,13 +197,13 @@
       "nameKo": "플레이어 스탠딩 크롤러",
       "shortSummaryKo": "스탠딩 TOP 플레이어와 상세 Result를 수집하고 크롤러 리포트를 생성합니다.",
       "description": "Runs player standings crawler automation script to collect latest rankings and verify DB.",
-      "descriptionKo": "Player Standings 기준 TOP 플레이어를 수집하고, 각 플레이어의 상세 Result 검증 및 크롤러 리포트를 생성합니다. Phase 3 UI 검증의 대상자 기준으로도 사용됩니다.",
+      "descriptionKo": "Player Standings 기준 TOP 플레이어를 수집하고, 각 플레이어의 상세 Result 검증 및 크롤러 리포트를 생성합니다. Phase 3 UI 검증은 full crawler 산출물 대신 standings-only 추출 결과를 사용합니다.",
       "stepsKo": [
         "Player Standings 카테고리별 TOP 대상자 수집",
         "플레이어 프로필과 Result 상세 접근",
         "상세 결과 데이터 수집 및 검증",
         "크롤러 output JSON/HTML 리포트 생성",
-        "Phase 3 UI 커버리지 기준 데이터로 활용"
+        "Phase 3과 별도 산출물로 관리"
       ]
     }
   ]

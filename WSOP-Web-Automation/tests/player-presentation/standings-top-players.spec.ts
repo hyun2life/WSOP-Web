@@ -56,20 +56,20 @@ test.describe('Phase 3 - standings top player presentation', () => {
     }
   });
 
-  test('crawler standings target rows expose player identity UI', async ({ page }, testInfo) => {
-    const crawlerTargets = loadCrawlerStandingTargetsFromRecentOutput();
+  test('crawler standings-only target rows expose player identity UI', async ({ page }, testInfo) => {
+    const standingTargets = loadStandingTargetsFromStandingsOnlyOutput();
     expect(
-      crawlerTargets.length,
-      `A recent crawler standings target file should expose at least ${MIN_STANDING_TARGETS_FOR_PHASE3} targets for Phase 3 UI validation`,
+      standingTargets.length,
+      `Standings-only crawler output should expose at least ${MIN_STANDING_TARGETS_FOR_PHASE3} targets for Phase 3 UI validation`,
     ).toBeGreaterThanOrEqual(MIN_STANDING_TARGETS_FOR_PHASE3);
 
     const missingProfileLink: string[] = [];
     const missingName: string[] = [];
     const missingCountryOrFlag: string[] = [];
     const missingImage: string[] = [];
-    const coverage: CrawlerStandingCoverage[] = [];
+    const coverage: StandingCoverage[] = [];
 
-    for (const [sourcePath, targets] of groupTargetsBySource(crawlerTargets)) {
+    for (const [sourcePath, targets] of groupTargetsBySource(standingTargets)) {
       const response = await page.goto(sourcePath, { waitUntil: 'domcontentloaded' });
       expect(response, `${sourcePath} should return a response`).not.toBeNull();
       expect(response!.status(), `${sourcePath} HTTP status`).toBeLessThan(400);
@@ -88,7 +88,7 @@ test.describe('Phase 3 - standings top player presentation', () => {
         const row = await collectStandingRowForTarget(page, target);
         if (!row) {
           missingName.push(`${target.label} - row not found`);
-          coverage.push(toCrawlerCoverage(target, null));
+          coverage.push(toStandingCoverage(target, null));
           continue;
         }
 
@@ -108,25 +108,37 @@ test.describe('Phase 3 - standings top player presentation', () => {
           missingImage.push(row.label);
         }
 
-        coverage.push(toCrawlerCoverage(target, row));
+        coverage.push(toStandingCoverage(target, row));
       }
     }
 
-    await attachCrawlerCoverage(testInfo, coverage);
+    await attachStandingCoverage(testInfo, coverage);
 
-    expect(missingProfileLink, 'Every crawler standings target should link to a player profile').toEqual([]);
-    expect(missingName, 'Every crawler standings target should expose the player name in its source standings row').toEqual([]);
-    expect(missingCountryOrFlag, 'Every crawler standings target should expose country text or a flag image').toEqual([]);
+    expect(missingProfileLink, 'Every sampled standings row should link to a player profile').toEqual([]);
+    expect(missingName, 'Every sampled standings row should expose the player name').toEqual([]);
+    expect(missingCountryOrFlag, 'Every sampled standings row should expose country text or a flag image').toEqual([]);
 
     if (missingImage.length > 0) {
-      addWarning('crawler-standings-images', 'Some crawler standings targets did not expose an avatar/player image candidate', {
+      addWarning('standings-row-images', 'Some sampled standings rows did not expose an avatar/player image candidate', {
         missingImage,
       });
     }
   });
 });
 
-type CrawlerStandingTarget = {
+type StandingRowUi = {
+  label: string;
+  text: string;
+  playerName: string;
+  href: string;
+  rank: number | null;
+  sourcePath: string;
+  hasCountryText: boolean;
+  hasFlagImage: boolean;
+  hasPlayerImage: boolean;
+};
+
+type StandingTarget = {
   label: string;
   name: string;
   url: string;
@@ -135,17 +147,7 @@ type CrawlerStandingTarget = {
   sourcePath: string;
 };
 
-type StandingRowUi = {
-  label: string;
-  text: string;
-  playerName: string;
-  href: string;
-  hasCountryText: boolean;
-  hasFlagImage: boolean;
-  hasPlayerImage: boolean;
-};
-
-type CrawlerStandingCoverage = {
+type StandingCoverage = {
   category: string;
   rank: number | null;
   name: string;
@@ -173,7 +175,7 @@ async function countVisibleRows(rows: Locator) {
   return visibleCount;
 }
 
-async function collectStandingRowForTarget(page: Page, target: CrawlerStandingTarget): Promise<StandingRowUi | null> {
+async function collectStandingRowForTarget(page: Page, target: StandingTarget): Promise<StandingRowUi | null> {
   const rows = page.getByRole('row').filter({ hasText: playerNamePattern(target.name) });
   const rowCount = await rows.count();
 
@@ -194,13 +196,13 @@ async function collectStandingRowForTarget(page: Page, target: CrawlerStandingTa
   return null;
 }
 
-async function attachCrawlerCoverage(testInfo: TestInfo, coverage: CrawlerStandingCoverage[]) {
-  await testInfo.attach('player-presentation-crawler-coverage', {
+async function attachStandingCoverage(testInfo: TestInfo, coverage: StandingCoverage[]) {
+  await testInfo.attach('player-presentation-standings-coverage', {
     body: Buffer.from(
       JSON.stringify(
         {
           generatedAt: new Date().toISOString(),
-          source: 'selected crawler standings output with sufficient targets',
+          source: 'standings-only crawler output',
           total: coverage.length,
           passed: coverage.filter((item) => item.status === 'pass').length,
           warned: coverage.filter((item) => item.status === 'warn').length,
@@ -215,7 +217,7 @@ async function attachCrawlerCoverage(testInfo: TestInfo, coverage: CrawlerStandi
   });
 }
 
-function toCrawlerCoverage(target: CrawlerStandingTarget, row: StandingRowUi | null): CrawlerStandingCoverage {
+function toStandingCoverage(target: StandingTarget, row: StandingRowUi | null): StandingCoverage {
   const checks = {
     row: Boolean(row),
     name: Boolean(row?.playerName && new RegExp(escapeRegExp(row.playerName), 'i').test(row.text)),
@@ -237,7 +239,7 @@ function toCrawlerCoverage(target: CrawlerStandingTarget, row: StandingRowUi | n
   };
 }
 
-async function collectStandingRowUi(row: Locator, target: CrawlerStandingTarget): Promise<StandingRowUi> {
+async function collectStandingRowUi(row: Locator, target: StandingTarget): Promise<StandingRowUi> {
   const link = row.locator('a[href*="/players/"]').first();
   const href = (await link.getAttribute('href').catch(() => null)) ?? '';
   const linkText = await link.innerText().catch(() => '');
@@ -262,6 +264,8 @@ async function collectStandingRowUi(row: Locator, target: CrawlerStandingTarget)
     text,
     playerName,
     href,
+    rank: target.rank,
+    sourcePath: target.sourcePath,
     hasCountryText: hasCountryLikeText(text),
     hasFlagImage: images.some((image) => /flag|country|\/flag\/|country code/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`)),
     hasPlayerImage:
@@ -273,33 +277,16 @@ async function collectStandingRowUi(row: Locator, target: CrawlerStandingTarget)
   };
 }
 
-function loadCrawlerStandingTargetsFromRecentOutput(): CrawlerStandingTarget[] {
-  const outputDir = path.resolve(process.cwd(), '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
-  if (!fs.existsSync(outputDir)) {
-    return [];
-  }
+function loadStandingTargetsFromStandingsOnlyOutput(): StandingTarget[] {
+  const dataPath = process.env.PHASE3_STANDINGS_DATA || findLatestStandingsOnlyOutput();
+  expect(
+    dataPath,
+    'Phase 3 standings-only crawler output should exist. Run npm run test:phase3 so the runner can prepare PHASE3_STANDINGS_DATA.',
+  ).toBeTruthy();
+  expect(fs.existsSync(dataPath!), `Phase 3 standings-only crawler output should exist: ${dataPath}`).toBeTruthy();
 
-  const dataFiles = fs
-    .readdirSync(outputDir)
-    .filter((fileName) => /-data\.json$/i.test(fileName))
-    .map((fileName) => {
-      const filePath = path.join(outputDir, fileName);
-      return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
-    })
-    .sort((a, b) => b.mtimeMs - a.mtimeMs);
-
-  for (const dataFile of dataFiles) {
-    const targets = readCrawlerStandingTargets(dataFile.filePath);
-    if (targets.length >= MIN_STANDING_TARGETS_FOR_PHASE3) {
-      return targets;
-    }
-  }
-
-  return [];
-}
-
-function readCrawlerStandingTargets(latestDataFile: string): CrawlerStandingTarget[] {
-  const report = JSON.parse(fs.readFileSync(latestDataFile, 'utf8')) as {
+  const report = JSON.parse(fs.readFileSync(dataPath!, 'utf8')) as {
+    mode?: string;
     players?: Array<{
       name?: string;
       url?: string;
@@ -311,8 +298,9 @@ function readCrawlerStandingTargets(latestDataFile: string): CrawlerStandingTarg
       }>;
     }>;
   };
+  expect(report.mode, 'Phase 3 standings data should come from crawler --standings-only mode').toBe('standings-only');
 
-  const targets: CrawlerStandingTarget[] = [];
+  const targets: StandingTarget[] = [];
   const seen = new Set<string>();
   for (const player of report.players ?? []) {
     for (const source of player.standingsSources ?? []) {
@@ -322,7 +310,7 @@ function readCrawlerStandingTargets(latestDataFile: string): CrawlerStandingTarg
       const rank = source.rank ?? null;
       const sourcePath = normalizeSourcePath(source.sourceUrl || '/player-standings/');
       const key = `${sourcePath}|${rank}|${name}|${url}`;
-      if (!name || seen.has(key)) {
+      if (!name || !url || seen.has(key)) {
         continue;
       }
 
@@ -341,8 +329,26 @@ function readCrawlerStandingTargets(latestDataFile: string): CrawlerStandingTarg
   return targets;
 }
 
-function groupTargetsBySource(targets: CrawlerStandingTarget[]) {
-  const grouped = new Map<string, CrawlerStandingTarget[]>();
+function findLatestStandingsOnlyOutput() {
+  const outputDir = path.resolve(process.cwd(), 'automation', 'output');
+  if (!fs.existsSync(outputDir)) {
+    return null;
+  }
+
+  const dataFiles = fs
+    .readdirSync(outputDir)
+    .filter((fileName) => /standings-targets-data\.json$/i.test(fileName))
+    .map((fileName) => {
+      const filePath = path.join(outputDir, fileName);
+      return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  return dataFiles[0]?.filePath ?? null;
+}
+
+function groupTargetsBySource(targets: StandingTarget[]) {
+  const grouped = new Map<string, StandingTarget[]>();
   for (const target of targets) {
     const list = grouped.get(target.sourcePath) ?? [];
     list.push(target);

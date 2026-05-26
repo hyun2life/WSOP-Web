@@ -840,8 +840,8 @@ function renderPlayerPresentationCoverage(coverage, t) {
 
 function renderCoveragePlayerCard(player, t) {
   const rank = player.rank == null ? '-' : `#${player.rank}`;
-  const profileText = player.actualProfileUrl || player.expectedProfileUrl || '';
-  const profileHref = toWsopUrl(profileText || player.expectedProfileUrl);
+  const profileText = player.actualProfileUrl || player.expectedProfileUrl || player.profileUrl || '';
+  const profileHref = toWsopUrl(profileText || player.expectedProfileUrl || player.profileUrl);
 
   return `<article class="player-card ${escapeHtml(player.status)}" data-category="${escapeHtml(player.category || 'Standings')}" data-status="${escapeHtml(player.status)}">
     <div class="player-card-top">
@@ -871,7 +871,7 @@ function collectPlayerPresentationCoverage(report) {
   const byKey = new Map();
   for (const result of report.results) {
     for (const attachment of result.attachments || []) {
-      if (attachment.name !== 'player-presentation-crawler-coverage') {
+      if (attachment.name !== 'player-presentation-standings-coverage') {
         continue;
       }
 
@@ -883,8 +883,18 @@ function collectPlayerPresentationCoverage(report) {
       try {
         const payload = JSON.parse(payloadText);
         for (const player of payload.players || []) {
-          const key = `${player.sourcePath}|${player.rank}|${player.name}|${player.expectedProfileUrl}`;
-          byKey.set(key, player);
+          const profileUrl = player.expectedProfileUrl || player.actualProfileUrl || player.profileUrl || '';
+          const key = `${player.sourcePath}|${player.rank}|${player.name}|${profileUrl}`;
+          byKey.set(key, {
+            ...player,
+            category: player.category || 'Standings-only crawler',
+            expectedProfileUrl: player.expectedProfileUrl || profileUrl,
+            actualProfileUrl: player.actualProfileUrl || profileUrl,
+            checks: {
+              row: true,
+              ...(player.checks || {}),
+            },
+          });
         }
       } catch {
         // Keep the report renderable even if a single attachment is malformed.
@@ -1088,8 +1098,8 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
   } else if (isPlayerPresentation) {
     titleKo = 'WSOP Phase 3 플레이어 표현 검증 리포트';
     titleEn = 'WSOP Phase 3 Player Presentation Verification Report';
-    subtitleKo = '크롤러가 수집한 standings TOP 대상자를 기준으로 공개 화면의 이름, 프로필 링크, 국가/국기, 이미지 표현 상태를 확인한 결과입니다.';
-    subtitleEn = 'A public UI presentation check for crawler-targeted standings players: name, profile link, country/flag, and image candidates.';
+    subtitleKo = 'standings-only crawler가 추출한 선수 대상자를 기준으로 공개 화면의 이름, 프로필 링크, 국가/국기, 이미지 표현 상태를 확인한 결과입니다.';
+    subtitleEn = 'A public UI presentation check for standings-only crawler targets: name, profile link, country/flag, and image candidates.';
     eyebrowKo = 'WSOP Phase 3 Player Presentation';
     eyebrowEn = 'WSOP Phase 3 Player Presentation';
   } else if (isSearchFilterSort) {
@@ -1128,7 +1138,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         artifacts: '산출물 및 환경',
         playwrightReport: 'Playwright 기본 HTML 리포트',
         platform: '실행 환경',
-        footer: '이 리포트는 Playwright 실행 결과에서 자동 생성되었습니다. 외부 사이트 부하를 줄이기 위해 검증 범위는 단계별 샘플과 크롤러 대상자로 제한됩니다.',
+        footer: '이 리포트는 Playwright 실행 결과에서 자동 생성되었습니다. 외부 사이트 부하를 줄이기 위해 검증 범위는 단계별 샘플과 standings-only crawler 대상자로 제한됩니다.',
         testName: '테스트명',
         suite: '검증 영역',
         project: '프로젝트',
@@ -1137,9 +1147,9 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         file: '파일',
         detail: '상세',
         attachment: '첨부',
-        playerCoverageTitle: '크롤러 대상 플레이어 UI 커버리지',
-        playerCoverageNote: '충분한 standings target을 포함한 크롤러 output의 대상자와 같은 인원을 기준으로 공개 UI의 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. 이미지는 stage/prod asset 차이로 warning이 될 수 있습니다.',
-        coverageTotal: '대상 행',
+        playerCoverageTitle: '스탠딩 플레이어 UI 커버리지',
+        playerCoverageNote: '기존 크롤러의 standings-only 모드가 추출한 선수 대상자를 기준으로 공개 UI의 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. Profile/Result 상세 크롤링은 수행하지 않으며, 이미지는 stage/prod asset 차이로 warning이 될 수 있습니다.',
+        coverageTotal: '검증 행',
         coveragePassed: '정상',
         coverageWarned: '주의',
         coverageFailed: '실패',
@@ -1181,7 +1191,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         artifacts: 'Artifacts & Environment',
         playwrightReport: 'Playwright HTML Report',
         platform: 'Platform',
-        footer: 'This report was generated from Playwright results. External-site checks intentionally use phase samples and crawler-targeted players to avoid excessive traffic.',
+        footer: 'This report was generated from Playwright results. External-site checks intentionally use phase samples and standings-only crawler targets to avoid excessive traffic.',
         testName: 'Test Name',
         suite: 'Area',
         project: 'Project',
@@ -1190,9 +1200,9 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         file: 'File',
         detail: 'Detail',
         attachment: 'Attachment',
-        playerCoverageTitle: 'Crawler Target Player UI Coverage',
-        playerCoverageNote: 'Uses target players from a recent standings crawler output with sufficient targets and checks public UI presentation for name, profile link, country/flag, and image candidates.',
-        coverageTotal: 'Target Rows',
+        playerCoverageTitle: 'Standings Player UI Coverage',
+        playerCoverageNote: 'Uses player targets collected by the existing crawler in standings-only mode and checks public UI presentation for name, profile link, country/flag, and image candidates. Profile and Result detail crawling is skipped.',
+        coverageTotal: 'Checked Rows',
         coveragePassed: 'Pass',
         coverageWarned: 'Warn',
         coverageFailed: 'Fail',

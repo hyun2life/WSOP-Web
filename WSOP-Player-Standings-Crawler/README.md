@@ -165,6 +165,17 @@ automation\output\wsop-player-crawler-tony-ren-lin-20260522-114812-123-defects.c
 
 `--limit`은 standings 목록에서 몇 명을 가져올지 정하는 옵션이므로, `--player-url`로 특정 선수만 실행할 때는 보통 필요하지 않습니다.
 
+### Standings-only 빠른 대상자 추출
+
+Phase 3 Player Presentation처럼 Result 상세 검증 없이 Player Standings 대상자만 빠르게 추출해야 할 때는 `--standings-only` 옵션을 사용합니다. 이 모드는 기존 standings 카테고리/selector 수집 로직을 그대로 사용하지만, 선수 Profile과 Result 상세 페이지 크롤링은 수행하지 않습니다.
+
+```cmd
+cd /d D:\Work\Study\WSOP-Web\WSOP-Player-Standings-Crawler
+node automation\crawl_player_standings.mjs --standings-only --players-url https://www.wsop.com/player-standings/ --limit 10 --out automation\output\phase3-standings-targets-data.json
+```
+
+생성 JSON의 `mode`는 `standings-only`이며, `players[].standingsSources[]`에 category, rank, name, sourceUrl이 저장됩니다. 이 산출물은 빠른 UI 검증 대상자 목록으로 사용하고, DB/API/Result 정합성 판단에는 사용하지 않습니다.
+
 ### 추천 설정 예시
 
 정확도를 우선으로 전체 검증에 가깝게 돌릴 때:

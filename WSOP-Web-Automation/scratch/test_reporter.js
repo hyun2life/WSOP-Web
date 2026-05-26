@@ -32,13 +32,13 @@ const mockReport = {
       error: '',
       attachments: [
         {
-          name: 'player-presentation-crawler-coverage',
+          name: 'player-presentation-standings-coverage',
           contentType: 'application/json',
           body: JSON.stringify({
             players: [
-              { name: 'Daniel Negreanu', rank: 1, category: '2026 Standings', status: 'pass', sourcePath: 'crawler', expectedProfileUrl: 'daniel-negreanu', checks: { row: true, name: true, profileLink: true, countryOrFlag: true, playerImage: true } },
-              { name: 'Phil Hellmuth', rank: 2, category: '2026 Standings', status: 'warn', sourcePath: 'crawler', expectedProfileUrl: 'phil-hellmuth', checks: { row: true, name: true, profileLink: true, countryOrFlag: true, playerImage: false } },
-              { name: 'Phil Ivey', rank: 3, category: 'All-Time Bracelets', status: 'fail', sourcePath: 'crawler', expectedProfileUrl: 'phil-ivey', checks: { row: true, name: false, profileLink: false, countryOrFlag: true, playerImage: false } },
+              { name: 'Daniel Negreanu', rank: 1, category: 'Standings-only crawler', status: 'pass', sourcePath: '/player-standings/', expectedProfileUrl: 'daniel-negreanu', checks: { row: true, name: true, profileLink: true, countryOrFlag: true, playerImage: true } },
+              { name: 'Phil Hellmuth', rank: 2, category: 'Standings-only crawler', status: 'warn', sourcePath: '/player-standings/', expectedProfileUrl: 'phil-hellmuth', checks: { row: true, name: true, profileLink: true, countryOrFlag: true, playerImage: false } },
+              { name: 'Phil Ivey', rank: 3, category: 'Standings-only crawler', status: 'fail', sourcePath: '/player-standings/', expectedProfileUrl: 'phil-ivey', checks: { row: true, name: false, profileLink: false, countryOrFlag: true, playerImage: false } },
             ]
           })
         }
