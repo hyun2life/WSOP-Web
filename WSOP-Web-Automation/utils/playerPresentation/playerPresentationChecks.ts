@@ -143,28 +143,47 @@ export async function checkAvatarOrPlayerImage(
   const avatarCandidates = candidates.filter((candidate) => candidate.matchesAvatar);
   const loaded = avatarCandidates.some((candidate) => candidate.naturalWidth > 0 || candidate.width > 20 || candidate.height > 20);
 
-  if (loaded) {
+  if (!loaded) {
+    const message = `${options.player.displayName} avatar/player image candidate was not visibly loaded`;
+    const warningOnly =
+      environment === 'stage' ||
+      options.knownException?.warningOnly ||
+      options.requiredInProduction === false ||
+      (avatarCandidates.length > 0 && avatarCandidates.every((candidate) => candidate.naturalWidth === 0));
+
+    if (warningOnly) {
+      addWarning(options.testName ?? options.player.displayName, message, {
+        player: options.player.displayName,
+        environment,
+        candidateCount: avatarCandidates.length,
+        reason: environment === 'stage' ? 'stage-avatar-missing' : options.knownException?.reason ?? 'asset-loading-ambiguous',
+      });
+      return;
+    }
+
+    expect(false, `${message}. Candidate count: ${avatarCandidates.length}`).toBeTruthy();
     return;
   }
 
-  const message = `${options.player.displayName} avatar/player image candidate was not visibly loaded`;
-  const warningOnly =
-    environment === 'stage' ||
-    options.knownException?.warningOnly ||
-    options.requiredInProduction === false ||
-    (avatarCandidates.length > 0 && avatarCandidates.every((candidate) => candidate.naturalWidth === 0));
+  // Loaded is true, check if the loaded avatars are only default placeholders
+  const hasCustomAvatar = avatarCandidates.some((candidate) => {
+    const isLoaded = candidate.naturalWidth > 0 || candidate.width > 20 || candidate.height > 20;
+    if (!isLoaded) return false;
 
-  if (warningOnly) {
+    const srcLower = candidate.src.toLowerCase();
+    const isDefault = srcLower.includes('profile_default') || srcLower.includes('/default/');
+    return !isDefault;
+  });
+
+  if (!hasCustomAvatar) {
+    const message = `${options.player.displayName} is using a default placeholder avatar instead of a custom photo`;
     addWarning(options.testName ?? options.player.displayName, message, {
       player: options.player.displayName,
       environment,
       candidateCount: avatarCandidates.length,
-      reason: environment === 'stage' ? 'stage-avatar-missing' : options.knownException?.reason ?? 'asset-loading-ambiguous',
+      reason: 'default-avatar-placeholder',
     });
-    return;
   }
-
-  expect(false, `${message}. Candidate count: ${avatarCandidates.length}`).toBeTruthy();
 }
 
 export async function checkBadgeOrMarkVisible(

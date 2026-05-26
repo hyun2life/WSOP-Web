@@ -272,8 +272,9 @@ async function collectStandingRowUi(row: Locator, target: StandingTarget): Promi
       images.some(
         (image) =>
           /avatar|player|profile|headshot|photo|portrait|players/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`) &&
-          (image.naturalWidth > 0 || image.width > 10 || image.height > 10),
-      ) || /avatar image/i.test(rowHaystack),
+          (image.naturalWidth > 0 || image.width > 10 || image.height > 10) &&
+          !(image.src.toLowerCase().includes('profile_default') || image.src.toLowerCase().includes('/default/'))
+      ),
   };
 }
 
