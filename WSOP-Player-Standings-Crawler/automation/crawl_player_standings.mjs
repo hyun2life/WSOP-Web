@@ -536,7 +536,7 @@ function classifyAward(textValue) {
   if (/national championship/i.test(text)) return "bracelet";
   if (/(wsopc|wsop-c|wsop circuit|\bring\b|\bcircuit\b)/i.test(text)) return "ring";
   if (/\b(bracelet|wsop|world series of poker|online bracelet)\b/i.test(text)) return "bracelet";
-  return "bracelet";
+  return "other";
 }
 
 function valueByHeader(row, patterns) {
