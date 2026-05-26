@@ -286,7 +286,7 @@ utils/playerPresentation/
 
 Standings UI 검증은 full crawler 산출물에 의존하지 않습니다. Phase 3 runner가 먼저 `WSOP-Player-Standings-Crawler`의 `--standings-only` 모드를 실행해 standings 카테고리별 선수 이름, rank, profile URL, source URL만 빠르게 추출하고, 이 최신 대상자 기준으로 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. Profile/Result 상세 크롤링은 수행하지 않습니다.
 
-Phase 3 custom 리포트는 standings-only crawler가 추출한 선수 대상자와 Legend 10 특수 프로필 대상자를 기준으로 **플레이어 UI 커버리지 카드**를 포함합니다. Standings 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. Legend 특수 프로필 카드에는 profile/source와 함께 `프로필 접근`, `특수 페이지`, `특수 신호` 상태와 실제 확인된 legend 신호가 표시됩니다. `국가/국기` 및 특수 페이지 신호는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다.
+Phase 3 custom 리포트는 standings-only crawler가 추출한 선수 대상자와 Legend 10 특수 프로필 대상자를 기준으로 **플레이어 UI 커버리지 카드**를 포함합니다. Standings 카드에는 category/rank/name/profile/source와 함께 `행`, `이름`, `링크`, `국가/국기`, `이미지` 상태가 표시됩니다. Legend 특수 프로필 카드에는 profile/source와 함께 `프로필 접근`, `특수 페이지`, `특수 신호` 상태와 실제 확인된 legend 신호가 표시됩니다. `국가/국기` 및 특수 페이지 신호는 hard fail 기준이고, `이미지`는 stage/prod asset 차이를 고려해 warning으로 남길 수 있습니다. `All Player Stats` 카테고리는 목록 row 이미지 대신 실제 프로필 페이지 진입 후 이미지 노출을 기준으로 `정상/주의`를 판정합니다.
 
 Legend 검증 기준은 Johnny Moss, David Reese, Stu Ungar, Phil Hellmuth, Erik Seidel, Daniel Negreanu, Christopher Moneymaker, Phil Ivey, Johnny Chan, Doyle Brunson 10명입니다. 각 선수는 `/players/{slug}/` 특수 프로필 페이지에서 이름, 국가/국기, avatar/profile image 후보와 함께 `Hall of Famer`, `Poker Hall of Fame Inductee`, 별칭 또는 `Story` 탭 등 legend 전용 신호가 노출되는지 확인합니다.
 

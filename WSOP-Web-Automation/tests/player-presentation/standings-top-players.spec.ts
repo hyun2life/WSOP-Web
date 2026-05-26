@@ -70,6 +70,11 @@ test.describe('Phase 3 - standings top player presentation', () => {
     const missingCountryOrFlag: string[] = [];
     const missingImage: string[] = [];
     const coverage: StandingCoverage[] = [];
+    const allPlayerStatsProfileChecks: Array<{
+      coverage: StandingCoverage;
+      profileUrl: string;
+      label: string;
+    }> = [];
 
     for (const [sourcePath, targets] of groupTargetsBySource(standingTargets)) {
       const response = await page.goto(sourcePath, { waitUntil: 'domcontentloaded' });
@@ -106,11 +111,28 @@ test.describe('Phase 3 - standings top player presentation', () => {
           missingCountryOrFlag.push(row.label);
         }
 
-        if (!row.hasPlayerImage) {
-          missingImage.push(row.label);
+        const rowCoverage = toStandingCoverage(target, row);
+        coverage.push(rowCoverage);
+
+        if (isAllPlayerStatsCategory(target.category) && row.href) {
+          allPlayerStatsProfileChecks.push({
+            coverage: rowCoverage,
+            profileUrl: row.href,
+            label: row.label,
+          });
+          continue;
         }
 
-        coverage.push(toStandingCoverage(target, row));
+        if (!rowCoverage.checks.playerImage) {
+          missingImage.push(row.label);
+        }
+      }
+    }
+
+    await applyAllPlayerStatsProfileImageChecks(page, allPlayerStatsProfileChecks);
+    for (const item of allPlayerStatsProfileChecks) {
+      if (!item.coverage.checks.playerImage) {
+        missingImage.push(`${item.label} (profile page)`);
       }
     }
 
@@ -280,6 +302,69 @@ async function collectStandingRowUi(row: Locator, target: StandingTarget): Promi
   };
 }
 
+async function applyAllPlayerStatsProfileImageChecks(
+  page: Page,
+  checks: Array<{ coverage: StandingCoverage; profileUrl: string; label: string }>,
+) {
+  if (checks.length === 0) {
+    return;
+  }
+
+  const profilePage = await page.context().newPage();
+  const cache = new Map<string, boolean>();
+
+  try {
+    for (const check of checks) {
+      const cacheKey = normalizeProfilePath(check.profileUrl);
+      let hasProfileImage = cache.get(cacheKey);
+      if (hasProfileImage == null) {
+        hasProfileImage = await profilePageHasPlayerImage(profilePage, check.profileUrl);
+        cache.set(cacheKey, hasProfileImage);
+      }
+
+      check.coverage.checks.playerImage = hasProfileImage;
+      const requiredOk =
+        check.coverage.checks.row &&
+        check.coverage.checks.name &&
+        check.coverage.checks.profileLink &&
+        check.coverage.checks.countryOrFlag;
+      check.coverage.status = requiredOk ? (hasProfileImage ? 'pass' : 'warn') : 'fail';
+    }
+  } finally {
+    await profilePage.close().catch(() => undefined);
+  }
+}
+
+async function profilePageHasPlayerImage(page: Page, profileUrl: string) {
+  const response = await page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+  if (!response || response.status() >= 400) {
+    return false;
+  }
+
+  await expect(page.locator('body')).toBeVisible();
+  await page.waitForLoadState('load', { timeout: 15_000 }).catch(() => undefined);
+
+  const images = await page.locator('img').evaluateAll((items) =>
+    items.map((image) => ({
+      alt: image.getAttribute('alt') || '',
+      title: image.getAttribute('title') || '',
+      src: image.getAttribute('src') || '',
+      srcset: image.getAttribute('srcset') || '',
+      className: image.getAttribute('class') || '',
+      width: image.width || 0,
+      height: image.height || 0,
+      naturalWidth: image.naturalWidth || 0,
+    })),
+  );
+
+  return images.some(
+    (image) =>
+      /avatar|player|profile|headshot|photo|portrait|players/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`) &&
+      (image.naturalWidth > 0 || image.width > 10 || image.height > 10) &&
+      !(image.src.toLowerCase().includes('profile_default') || (image.src.toLowerCase().includes('/default/') && !image.src.toLowerCase().includes('good-game-service.com'))),
+  );
+}
+
 function loadStandingTargetsFromStandingsOnlyOutput(): StandingTarget[] {
   const dataPath = process.env.PHASE3_STANDINGS_DATA || findLatestStandingsOnlyOutput();
   expect(
@@ -396,4 +481,8 @@ function normalizeProfilePath(value: string) {
   } catch {
     return value.replace(/^https?:\/\/[^/]+/i, '').replace(/\/+$/, '').toLowerCase();
   }
+}
+
+function isAllPlayerStatsCategory(value: string) {
+  return /all player stats/i.test(value || '');
 }
