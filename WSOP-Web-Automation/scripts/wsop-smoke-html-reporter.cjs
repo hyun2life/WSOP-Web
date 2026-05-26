@@ -772,7 +772,7 @@ function renderResultsTable(items, t, includeErrors = false) {
     </thead>
     <tbody>
       ${items.map((item) => {
-        const stepsHtml = t.isKo ? renderTestStepsKo(item) : '';
+        const stepsHtml = t.isKo ? renderTestStepsKo(item) : renderTestStepsEn(item);
         return `<tr>
         <td><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
         <td>
@@ -802,6 +802,192 @@ function renderTestStepsKo(item) {
       </ol>
     </div>
   `;
+}
+
+function renderTestStepsEn(item) {
+  const steps = getTestStepsEn(item.title, item.suiteTitle);
+  if (!steps || steps.length === 0) return '';
+  return `
+    <div class="test-steps-en" style="margin-top: 8px; padding: 8px 12px; background: rgba(255,255,255,0.02); border-left: 3px solid var(--primary-hover); border-radius: 4px; font-size: 12px;">
+      <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 4px; font-size: 11px;">[Detailed Verification Steps]</div>
+      <ol style="margin: 0; padding-left: 18px; color: var(--text-muted); line-height: 1.6;">
+        ${steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}
+      </ol>
+    </div>
+  `;
+}
+
+function getTestStepsEn(title = '', suiteTitle = '') {
+  const t = title.trim();
+  const s = suiteTitle.toLowerCase();
+
+  const pageMap = {
+    'home': 'Home page',
+    'schedule': 'Event Schedule page',
+    'standings': 'Player Standings page',
+    'news': 'News Articles list page',
+    'photos': 'Photo Gallery page',
+    'videos': 'Video Clips list page',
+    'tournaments': 'Tournaments list page',
+    'players': 'Player Rankings page',
+    'play online': 'Play Online page',
+    'hall of fame': 'Hall of Fame page'
+  };
+
+  let targetPageName = 'the target page';
+  let targetPageKey = '';
+  for (const [key, val] of Object.entries(pageMap)) {
+    if (new RegExp(key, 'i').test(t)) {
+      targetPageName = val;
+      targetPageKey = key;
+      break;
+    }
+  }
+
+  if (/opens and shows core content/i.test(t)) {
+    return [
+      `Perform web interaction (page navigation) to open the ${targetPageName}.`,
+      `Observe the UI state transitions and check for any layout breakages or malfunctioning during page rendering.`,
+      `Assert that actual loaded elements (header, navigation bar, main hero sliders) match the expected page specifications.`
+    ];
+  }
+
+  if (/top menu is available/i.test(t)) {
+    return [
+      `Navigate to home page and hover over the [${targetPageName}] menu item in the GNB header.`,
+      `Observe page transition when the menu is clicked to ensure URL changes cleanly.`,
+      `Assert that the target page loaded successfully and the main page title is visible.`
+    ];
+  }
+
+  if (/has no unexpected console errors/i.test(t)) {
+    return [
+      `Open browser and perform web interaction to navigate directly to the ${targetPageName}.`,
+      `Observe browser console logs during page loading and JavaScript bootstrap execution.`,
+      `Assert that no unexpected critical JavaScript console errors are captured.`
+    ];
+  }
+
+  if (/has no broken sampled internal links/i.test(t)) {
+    return [
+      `Navigate to the ${targetPageName} and query all internal hyperlink elements (a[href]) on the page.`,
+      `Sample up to 30 internal links and make background HTTP requests to check their validity.`,
+      `Assert that the response status codes for all sampled links are normal (under 400).`
+    ];
+  }
+
+  if (t.includes('crawler standings-only target rows') || t.includes('standings-only target rows')) {
+    return [
+      'Load standing targets data (JSON) and sample representative players for Phase 3 UI validation.',
+      'Locate each player\'s row in the standings table and perform row-level checks.',
+      'Observe the visibility of name, country text, or flag images.',
+      'Assert that a player image/avatar is visible (except for All Player Stats category).'
+    ];
+  }
+
+  if (t.includes('representative top players') || t.includes('representative')) {
+    return [
+      'Navigate to the Player Standings main page (/player-standings/) and identify representative top players.',
+      'Click on the player name to navigate to their profile page.',
+      'Assert that the player profile page loads successfully with matching info.'
+    ];
+  }
+
+  if (t.includes('pagination') || t.includes('page count')) {
+    return [
+      'Interact with the pagination control at the bottom of the table.',
+      'Navigate to the last page and observe if the player list updates correctly.',
+      'Assert that the page count is stable and pagination controls do not malfunction.'
+    ];
+  }
+
+  if (t.includes('all player stats filter') || t.includes('filtering and sorting')) {
+    return [
+      'Select and adjust the dropdown filters (Season, Brand, Country, Gender) in the All Player Stats section.',
+      'Observe the table rows updating dynamically according to the filter and sort parameters.',
+      'Assert that the row data values and order conform to the selected filters.'
+    ];
+  }
+
+  if (/lowercase/i.test(t)) {
+    return [
+      'Enter a search query in all lowercase (e.g. "phil hellmuth") into the search input.',
+      'Observe if the application performs case-insensitive matching and updates the player list.',
+      'Assert that the expected player is correctly found in the results.'
+    ];
+  }
+  if (/partial/i.test(t)) {
+    return [
+      'Enter a partial player name (e.g. "negreanu") into the search input.',
+      'Observe if the application filters the player list to find matches containing the keyword.',
+      'Assert that the expected player is included in the search results.'
+    ];
+  }
+  if (/trim/i.test(t)) {
+    return [
+      'Enter a search query with leading and trailing whitespaces (e.g. "  Phil Ivey  ") into the search input.',
+      'Observe if the search query is trimmed properly and updates the player list.',
+      'Assert that the expected player is correctly found in the results.'
+    ];
+  }
+  if (/no result/i.test(t)) {
+    return [
+      'Enter a query with no matches (e.g. "zzzz-no-player-test-qa") into the search input.',
+      'Observe if the application handles empty results gracefully and displays a message.',
+      'Assert that the "No results" UI message is visible.'
+    ];
+  }
+  if (/non-english/i.test(t)) {
+    return [
+      'Enter a query with non-English characters (e.g. Cyrillic) into the search input.',
+      'Observe if the application processes Unicode strings without errors and returns matches.',
+      'Assert that the matching non-English player is correctly found.'
+    ];
+  }
+  if (/exact full name/i.test(t)) {
+    return [
+      'Enter an exact full name (e.g. "Phil Hellmuth") and observe if autocomplete options are shown.',
+      'Click on the autocomplete item or press enter to navigate to the player\'s profile page.',
+      'Assert that the loaded profile details match the expected player.'
+    ];
+  }
+  if (/search/i.test(t)) {
+    return [
+      'Enter search keywords into the player search input.',
+      'Observe if the autocomplete or search results table updates dynamically.',
+      'Assert that the matching search result is displayed in the list.'
+    ];
+  }
+
+  if (s.includes('phase 5') && (t.includes('result row') || t.includes('row'))) {
+    return [
+      'Verify the tournament results row structure on the page.',
+      'Observe the rendering of rank, cash prize, and player information.',
+      'Assert that the results match the expected row format and contents.'
+    ];
+  }
+
+  if (s.includes('phase 5') && (t.includes('result detail') || t.includes('detail'))) {
+    return [
+      'Click the tournament result link to navigate to the event result detail page.',
+      'Observe if event details and table headers are properly rendered.',
+      'Assert that page load state and server responses are valid.'
+    ];
+  }
+
+  if (s.includes('phase 5') && (t.includes('backlink') || t.includes('profile'))) {
+    return [
+      'Click the player name link on the tournament result detail page to navigate back to the profile page.',
+      'Observe the page routing action to ensure the profile loads.',
+      'Assert that you successfully navigated back to the correct player profile page.'
+    ];
+  }
+
+  return [
+    `Perform web interaction to open the page or access the targeted functionality (${title}).`,
+    'Observe UI state transitions and check for rendering defects.',
+    'Assert the validity and integrity of the targeted elements.'
+  ];
 }
 
 function getTestStepsKo(title = '', suiteTitle = '') {
