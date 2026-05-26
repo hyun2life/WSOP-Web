@@ -274,7 +274,7 @@ npm run test:player-presentation
 npm run test:phase3
 ```
 
-`npm run test:phase3`와 `npm run test:player-presentation`은 먼저 sibling 프로젝트 `WSOP-Player-Standings-Crawler`의 standings-only 수집을 실행한 뒤 Playwright Phase 3 테스트를 실행합니다. 기본 수집량은 standings 카테고리별 10명이며, 필요하면 `PHASE3_STANDINGS_LIMIT` 환경변수로 조정할 수 있습니다.
+`npm run test:phase3`와 `npm run test:player-presentation`은 먼저 sibling 프로젝트 `WSOP-Player-Standings-Crawler`의 standings-only 수집을 실행한 뒤 Playwright Phase 3 테스트를 실행합니다. 기본 수집량은 standings 카테고리별 50명(View full list 첫 페이지 기준)이며, 필요하면 `PHASE3_STANDINGS_LIMIT` 환경변수로 조정할 수 있습니다.
 
 주요 파일:
 

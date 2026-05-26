@@ -13,7 +13,7 @@ import {
 import { addWarning, attachWarningsToTestInfo, clearWarnings } from '../../utils/playerPresentation/warningCollector';
 
 const topPlayers = loadPlayerPresentationFixture<PlayerFixture[]>('top-players.fixture.json');
-const MIN_STANDING_TARGETS_FOR_PHASE3 = 40;
+const MIN_STANDING_TARGETS_FOR_PHASE3 = 150;
 
 test.describe('Phase 3 - standings top player presentation', () => {
   test.beforeEach(() => clearWarnings());

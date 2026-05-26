@@ -34,7 +34,7 @@ async function main() {
       '--players-url',
       standingsUrl,
       '--limit',
-      process.env.PHASE3_STANDINGS_LIMIT || '10',
+      process.env.PHASE3_STANDINGS_LIMIT || '50',
       '--browser-channel',
       process.env.PHASE3_CRAWLER_BROWSER_CHANNEL || 'none',
       '--user-data-dir',
