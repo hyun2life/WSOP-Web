@@ -906,12 +906,54 @@ function getTestStepsKo(title = '', suiteTitle = '') {
     ];
   }
 
-  // 9. [Phase 4] search / trim
-  if (t.includes('search') || t.includes('trim')) {
+  // 9. [Phase 4] search / trim / lowercase / partial / no result / non-english / exact name
+  if (/lowercase/i.test(t)) {
     return [
-      '검색 바에 앞뒤 불필요한 공백을 추가한 검색어(예: " Daniel Negreanu ")를 입력하는 인터랙션을 수행합니다.',
+      '검색 바에 모든 문자를 소문자로 작성한 검색어(예: "phil hellmuth")를 입력하는 인터랙션을 수행합니다.',
+      '어플리케이션이 대소문자를 구분하지 않고(Case-insensitive) 검색 요청을 소화하여 선수 목록을 갱신하는지 관찰합니다.',
+      '검색된 리스트에서 대소문자 구분 없이 타겟 선수가 정확하게 도출되었는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/partial/i.test(t)) {
+    return [
+      '검색 바에 성이나 이름의 일부분만 포함한 검색어(예: "negreanu")를 입력하는 인터랙션을 수행합니다.',
+      '어플리케이션이 부분 매칭을 지원하여 해당하는 선수 목록을 필터링 및 갱신하는지 관찰합니다.',
+      '검색된 리스트에서 부분 일치하는 타겟 선수가 목록에 포함되었는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/trim/i.test(t)) {
+    return [
+      '검색 바에 앞뒤 불필요한 공백을 추가한 검색어(예: "  Phil Ivey  ")를 입력하는 인터랙션을 수행합니다.',
       '어플리케이션이 공백을 다듬고(Trim) 검색 요청을 안정적으로 소화하여 선수 목록을 갱신하는지 관찰합니다.',
-      '검색된 리스트에서 타겟 선수가 정확하게 도출되었는지 단언(Assertion)하여 판독합니다.'
+      '검색된 리스트에서 공백이 제거된 타겟 선수가 정확하게 도출되었는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/no result/i.test(t)) {
+    return [
+      '검색 바에 존재하지 않는 임의의 검색어(예: "zzzz-no-player-test-qa")를 입력하는 인터랙션을 수행합니다.',
+      '어플리케이션이 검색 결과가 없는 상황을 정상적으로 처리하고 화면에 안내 메시지를 노출하는지 관찰합니다.',
+      '검색 결과 없음 UI(예: "No players found")가 정상적으로 활성화되었는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/non-english/i.test(t)) {
+    return [
+      '검색 바에 비영어권 문자(예: 키릴 문자 등)의 선수명 검색어를 입력하는 인터랙션을 수행합니다.',
+      '어플리케이션이 유니코드 문자열을 깨짐 없이 안전하게 검색 요청으로 처리하고 결과를 갱신하는지 관찰합니다.',
+      '검색된 리스트에 비영어권 타겟 선수가 정상적으로 도출되는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/exact full name/i.test(t)) {
+    return [
+      '검색 바에 특정 선수의 정확한 풀네임(예: "Phil Hellmuth")을 입력하고 자동완성(Autocomplete) 목록이 표시되는지 관찰합니다.',
+      '자동완성 항목을 선택하거나 엔터를 눌러 해당 선수의 프로필로 바로 진입하는 웹 인터랙션을 수행합니다.',
+      '로드된 프로필 상세화면의 정보가 실제 검색한 선수와 완벽히 일치하는지 단언(Assertion)하여 판독합니다.'
+    ];
+  }
+  if (/search/i.test(t)) {
+    return [
+      '플레이어 검색창에 검색어 키워드를 입력하는 웹 인터랙션을 수행합니다.',
+      '입력한 키워드에 따라 자동완성 또는 검색 결과 목록이 정상적으로 업데이트되는지 관찰합니다.',
+      '도출된 검색 결과가 예상한 선수 데이터와 일치하는지 단언(Assertion)하여 판독합니다.'
     ];
   }
 
@@ -991,8 +1033,13 @@ function materializeAttachmentFiles(report) {
 }
 
 function renderPlayerPresentationCoverage(coverage, t) {
-  return `<section class="panel">
-    <h2><svg viewBox="0 0 24 24" style="fill: var(--primary); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>${escapeHtml(t.playerCoverageTitle)}</h2>
+  return `<details class="panel collapsible-panel">
+    <summary class="panel-summary">
+      <h2><svg viewBox="0 0 24 24" style="fill: var(--primary); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>${escapeHtml(t.playerCoverageTitle)}</h2>
+      <svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/>
+      </svg>
+    </summary>
     <div class="panel-body">
       <div class="note">${escapeHtml(t.playerCoverageNote)}</div>
       <div class="coverage-summary" style="margin-top:18px">
@@ -1010,7 +1057,7 @@ function renderPlayerPresentationCoverage(coverage, t) {
         ${coverage.players.map((player) => renderCoveragePlayerCard(player, t)).join('')}
       </div>
     </div>
-  </section>`;
+  </details>`;
 }
 
 function renderCoveragePlayerCard(player, t) {
