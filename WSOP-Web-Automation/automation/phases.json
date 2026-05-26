@@ -88,21 +88,22 @@
     {
       "id": "phase5",
       "aliases": ["result-detail", "p5"],
-      "name": "Result detail integrity",
+      "name": "Result Detail Integrity",
       "reportSuite": "result-detail",
-      "testDir": "tests/result-detail",
+      "testDir": "tests/result-detail-integrity",
       "project": "chromium-desktop",
-      "implemented": false,
-      "nameKo": "토너먼트/결과 상세 검증",
-      "shortSummaryKo": "Tournament 및 Result 상세 페이지 표현을 검증할 예정입니다.",
-      "description": "Reserved for tournament/result detail page validation.",
-      "descriptionKo": "토너먼트와 결과 상세 페이지가 공개 웹에서 정상적으로 연결되고 필요한 UI 영역을 노출하는지 검증할 예정입니다.",
+      "implemented": true,
+      "nameKo": "결과 상세 연결 무결성",
+      "shortSummaryKo": "플레이어 프로필 결과 row와 Result 상세 페이지 간 연결, 플레이어 row 존재, 프로필 백링크를 검증합니다.",
+      "description": "Validates profile result rows, result detail navigation, event/result surface visibility, player row presence, and profile backlink integrity without API/DB value checks.",
+      "descriptionKo": "Data/API 정합성이 아니라, Player Profile의 결과 목록 row가 Result Detail로 정상 연결되고, 상세 페이지의 이벤트/결과 영역과 대상 플레이어 row 및 프로필 백링크가 무결하게 동작하는지 검증합니다.",
       "stepsKo": [
-        "Tournament 상세 페이지 접근 확인",
-        "Result 상세 페이지 접근 확인",
-        "상세 테이블과 핵심 영역 노출 확인",
-        "상세 페이지 내부 링크 확인",
-        "수치 정합성 검증 범위와 분리"
+        "대표 플레이어 프로필 결과 목록 노출 및 row 기본 필드 확인",
+        "Results link로 /tournaments/result/ 상세 페이지 이동과 접근 상태 확인",
+        "Result detail 기본 메타 영역과 결과 테이블/리스트 노출 확인",
+        "Result detail에서 원래 플레이어 row 존재와 핵심 필드(place/earnings) 확인",
+        "Result detail player link의 프로필 백링크 무결성 확인",
+        "pagination/load more가 있으면 제한된 범위에서 플레이어 row 탐색"
       ]
     },
     {

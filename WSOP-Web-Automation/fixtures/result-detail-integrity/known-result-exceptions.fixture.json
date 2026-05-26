@@ -1,0 +1,15 @@
+{
+  "daniel-negreanu": {
+    "reason": "Daniel Negreanu can appear in multiple WSOP contexts and may have many result rows. Multiple context mentions are allowed, but result detail player profile target should not split into unrelated profiles.",
+    "allowMultipleContextMentions": true,
+    "requireProfileTarget": true
+  },
+  "old-result-missing-player-link": {
+    "reason": "Some legacy result pages may render player names as plain text instead of links. Treat missing backlink as warning only when result page is old/legacy and player row is still visible.",
+    "warningOnly": true
+  },
+  "result-pagination-limited": {
+    "reason": "If result detail contains pagination or lazy loading, Phase 5 should search only a limited number of pages/clicks to avoid excessive traffic.",
+    "warningOnly": true
+  }
+}

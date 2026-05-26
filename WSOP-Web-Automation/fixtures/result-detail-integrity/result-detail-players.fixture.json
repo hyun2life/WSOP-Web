@@ -1,0 +1,35 @@
+[
+  {
+    "displayName": "Phil Hellmuth",
+    "profileUrl": "/players/phil-hellmuth/",
+    "expectedResultLinkContains": "/tournaments/result/",
+    "minResultRows": 3,
+    "sampleResultClickCount": 2,
+    "expectedProfileUrlContains": "/players/phil-hellmuth/"
+  },
+  {
+    "displayName": "Phil Ivey",
+    "profileUrl": "/players/phil-ivey/",
+    "expectedResultLinkContains": "/tournaments/result/",
+    "minResultRows": 3,
+    "sampleResultClickCount": 2,
+    "expectedProfileUrlContains": "/players/phil-ivey/"
+  },
+  {
+    "displayName": "Erik Seidel",
+    "profileUrl": "/players/erik-seidel/",
+    "expectedResultLinkContains": "/tournaments/result/",
+    "minResultRows": 3,
+    "sampleResultClickCount": 2,
+    "expectedProfileUrlContains": "/players/erik-seidel/"
+  },
+  {
+    "displayName": "Daniel Negreanu",
+    "profileUrl": "/players/daniel-negreanu/",
+    "expectedResultLinkContains": "/tournaments/result/",
+    "minResultRows": 3,
+    "sampleResultClickCount": 2,
+    "expectedProfileUrlContains": "/players/daniel-negreanu/",
+    "knownExceptionKey": "daniel-negreanu"
+  }
+]

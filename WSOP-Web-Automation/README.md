@@ -294,6 +294,8 @@ Legend 검증 기준은 Johnny Moss, David Reese, Stu Ungar, Phil Hellmuth, Erik
 
 4차 자동화는 Data/API Integrity가 아니라 공개 목록 UI의 조작성을 검증합니다. Player Search, Player Standings, POY 페이지에서 검색어 입력, 검색 결과 링크, 탭/섹션 전환, 카테고리 이동, 정렬 UI, pagination/load more가 깨지지 않는지 확인합니다.
 
+Phase 4 standings category depth에는 `All Player Stats` 필터 진입 후 필터 전환 및 정렬 동작 검증과, 숫자형 pagination에서 마지막 페이지 클릭 시 최대 페이지 번호가 비정상적으로 증가하지 않는지 확인하는 안정성 검증이 포함됩니다.
+
 검증 범위:
 
 - Player Search 대표 탑랭커 검색어 입력 후 결과와 `/players/` 프로필 링크 확인

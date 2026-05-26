@@ -59,6 +59,10 @@ function inferReportSuite(argv: string[]): string {
     return 'search-filter-sort';
   }
 
+  if (command.includes('tests/result-detail-integrity')) {
+    return 'result-detail';
+  }
+
   return 'smoke';
 }
 
