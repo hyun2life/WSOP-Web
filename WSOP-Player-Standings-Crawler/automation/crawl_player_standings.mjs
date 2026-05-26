@@ -1483,7 +1483,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
       console.log(`[디버그] ALL 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
-      expansion.stoppedReason = "load-more-not-found";
+      expansion.stoppedReason = "complete";
       break;
     }
 
@@ -1531,7 +1531,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
       console.log(`[디버그] 단일 지표 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
-      expansion.stoppedReason = "load-more-not-found";
+      expansion.stoppedReason = "complete";
       break;
     }
 
