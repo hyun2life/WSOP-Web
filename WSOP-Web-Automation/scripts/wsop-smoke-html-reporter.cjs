@@ -742,10 +742,11 @@ function renderSuite(suite, items, t) {
   const failed = items.filter((item) => ['failed', 'timedOut', 'interrupted'].includes(item.status)).length;
   const skipped = items.filter((item) => item.status === 'skipped').length;
   const status = failed ? 'failed' : skipped ? 'skipped' : 'passed';
+  const displaySuite = t.isKo ? localizeSuiteTitleKo(suite) : suite;
   return `<details open>
     <summary>
       <div class="suite-summary-left">
-        <span>${escapeHtml(suite)}</span>
+        <span>${escapeHtml(displaySuite)}</span>
         <span><span class="badge ${status}">${escapeHtml(status)}</span> <span class="muted">${items.length} tests</span></span>
       </div>
       <svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -772,7 +773,7 @@ function renderResultsTable(items, t, includeErrors = false) {
     <tbody>
       ${items.map((item) => `<tr>
         <td><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
-        <td><strong>${escapeHtml(item.title)}</strong><br><span class="muted">${escapeHtml(item.suiteTitle)}</span></td>
+        <td><strong>${escapeHtml(t.isKo ? localizeTestTitleKo(item.title) : item.title)}</strong><br><span class="muted">${escapeHtml(t.isKo ? localizeSuiteTitleKo(item.suiteTitle) : item.suiteTitle)}</span></td>
         <td>${escapeHtml(item.projectName)}</td>
         <td>${escapeHtml(formatDuration(item.duration))}</td>
         <td><span class="muted">${escapeHtml(item.file)}</span></td>
@@ -883,6 +884,59 @@ function renderCoveragePlayerCard(player, t) {
         ].join('')}
     </div>
   </article>`;
+}
+
+function localizeSuiteTitleKo(value = '') {
+  const normalized = value.toLowerCase();
+  const suiteRules = [
+    [/phase 1/i, 'Phase 1 - 퍼블릭 스모크'],
+    [/phase 2/i, 'Phase 2 - 기능 플로우'],
+    [/phase 3/i, 'Phase 3 - 플레이어 표현/식별 UI'],
+    [/phase 4/i, 'Phase 4 - 검색/필터/정렬 심화'],
+    [/phase 5/i, 'Phase 5 - 결과 상세 연결 무결성'],
+    [/player presentation/i, '플레이어 표현 검증'],
+    [/search[ -]?filter[ -]?sort/i, '검색/필터/정렬 검증'],
+    [/result detail integrity/i, '결과 상세 무결성 검증'],
+    [/functional/i, '기능 검증'],
+    [/smoke/i, '스모크 검증'],
+    [/legend/i, '레전드/특수 페이지 검증'],
+    [/all player stats/i, 'All Player Stats 검증'],
+    [/standings/i, '스탠딩 검증'],
+  ];
+
+  for (const [pattern, label] of suiteRules) {
+    if (pattern.test(normalized)) {
+      return `${label} (${value})`;
+    }
+  }
+
+  return value;
+}
+
+function localizeTestTitleKo(value = '') {
+  const rules = [
+    [/numeric pagination last page click should not expand max page count unexpectedly/i, '숫자 페이지네이션 마지막 페이지 클릭 시 최대 페이지 수가 비정상 증가하지 않아야 함'],
+    [/all player stats filter supports usable filtering and sorting/i, 'All Player Stats 화면에서 필터/정렬이 정상 동작해야 함'],
+    [/renders a usable standings list/i, '스탠딩 목록이 정상 렌더링되고 사용 가능해야 함'],
+    [/trimmed search is handled by player search/i, '앞뒤 공백이 있는 검색어를 정상 처리해야 함'],
+    [/result row/i, '결과 행 정보 표시 검증'],
+    [/result detail/i, '결과 상세 페이지 연결 및 표시 검증'],
+    [/backlink/i, '결과 상세에서 플레이어 프로필 역링크 검증'],
+    [/pagination/i, '페이지네이션/더보기 탐색 검증'],
+    [/special page/i, '특수 페이지 렌더링 검증'],
+    [/profile/i, '프로필 연결/표시 검증'],
+    [/filter/i, '필터 동작 검증'],
+    [/sort/i, '정렬 동작 검증'],
+    [/search/i, '검색 동작 검증'],
+  ];
+
+  for (const [pattern, label] of rules) {
+    if (pattern.test(value)) {
+      return `${label} (${value})`;
+    }
+  }
+
+  return value;
 }
 
 function collectPlayerPresentationCoverage(report) {
@@ -1156,6 +1210,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
 
   return isKo
     ? {
+        isKo: true,
         title: titleKo,
         subtitle: subtitleKo,
         eyebrow: eyebrowKo,
@@ -1213,6 +1268,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
         coverageStatusFail: '실패',
       }
     : {
+        isKo: false,
         title: titleEn,
         subtitle: subtitleEn,
         eyebrow: eyebrowEn,
