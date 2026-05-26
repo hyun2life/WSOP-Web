@@ -92,6 +92,14 @@ function summarize(report) {
   const totalDuration = report.results.reduce((sum, item) => sum + item.duration, 0);
   const passRate = total ? Math.round((passed / total) * 100) : 0;
 
+  const playerCoverage = collectPlayerPresentationCoverage(report);
+  let status = 'pass';
+  if (failed > 0 || (playerCoverage && playerCoverage.failed > 0)) {
+    status = 'fail';
+  } else if (skipped > 0 || (playerCoverage && playerCoverage.warned > 0)) {
+    status = 'warn';
+  }
+
   return {
     total,
     passed,
@@ -100,7 +108,7 @@ function summarize(report) {
     flaky,
     totalDuration,
     passRate,
-    status: failed > 0 ? 'fail' : skipped > 0 ? 'warn' : 'pass',
+    status,
   };
 }
 
