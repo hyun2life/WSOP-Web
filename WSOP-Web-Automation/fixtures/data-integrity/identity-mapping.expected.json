@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "source": "expected fixture"
+  },
+  "players": [
+    {
+      "playerKey": "phil-hellmuth",
+      "displayName": "Phil Hellmuth",
+      "profileUrl": "/players/phil-hellmuth/",
+      "allowedAliases": ["Phil Hellmuth", "Hellmuth"],
+      "onepassId": null,
+      "playerId": null,
+      "shouldHaveSingleProfileTarget": true
+    },
+    {
+      "playerKey": "daniel-negreanu",
+      "displayName": "Daniel Negreanu",
+      "profileUrl": "/players/daniel-negreanu/",
+      "allowedAliases": ["Daniel Negreanu", "Negreanu"],
+      "onepassId": null,
+      "playerId": null,
+      "shouldHaveSingleProfileTarget": true,
+      "knownExceptionKey": "daniel-negreanu"
+    }
+  ]
+}

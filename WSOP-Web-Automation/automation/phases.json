@@ -106,31 +106,6 @@
         "pagination/load more가 있으면 제한된 범위에서 플레이어 row 탐색"
       ]
     },
-    {
-      "id": "phase6",
-      "aliases": ["data-integrity", "api-integrity", "p6"],
-      "name": "Data and API integrity",
-      "reportSuite": "data-integrity",
-      "testDir": "tests/data-integrity",
-      "project": "chromium-desktop",
-      "implemented": false,
-      "nameKo": "데이터/API 정합성 검증",
-      "shortSummaryKo": "DB/API 값과 공개 UI 값, playerId/onepassId 매핑을 비교 검증할 예정입니다.",
-      "description": "Reserved for DB/API consistency, playerId/onepassId mapping, and calculated value checks against public UI data.",
-      "descriptionKo": "공개 UI의 수치와 DB/API 응답, playerId/onepassId 매핑, 계산 값의 정합성을 검증하는 단계입니다. Phase 3의 UI 표현 검증과 분리합니다.",
-      "stepsKo": [
-        "API 응답과 공개 UI 값 비교",
-        "DB 조회 값과 공개 UI 값 비교",
-        "playerId/onepassId 매핑 확인",
-        "earnings, bracelets, rings 등 계산 값 검증",
-        "known exception 별도 관리"
-      ]
-    },
-    {
-      "id": "phase7",
-      "aliases": ["performance-stability", "p7"],
-      "name": "Performance and stability",
-      "reportSuite": "performance-stability",
       "testDir": "tests/performance-stability",
       "project": "chromium-desktop",
       "implemented": false,

@@ -6,3 +6,7 @@ automation/output/
 .tmp-playwright/
 .env
 .env.*
+
+# Crawler outputs and generated fixtures
+artifacts/crawlers/
+fixtures/data-integrity/generated/*.json

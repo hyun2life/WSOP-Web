@@ -65,7 +65,20 @@ export async function collectResultDetailPlayerRows(page: Page): Promise<ResultD
         const rowNode =
           anchor.closest('tr, [role="row"], li, article, section, [class*="row"], [class*="item"], [class*="result"]') ||
           anchor.parentElement;
-        const rowText = (rowNode?.textContent || anchor.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+        
+        let rawText = '';
+        if (rowNode) {
+          const children = Array.from(rowNode.children);
+          if (children.length > 0) {
+            rawText = children.map(c => c.textContent || '').join(' ');
+          } else {
+            rawText = rowNode.textContent || '';
+          }
+        } else {
+          rawText = anchor.textContent || '';
+        }
+
+        const rowText = rawText.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
         const playerName = (anchor.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
         const playerHref = anchor.getAttribute('href') || '';
         return { rowText, playerName, playerHref };

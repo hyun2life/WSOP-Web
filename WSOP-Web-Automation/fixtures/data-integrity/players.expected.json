@@ -1,0 +1,46 @@
+{
+  "metadata": {
+    "source": "expected fixture generated from existing data validation job",
+    "generatedAt": "2026-05-27",
+    "calculationScope": "sample",
+    "strictRecommended": false
+  },
+  "players": [
+    {
+      "playerKey": "phil-hellmuth",
+      "displayName": "Phil Hellmuth",
+      "profileUrl": "/players/phil-hellmuth/",
+      "country": "United States",
+      "bracelets": 17,
+      "rings": 0,
+      "finalTables": 83,
+      "cashes": 230,
+      "totalEarnings": "$18,633,776",
+      "knownExceptionKey": null
+    },
+    {
+      "playerKey": "daniel-negreanu",
+      "displayName": "Daniel Negreanu",
+      "profileUrl": "/players/daniel-negreanu/",
+      "country": "Canada",
+      "bracelets": 8,
+      "rings": null,
+      "finalTables": null,
+      "cashes": null,
+      "totalEarnings": "$26,305,779",
+      "knownExceptionKey": "daniel-negreanu"
+    },
+    {
+      "playerKey": "phil-ivey",
+      "displayName": "Phil Ivey",
+      "profileUrl": "/players/phil-ivey/",
+      "country": "United States",
+      "bracelets": 11,
+      "rings": null,
+      "finalTables": null,
+      "cashes": null,
+      "totalEarnings": null,
+      "knownExceptionKey": null
+    }
+  ]
+}

@@ -24,10 +24,16 @@
     "report:smoke:en": "node scripts/open-latest-smoke-report.cjs smoke en",
     "report:functional:ko": "node scripts/open-latest-smoke-report.cjs functional ko",
     "report:functional:en": "node scripts/open-latest-smoke-report.cjs functional en",
-    "report:functional": "node scripts/open-latest-smoke-report.cjs functional playwright"
+    "report:functional": "node scripts/open-latest-smoke-report.cjs functional playwright",
+    "test:data-integrity": "playwright test tests/data-integrity --project=chromium-desktop",
+    "test:phase6": "playwright test tests/data-integrity --project=chromium-desktop",
+    "crawl:standings": "tsx tools/crawlers/playerStandingsCrawler.ts",
+    "generate:phase6-fixtures": "tsx tools/crawlers/generatePhase6Fixtures.ts",
+    "phase6:with-crawl": "npm run crawl:standings && npm run generate:phase6-fixtures && npm run test:phase6"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
+    "tsx": "^4.22.3",
     "typescript": "^5.8.3"
   }
 }

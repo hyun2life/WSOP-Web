@@ -1,0 +1,77 @@
+{
+  "metadata": {
+    "source": "expected fixture",
+    "generatedAt": "2026-05-27",
+    "strictRecommended": false
+  },
+  "categories": [
+    {
+      "categoryKey": "all-time-earnings-men",
+      "pageUrl": "/player-standings/all-time-earnings-men/",
+      "sectionHeading": "All-Time Earnings - Men",
+      "expectedRows": [
+        {
+          "rank": 1,
+          "displayName": "Daniel Negreanu",
+          "earnings": "$26,305,779",
+          "profileUrlContains": "/players/"
+        },
+        {
+          "rank": 2,
+          "displayName": "Michael Mizrachi",
+          "earnings": "$23,184,122",
+          "profileUrlContains": "/players/"
+        },
+        {
+          "rank": 7,
+          "displayName": "Phil Hellmuth",
+          "earnings": "$18,633,776",
+          "profileUrlContains": "/players/"
+        }
+      ]
+    },
+    {
+      "categoryKey": "all-time-bracelets",
+      "pageUrl": "/player-standings/all-time-bracelets/",
+      "sectionHeading": "All-Time Bracelets",
+      "expectedRows": [
+        {
+          "rank": 1,
+          "displayName": "Phil Hellmuth",
+          "bracelets": 17,
+          "profileUrlContains": "/players/"
+        },
+        {
+          "rank": 2,
+          "displayName": "Phil Ivey",
+          "bracelets": 11,
+          "profileUrlContains": "/players/"
+        }
+      ]
+    },
+    {
+      "categoryKey": "all-player-stats",
+      "pageUrl": "/player-standings/",
+      "sectionHeading": "All Player Stats",
+      "sectionSelector": ".standings-all-player-stats",
+      "expectedRows": [
+        {
+          "rank": 1,
+          "displayName": "Daniel Negreanu",
+          "earnings": "$26,305,779",
+          "wins": 8,
+          "finalTables": 84,
+          "cashes": 324
+        },
+        {
+          "rank": 7,
+          "displayName": "Phil Hellmuth",
+          "earnings": "$18,633,776",
+          "wins": 17,
+          "finalTables": 83,
+          "cashes": 230
+        }
+      ]
+    }
+  ]
+}

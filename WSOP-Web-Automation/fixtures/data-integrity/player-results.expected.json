@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "source": "expected fixture",
+    "calculationScope": "sample"
+  },
+  "playerResults": [
+    {
+      "playerKey": "phil-hellmuth",
+      "profileUrl": "/players/phil-hellmuth/",
+      "expectedRows": [
+        {
+          "eventNameContains": "Super PLOSSUS PLO",
+          "seriesContains": "2025 WSOP Paradise",
+          "dateContains": "Dec 08 2025",
+          "rankContains": "16",
+          "earnings": "$26,000",
+          "resultUrlContains": "/tournaments/result/"
+        },
+        {
+          "eventNameContains": "Pot-Limit Omaha 6-Handed",
+          "seriesContains": "2025 World Series of Poker",
+          "dateContains": "Jul 14 2025",
+          "rankContains": "157",
+          "earnings": "$6,005",
+          "resultUrlContains": "/tournaments/result/"
+        }
+      ]
+    }
+  ]
+}

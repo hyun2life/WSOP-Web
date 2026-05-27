@@ -1616,6 +1616,7 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
   const isPlayerPresentation = suite === 'player-presentation';
   const isSearchFilterSort = suite === 'search-filter-sort';
   const isResultDetail = suite === 'result-detail';
+  const isDataIntegrity = suite === 'data-integrity';
 
   let titleKo = 'WSOP Web 자동화 리포트';
   let titleEn = 'WSOP Web Automation Report';
@@ -1659,6 +1660,13 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
     subtitleEn = 'A validation of hyperlink integrity from tournament results to detail pages, rendering status, and profile backlinks.';
     eyebrowKo = 'WSOP Phase 5 Result Detail Integrity';
     eyebrowEn = 'WSOP Phase 5 Result Detail Integrity';
+  } else if (isDataIntegrity) {
+    titleKo = 'WSOP Phase 6 데이터/API 정합성 검증 리포트';
+    titleEn = 'WSOP Phase 6 Data and API Integrity Verification Report';
+    subtitleKo = '정적 expected 데이터와 공개 UI 수치, playerId/onepassId 매핑 및 합계 계산을 비교 검증한 결과입니다.';
+    subtitleEn = 'A verification of public UI metrics, player identity mapping, and sum calculations against expected data.';
+    eyebrowKo = 'WSOP Phase 6 Data & API Integrity';
+    eyebrowEn = 'WSOP Phase 6 Data & API Integrity';
   }
 
   return isKo
@@ -1805,6 +1813,11 @@ readMeFirst = function readMeFirstOverride(report, isKo) {
     return isKo
       ? 'Phase 5는 대회 결과 상세 화면으로의 링크가 깨지지 않고 정상 로딩되는지, 해당 페이지에서 선수 프로필로 되돌아가는 백링크가 정상 작동하는지 확인합니다.'
       : 'Phase 5 checks whether links to tournament result detail pages are intact, load correctly, and confirm the backlink to the player profile functions properly.';
+  }
+  if (report.suite === 'data-integrity') {
+    return isKo
+      ? 'Phase 6는 공개 UI의 수치 정보가 원천 데이터(expected fixture)와 일치하는지, 계산 및 ID 매핑이 정합한지 검증합니다. 실데이터 변경에 따른 Stale Warning을 감안해 확인해 주세요.'
+      : 'Phase 6 checks consistency between public UI values and source (expected) data. Review annotations for potentially stale fixtures due to real-time site updates.';
   }
   return isKo
     ? '모든 검증이 통과했습니다. 브라우저 실행 상세는 Playwright 기본 HTML 리포트에서 확인할 수 있습니다.'

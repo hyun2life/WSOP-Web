@@ -1,0 +1,19 @@
+{
+  "daniel-negreanu": {
+    "reason": "Daniel Negreanu can appear across standings, POY, HOF, and result contexts. Multiple mentions are allowed, but final profile target should remain consistent.",
+    "allowMultipleContextMentions": true,
+    "requireSingleProfileTarget": true
+  },
+  "sample-calculation-scope": {
+    "reason": "Fixture only includes sample rows, so profile summary total earnings cannot be strictly recalculated from sample result rows.",
+    "warningOnly": true
+  },
+  "legacy-result-format": {
+    "reason": "Some old result pages may have legacy formatting or missing profile links. Treat link-only mismatch as warning if player name and row data are visible.",
+    "warningOnly": true
+  },
+  "current-site-data-changed": {
+    "reason": "Public WSOP data may change after fixture generation. If current UI differs from fixture, classify as expected data stale or product issue after manual review.",
+    "warningOnly": false
+  }
+}

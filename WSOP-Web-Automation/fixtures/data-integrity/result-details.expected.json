@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "source": "expected fixture",
+    "calculationScope": "sample"
+  },
+  "resultDetails": [
+    {
+      "resultKey": "2024-wsop-event-27-big-o",
+      "resultUrl": "/tournaments/result/6711/",
+      "seriesNameContains": "2024 World Series of Poker",
+      "eventNameContains": "Event #27: $1,500 Big O",
+      "startDateContains": "Jun 08",
+      "buyIn": "$1,500",
+      "entries": 1555,
+      "prize": "$2,072,219",
+      "winner": "Michael Christ",
+      "winnerEarnings": "$306,884",
+      "expectedRows": [
+        {
+          "rank": 1,
+          "displayName": "Michael Christ",
+          "country": "United States",
+          "earnings": "$306,884",
+          "profileUrlContains": "/players/"
+        },
+        {
+          "rank": 2,
+          "displayName": "Matthew Beinner",
+          "country": "United States",
+          "earnings": "$204,601",
+          "profileUrlContains": "/players/"
+        }
+      ]
+    }
+  ]
+}
