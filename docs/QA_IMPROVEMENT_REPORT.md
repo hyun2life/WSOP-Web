@@ -39,11 +39,18 @@ QA 관점에서 WSOP.com의 비즈니스 목표와 공개 웹맵(Sitemap)을 전
     4. 입상자 테이블 내에 순위(Place), 플레이어 이름(Player), 상금(Prize/Earnings) 테이블 헤더 및 데이터 표시 검증
 *   `tests/functional/` 하위에 위치하여 `npm run test:phase2` (Functional Flow) 실행 시 자동으로 연동되어 함께 동작합니다.
 
-### 2.2. 보안 차단(CF Challenge) 및 네트워크 Flakiness 감지 스킵 로직 적용
+### 2.2. "왜 PASS인가?" 검수 기준(Acceptance Criteria) 시각화 및 리포트 자동 보강
+*   **배경 및 문제점**: 기존의 테스트 실행 화면이나 리포트는 단순히 "PASS/FAIL" 상태만 출력하여, 기획자나 매니저가 이 테스트가 **구체적으로 어떤 비즈니스 요건을 검사해서 통과한 것인지** 알기 어려웠습니다.
+*   **개선 조치**:
+    1.  **phases.json 메타데이터 보강**: 모든 Phase에 합격 검수 기준인 `passCriteriaKo` 데이터 구조를 신규 주입하여 검증 기준점을 명시했습니다.
+    2.  **대시보드 UI 연동**: 대시보드 우측 정보 패널에 **"합격 검수 기준 (Acceptance Criteria)" 섹션을 신규 신설**했습니다. 카드를 클릭하면 상세 검증 목적이 초록색 체크마크(`✓`)와 함께 가시화됩니다.
+    3.  **마크다운 리포트 부록 자동 삽입**: 회귀 테스트 수행 후 자동 생성되는 요약 보고서(`regression-summary.md`) 하단에 **"## 8. Appendix: Phase Verification Standards"** 섹션을 주입하여, 매니저가 릴리즈 증적을 열었을 때 각 단계의 통과 기준을 직관적으로 읽고 즉시 승인 판단을 내릴 수 있도록 리포팅 엔진을 고도화했습니다.
+
+### 2.3. 보안 차단(CF Challenge) 및 네트워크 Flakiness 감지 스킵 로직 적용
 *   WAF 보안 솔루션 차단(HTTP 403, Cloudflare Verification 등) 및 네트워크 일시적 지연으로 인해 테스트가 깨져 빌드가 오염되는 현상을 해결했습니다.
 *   [support.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/functional/support.ts) 내 `detectBotBlock` 공통 감지기를 구현하고, WAF Challenge 감지 시 `test.skip(true, 'Bot mitigation active')` 처리를 연동하여 릴리즈 빌드의 안정성을 확보했습니다.
 
-### 2.3. 대시보드 및 러너 호환성 패치
+### 2.4. 대시보드 및 러너 호환성 패치
 *   `package.json`의 `tsx` 실행을 `npx tsx`로 일괄 패치하여 윈도우 쉘 실행 호환성을 완치했습니다.
 *   `run-phase.cjs` 내 spawn 옵션에 `shell: true` 및 `.ts` 확장자 시 `npx.cmd tsx` 동적 처리를 주입해 `spawn EINVAL` 오류를 해소했습니다.
 *   [phases.json](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/automation/phases.json)에 향후 로드맵인 Phase 10~12 가상 Phase를 등록하여 대시보드에서 늘 체크하며 보강할 수 있게 구성했습니다.

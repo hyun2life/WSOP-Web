@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const detailDir = document.getElementById('detail-dir');
   const detailDesc = document.getElementById('detail-desc');
   const detailSteps = document.getElementById('detail-steps');
+  const detailCriteria = document.getElementById('detail-criteria');
 
   const modeSelect = document.getElementById('mode-select');
   const envSelect = document.getElementById('env-select');
@@ -231,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     detailDir.textContent = phase.testDir || '-';
     detailDesc.textContent = phase.descriptionKo || phase.description || '-';
     renderPhaseSteps(phase.stepsKo || []);
+    renderPhaseCriteria(phase.passCriteriaKo || []);
 
     crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3');
     pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'all');
@@ -266,6 +268,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const item = document.createElement('li');
       item.textContent = step;
       detailSteps.appendChild(item);
+    });
+  }
+
+  function renderPhaseCriteria(criteria) {
+    detailCriteria.innerHTML = '';
+
+    if (!criteria.length) {
+      const item = document.createElement('li');
+      item.textContent = '합격 검수 기준 정보가 등록되지 않았습니다.';
+      detailCriteria.appendChild(item);
+      return;
+    }
+
+    criteria.forEach((criterion) => {
+      const item = document.createElement('li');
+      item.textContent = criterion;
+      detailCriteria.appendChild(item);
     });
   }
 

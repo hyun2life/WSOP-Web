@@ -200,6 +200,22 @@ export function formatMarkdownSummary(
   md.push('- Optional failures and warnings are intentionally reported without failing the release gate unless rules are changed.');
   md.push('- Visual baseline updates are not run by this regression runner. Use the explicit baseline update scripts only after review.');
   md.push('');
+  md.push('## 8. Appendix: Phase Verification Standards (Phase별 합격 검수 기준 가이드)');
+  md.push('');
+  md.push('본 회귀 테스트가 성공(**PASS**)으로 마킹되기 위해 충족해야 할 단계별 검수 및 대조 기준은 다음과 같습니다:');
+  md.push('');
+  md.push('| Phase 단계 | 검증 시나리오 및 주요 확인 사항 | 합격 검수 기준 (Acceptance Criteria) |');
+  md.push('| :--- | :--- | :--- |');
+  md.push('| **Phase 1 (Smoke)** | 주요 공개 페이지 접근 및 콘솔 오류 | 모든 대상 페이지 HTTP status 200 및 화이트리스트 외 JS 런타임 에러 전무 |');
+  md.push('| **Phase 2 (Functional)** | 일정 탐색, 플레이어 검색 등 기능 흐름 | 탭 전환 시 화면 목록 정상 노출 및 상세 페이지 정상 진입 성공 |');
+  md.push('| **Phase 3 (Player UI)** | 플레이어 프로필 식별자 렌더링 검사 | 선수 이미지 박스, 국기 아이콘 및 뱃지 UI 정상 매핑 확인 |');
+  md.push('| **Phase 4 (Search/Sort)** | 필터링 및 리스트 정렬의 조작 안정성 | 부분 검색/대소문자 처리 시 정상 노출 및 정렬 조작 시 레이아웃 무결 |');
+  md.push('| **Phase 5 (Result Detail)** | 대회 결과 상세 페이지와 프로필 간 연결 | 상세 결과에 대상 선수의 순위/상금 존재 및 원래 프로필로 백링크 연결 |');
+  md.push('| **Phase 6 (Data Integrity)**| API/크롤러 원천 데이터 vs 화면 실시간 대조| 금반지/팔찌 획득 수 및 상금 합산 총액 수치가 기대 데이터와 100% 일치 |');
+  md.push('| **Phase 7 (Performance)** | 페이지 최초 로딩 속도 안정성 측정 | 주요 페이지 최초 로드 타임이 5.0초 임계치를 초과하지 않을 것 |');
+  md.push('| **Phase 8 (Visual)** | 스크린샷 baseline 이미지 대비 회귀 분석 | 컴포넌트 픽셀 오차율이 1.5% 미만이어야 함 (동적 영역 마스킹 적용) |');
+  md.push('| **Phase 9 (Regression)** | 최종 릴리즈 게이트 전체 조율 스위트 | 필수(Required) 단계(Phase 1,2,3,5,6) 100% 통과 및 경고(Warning) 로깅 확인 |');
+  md.push('');
 
   return `${md.join('\n')}\n`;
 }

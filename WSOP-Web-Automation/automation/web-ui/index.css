@@ -917,3 +917,45 @@ body {
   margin: 0;
   pointer-events: none;
 }
+
+/* ==========================================================================
+   Acceptance Criteria Checklist Styles
+   ========================================================================== */
+.phase-criteria-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phase-criteria-list li {
+  position: relative;
+  min-height: 30px;
+  padding: 7px 10px 7px 38px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(46, 160, 67, 0.03); /* Subtle emerald tint */
+  border-color: rgba(46, 160, 67, 0.18);
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.phase-criteria-list li::before {
+  content: "✓";
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(46, 160, 67, 0.12);
+  color: var(--accent-green);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
