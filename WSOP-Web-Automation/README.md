@@ -2,6 +2,9 @@
 
 `wsop.com` 공개 웹사이트의 smoke, functional flow, player presentation UI, search/filter/sort depth 자동화 프로젝트입니다.
 
+> [!TIP]
+> **[테스트 상세 가이드라인 (TEST-GUIDE.md)](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/TEST-GUIDE.md)**에서 각 테스트 단계(Phase 1 ~ Phase 9)와 크롤러의 구체적인 시나리오, 검증 항목, 명령어들을 통합 가이드로 제공합니다.
+
 목표는 단계별로 다릅니다. Phase 1은 배포 후 주요 공개 페이지가 정상적으로 열리는지 빠르게 확인하고, Phase 2는 사용자의 핵심 탐색 흐름을 검증하며, Phase 3은 플레이어가 공개 웹 화면에서 올바르게 식별되고 표현되는지 확인합니다.
 
 ## 주요 기능
