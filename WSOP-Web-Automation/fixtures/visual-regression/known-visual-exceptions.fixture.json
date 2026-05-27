@@ -1,0 +1,18 @@
+{
+  "stage-dynamic-assets": {
+    "reason": "Stage may have missing or different image assets. Treat avatar/profile image diffs as warning until prod baseline is confirmed.",
+    "warningOnly": true
+  },
+  "third-party-ad-diff": {
+    "reason": "Third-party ad areas are dynamic and should be masked or ignored.",
+    "warningOnly": true
+  },
+  "news-list-dynamic-content": {
+    "reason": "News ordering and thumbnails may change frequently. Prefer section layout snapshot with masks over exact full-page snapshot.",
+    "warningOnly": true
+  },
+  "result-detail-url-stale": {
+    "reason": "Sample result detail URL may become stale or unavailable. Treat as fixture maintenance issue unless confirmed product bug.",
+    "warningOnly": true
+  }
+}

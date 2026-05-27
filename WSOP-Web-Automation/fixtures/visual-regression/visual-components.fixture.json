@@ -1,0 +1,52 @@
+[
+  {
+    "componentKey": "home-upcoming-tournaments",
+    "name": "Home Upcoming Tournaments Section",
+    "url": "/",
+    "snapshotName": "home-upcoming-tournaments",
+    "locatorHints": ["Upcoming Tournaments", "Tournaments"],
+    "preferredSelectors": [],
+    "maskKeys": ["dynamicDate"],
+    "required": true
+  },
+  {
+    "componentKey": "standings-all-time-earnings",
+    "name": "Player Standings All-Time Earnings Section",
+    "url": "/player-standings/",
+    "snapshotName": "standings-all-time-earnings",
+    "locatorHints": ["All-Time Earnings", "Earnings"],
+    "preferredSelectors": [],
+    "maskKeys": ["dynamicRankingUpdate"],
+    "required": true
+  },
+  {
+    "componentKey": "player-profile-summary",
+    "name": "Player Profile Summary",
+    "url": "/players/phil-hellmuth/",
+    "snapshotName": "player-profile-summary-phil-hellmuth",
+    "locatorHints": ["Phil Hellmuth", "Player Profile", "Bracelets", "Rings", "Total Earnings"],
+    "preferredSelectors": [],
+    "maskKeys": ["dynamicImage"],
+    "required": true
+  },
+  {
+    "componentKey": "result-detail-table",
+    "name": "Result Detail Table",
+    "url": "/tournaments/result/6711/",
+    "snapshotName": "result-detail-table-sample",
+    "locatorHints": ["Final Result", "Player", "Country", "Earnings"],
+    "preferredSelectors": [],
+    "maskKeys": [],
+    "required": true
+  },
+  {
+    "componentKey": "news-list",
+    "name": "News List Section",
+    "url": "/news/",
+    "snapshotName": "news-list-section",
+    "locatorHints": ["News"],
+    "preferredSelectors": [],
+    "maskKeys": ["dynamicArticleDate"],
+    "required": true
+  }
+]

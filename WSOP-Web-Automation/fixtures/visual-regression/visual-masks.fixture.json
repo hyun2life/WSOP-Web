@@ -1,0 +1,59 @@
+{
+  "thirdParty": {
+    "description": "Third-party ad or analytics areas that may render dynamically.",
+    "selectorCandidates": [
+      "iframe[src*='doubleclick']",
+      "iframe[src*='googlesyndication']",
+      "[id*='ad']",
+      "[class*='ad']",
+      "[class*='advert']"
+    ]
+  },
+  "dynamicBanner": {
+    "description": "Dynamic promotional banners or rotating content.",
+    "selectorCandidates": [
+      "[class*='banner']",
+      "[class*='carousel']",
+      "[class*='slider']"
+    ]
+  },
+  "dynamicDate": {
+    "description": "Date/time text that may change.",
+    "selectorCandidates": [
+      "[class*='date']",
+      "[class*='time']"
+    ]
+  },
+  "dynamicImage": {
+    "description": "Images that may be lazy loaded or change per environment.",
+    "selectorCandidates": [
+      "img[src*='players']",
+      "img[src*='profile']"
+    ]
+  },
+  "dynamicArticleDate": {
+    "description": "Article dates that may change in listing.",
+    "selectorCandidates": [
+      "[class*='date']",
+      "[class*='posted']"
+    ]
+  },
+  "adArea": {
+    "description": "Ad blocks that should not affect layout comparison.",
+    "selectorCandidates": [
+      "iframe",
+      "[id*='google_ads']",
+      "[id*='ad']",
+      "[class*='ad']"
+    ]
+  },
+  "dynamicRankingUpdate": {
+    "description": "Dynamic ranking updates, dates, or standings updates.",
+    "selectorCandidates": [
+      "[class*='update']",
+      "[class*='rank']",
+      "[class*='date']",
+      "time"
+    ]
+  }
+}

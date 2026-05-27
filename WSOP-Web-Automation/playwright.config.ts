@@ -71,6 +71,10 @@ function inferReportSuite(argv: string[]): string {
     return 'performance-stability';
   }
 
+  if (command.includes('tests/visual-regression')) {
+    return 'visual-regression';
+  }
+
   return 'smoke';
 }
 

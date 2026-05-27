@@ -1,0 +1,42 @@
+[
+  {
+    "pageKey": "home",
+    "name": "Home",
+    "url": "/",
+    "snapshotName": "home-page",
+    "mode": "page",
+    "criticalTexts": ["World Series of Poker"],
+    "maskKeys": ["thirdParty", "dynamicBanner"],
+    "viewport": "desktop"
+  },
+  {
+    "pageKey": "schedule",
+    "name": "Tournament Schedule",
+    "url": "/schedule/",
+    "snapshotName": "schedule-page",
+    "mode": "page",
+    "criticalTexts": ["Schedule"],
+    "maskKeys": ["dynamicDate", "adArea"],
+    "viewport": "desktop"
+  },
+  {
+    "pageKey": "player-standings",
+    "name": "Player Standings",
+    "url": "/player-standings/",
+    "snapshotName": "player-standings-page",
+    "mode": "page",
+    "criticalTexts": ["Player"],
+    "maskKeys": ["dynamicRankingUpdate", "adArea"],
+    "viewport": "desktop"
+  },
+  {
+    "pageKey": "news",
+    "name": "News",
+    "url": "/news/",
+    "snapshotName": "news-page",
+    "mode": "page",
+    "criticalTexts": ["News"],
+    "maskKeys": ["dynamicArticleDate", "adArea"],
+    "viewport": "desktop"
+  }
+]

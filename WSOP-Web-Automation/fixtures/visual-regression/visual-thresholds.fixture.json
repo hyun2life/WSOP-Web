@@ -1,0 +1,23 @@
+{
+  "metadata": {
+    "mode": "initial",
+    "strictRecommended": false,
+    "description": "Initial visual regression thresholds. Stabilize baselines before tightening."
+  },
+  "default": {
+    "maxDiffPixelRatio": 0.03,
+    "threshold": 0.2
+  },
+  "page": {
+    "maxDiffPixelRatio": 0.15,
+    "threshold": 0.3
+  },
+  "component": {
+    "maxDiffPixelRatio": 0.03,
+    "threshold": 0.2
+  },
+  "strictComponent": {
+    "maxDiffPixelRatio": 0.015,
+    "threshold": 0.15
+  }
+}

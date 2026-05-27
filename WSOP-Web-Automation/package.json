@@ -33,7 +33,12 @@
     "test:performance-stability": "playwright test tests/performance-stability --project=chromium-desktop",
     "test:phase7": "playwright test tests/performance-stability --project=chromium-desktop",
     "test:phase7:repeat": "playwright test tests/performance-stability --project=chromium-desktop --repeat-each=3",
-    "report:phase7": "playwright show-report"
+    "report:phase7": "playwright show-report",
+    "test:visual-regression": "playwright test tests/visual-regression --project=chromium-desktop",
+    "test:phase8": "playwright test tests/visual-regression --project=chromium-desktop",
+    "update:visual-baseline": "playwright test tests/visual-regression --project=chromium-desktop --update-snapshots",
+    "update:phase8-baseline": "playwright test tests/visual-regression --project=chromium-desktop --update-snapshots",
+    "report:phase8": "playwright show-report"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

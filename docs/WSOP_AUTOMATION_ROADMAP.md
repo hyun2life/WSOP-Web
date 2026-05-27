@@ -14,8 +14,8 @@
 | **Phase 4** | 검색, 필터, 정렬 심화 조작 | **완료 (Done)** | `npm run test:phase4` | 검색 edge case, 정렬 토글, 페이징 안정성 UI 깨짐 감지 |
 | **Phase 5** | 결과 상세 양방향 연결 무결성 | **완료 (Done)** | `npm run test:phase5` | 프로필 결과 row 클릭 시 대회 결과 이동 및 프로필 백링크 복귀 |
 | **Phase 6** | 데이터 및 API 정합성 검증 | **완료 (Done)** | `npm run test:phase6` | Fixture/스냅샷 데이터와 실제 UI 수치 데이터 1:1 비교 검증 |
-| **Phase 7** | 성능 및 구동 안정성 모니터링 | **진행 중 (In Progress)** | `npm run test:phase7` | 페이지 로딩 속도, 병목 자산 및 반복 실행 시 Flaky 여부 판독 |
-| **Phase 8** | 화면 레이아웃 회귀 검증 | *계획됨 (Planned)* | - | Viewport별 스크린샷 baseline 기반 픽셀/레이아웃 겹침 탐지 |
+| **Phase 7** | 성능 및 구동 안정성 모니터링 | **완료 (Done)** | `npm run test:phase7` | 페이지 로딩 속도, 병목 자산 및 반복 실행 시 Flaky 여부 판독 |
+| **Phase 8** | 화면 레이아웃 회귀 검증 | **초기 완료 (Initial Done)** | `npm run test:phase8` | Viewport별 스크린샷 baseline 기반 픽셀/레이아웃 겹침 탐지 |
 | **Phase 9** | 릴리즈 전용 전체 회귀 스위트 | *계획됨 (Planned)* | - | 배포 게이트로 동작하기 위한 핵심 시나리오 선별 실행 |
 
 ---
