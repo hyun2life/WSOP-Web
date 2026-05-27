@@ -77,3 +77,15 @@
 - [ ] **크롤러 리포트 한글 인덱싱 개선**
   - **우선순위**: Medium
   - **설명**: 상금 화폐 단위(₩, ₱) 계산 및 이중 파싱에 대한 수계산 롤백 규칙을 안정화하고 HTML 포맷을 개선합니다.
+
+## 2026-05-28 Phase 9 Regression Review Follow-ups
+
+- [x] Phase 9 suite command는 실제 `package.json` script를 참조해야 합니다. runner에서 `npm run ...` command를 실행 전에 검증하도록 보강했습니다.
+- [x] regression suite에서는 `--update-snapshots`, `update:visual-baseline`, `update:phase8-baseline` 같은 visual baseline update 명령을 절대 실행하지 않도록 차단했습니다.
+- [x] Phase 7 performance drift는 release blocker가 아니라 warning/review item으로 분류합니다.
+- [x] Phase 8 visual baseline missing은 product bug가 아니라 `visual-baseline-missing` review item으로 분류하며, visual-regression step에만 적용합니다.
+- [x] `release-with-crawl`의 crawler 실행과 crawler 기반 Phase 6 검증은 non-blocking으로 유지합니다. crawler output missing은 `crawler-output-missing` review item입니다.
+- [x] Windows command 실행은 PowerShell script 호출 대신 `cmd.exe /d /s /c`와 process-tree timeout cleanup을 사용합니다.
+- [ ] crawler fixture 생성이 실패하거나 output이 없을 때 crawler 기반 Phase 6를 명시적으로 skip 처리하는 dependency/skip 모델을 추가합니다.
+- [ ] 반복 로그에서 timeout 또는 selector drift가 확인되는 public-site 테스트는 quarantine/observability suite로 분리합니다.
+- [ ] `artifacts/full-regression/latest/release-gate-result.json`의 `ci.shouldFailBuild`만 기준으로 CI를 실패시키는 작은 샘플 workflow/script를 추가합니다.

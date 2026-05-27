@@ -13,6 +13,8 @@ export interface RegressionStepResult {
   phase: string;
   name: string;
   command: string;
+  required: boolean;
+  allowWarnings: boolean;
   status: RegressionStatus;
   exitCode: number | null;
   durationMs: number;
@@ -38,10 +40,43 @@ export interface RegressionSummary {
   stepResults: RegressionStepResult[];
 }
 
+export interface ReleaseGateStepRef {
+  phase: string;
+  name: string;
+  command: string;
+  required: boolean;
+  status: RegressionStatus;
+  exitCode: number | null;
+  classification?: string;
+}
+
 export interface ReleaseGateResult {
+  suiteKey: string;
+  suiteName: string;
+  generatedAt: string;
   passed: boolean;
   status: 'PASSED' | 'FAILED' | 'REQUIRES_REVIEW';
+  blocking: boolean;
+  requiresReview: boolean;
+  exitCode: 0 | 1;
   reason: string;
+  counts: {
+    totalSteps: number;
+    passedSteps: number;
+    failedSteps: number;
+    optionalFailedSteps: number;
+    warningSteps: number;
+    skippedSteps: number;
+  };
+  blockingFailures: ReleaseGateStepRef[];
+  optionalFailures: ReleaseGateStepRef[];
+  warnings: ReleaseGateStepRef[];
+  ci: {
+    shouldFailBuild: boolean;
+    exitCode: 0 | 1;
+    blockingFailureCount: number;
+    reviewItemCount: number;
+  };
   rulesApplied: {
     failOnRequiredStepFailure: boolean;
     failOnOptionalStepFailure: boolean;

@@ -127,8 +127,8 @@ function runPhasePromise(phase, rawArgs) {
       parseArgsToEnv(passthrough, env);
     } else if (phase.runnerType === 'node') {
       // Node script runner (e.g. for Standings Crawler)
-      spawnCommand = 'node';
       const scriptPath = phase.scriptPath;
+      const isTs = scriptPath.endsWith('.ts');
       const extraNodeArgs = [];
       if (passthrough.includes('--headed') || passthrough.includes('--ui')) {
         extraNodeArgs.push('--headed');
@@ -138,8 +138,16 @@ function runPhasePromise(phase, rawArgs) {
       }
       // Pass other arguments except --headed and --ui to avoid duplicates
       const otherArgs = passthrough.filter(arg => arg !== '--ui' && arg !== '--headed');
-      spawnArgs = [scriptPath, ...extraNodeArgs, ...otherArgs];
-      commandDisplay = `node ${scriptPath} ${[...extraNodeArgs, ...otherArgs].join(' ')}`;
+
+      if (isTs) {
+        spawnCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        spawnArgs = ['tsx', scriptPath, ...extraNodeArgs, ...otherArgs];
+        commandDisplay = `${spawnCommand} tsx ${scriptPath} ${[...extraNodeArgs, ...otherArgs].join(' ')}`;
+      } else {
+        spawnCommand = 'node';
+        spawnArgs = [scriptPath, ...extraNodeArgs, ...otherArgs];
+        commandDisplay = `node ${scriptPath} ${[...extraNodeArgs, ...otherArgs].join(' ')}`;
+      }
       workingDirectory = process.cwd();
     } else {
       // Playwright test runner
@@ -160,7 +168,7 @@ function runPhasePromise(phase, rawArgs) {
     const child = spawn(spawnCommand, spawnArgs, {
       env,
       stdio: 'inherit',
-      shell: false,
+      shell: true,
       cwd: workingDirectory,
     });
 

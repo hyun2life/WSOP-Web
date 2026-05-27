@@ -3,12 +3,10 @@ import * as path from 'path';
 import {
   RegressionSummary,
   RegressionStepResult,
-  ReleaseGateResult
+  ReleaseGateResult,
+  ReleaseGateStepRef
 } from './regressionTypes';
 
-/**
- * 신규 summary 구조체를 생성합니다.
- */
 export function createRegressionSummary(suite: any): RegressionSummary {
   return {
     suiteKey: suite.suiteKey,
@@ -26,9 +24,6 @@ export function createRegressionSummary(suite: any): RegressionSummary {
   };
 }
 
-/**
- * 실행 결과 단계를 요약 데이터에 갱신 및 가산합니다.
- */
 export function addStepResult(
   summary: RegressionSummary,
   result: RegressionStepResult
@@ -49,48 +44,68 @@ export function addStepResult(
   }
 }
 
-/**
- * 릴리즈 게이트 규칙을 평가하여 합격 여부를 판별합니다.
- */
 export function evaluateReleaseGate(
   summary: RegressionSummary,
   rulesFixture: any
 ): ReleaseGateResult {
   const rules = rulesFixture.rules;
-  let passed = true;
-  let status: 'PASSED' | 'FAILED' | 'REQUIRES_REVIEW' = 'PASSED';
+  const blockingFailures = summary.stepResults.filter((step) => step.status === 'failed');
+  const optionalFailures = summary.stepResults.filter((step) => step.status === 'optionalFailed');
+  const warnings = summary.stepResults.filter((step) => step.status === 'warning');
+
+  const requiredFailureBlocked = rules.failOnRequiredStepFailure && blockingFailures.length > rules.maxAllowedRequiredFailures;
+  const optionalFailureBlocked = rules.failOnOptionalStepFailure && optionalFailures.length > rules.maxAllowedOptionalFailures;
+  const warningBlocked = rules.failOnWarning && warnings.length > 0;
+  const passed = !(requiredFailureBlocked || optionalFailureBlocked || warningBlocked);
+  const requiresReview = passed && (warnings.length > 0 || optionalFailures.length > 0);
+  const status = passed ? (requiresReview ? 'REQUIRES_REVIEW' : 'PASSED') : 'FAILED';
+
   const reasons: string[] = [];
-
-  // 1. 필수 단계 실패 여부 체크
-  if (rules.failOnRequiredStepFailure && summary.failedSteps > rules.maxAllowedRequiredFailures) {
-    passed = false;
-    status = 'FAILED';
-    reasons.push(`Required steps failed: ${summary.failedSteps} (Allowed: ${rules.maxAllowedRequiredFailures})`);
+  if (requiredFailureBlocked) {
+    reasons.push(`Required step failures exceed policy: ${blockingFailures.length}/${rules.maxAllowedRequiredFailures}`);
+  }
+  if (optionalFailureBlocked) {
+    reasons.push(`Optional step failures exceed policy: ${optionalFailures.length}/${rules.maxAllowedOptionalFailures}`);
+  }
+  if (warningBlocked) {
+    reasons.push(`Warnings are configured as blockers: ${warnings.length}`);
+  }
+  if (!reasons.length && requiresReview) {
+    reasons.push(`Passed with non-blocking review items: warnings=${warnings.length}, optionalFailures=${optionalFailures.length}`);
+  }
+  if (!reasons.length) {
+    reasons.push('All release gate criteria passed.');
   }
 
-  // 2. 선택 단계 실패 여부 체크
-  if (rules.failOnOptionalStepFailure && summary.optionalFailedSteps > rules.maxAllowedOptionalFailures) {
-    passed = false;
-    status = 'FAILED';
-    reasons.push(`Optional steps failed: ${summary.optionalFailedSteps} (Allowed: ${rules.maxAllowedOptionalFailures})`);
-  }
-
-  // 3. Warning 관련 판독
-  if (summary.warningSteps > 0) {
-    if (rules.failOnWarning) {
-      passed = false;
-      status = 'FAILED';
-      reasons.push(`Warnings detected: ${summary.warningSteps} (Rules policy forbids warnings)`);
-    } else if (rules.warningRequiresReview) {
-      status = 'REQUIRES_REVIEW';
-      reasons.push(`Warnings detected: ${summary.warningSteps} (Status changed to REQUIRES_REVIEW)`);
-    }
-  }
+  const reviewItemCount = warnings.length + optionalFailures.length;
 
   return {
+    suiteKey: summary.suiteKey,
+    suiteName: summary.suiteName,
+    generatedAt: new Date().toISOString(),
     passed,
     status,
-    reason: reasons.join(', ') || 'All release criteria met successfully.',
+    blocking: !passed,
+    requiresReview,
+    exitCode: passed ? 0 : 1,
+    reason: reasons.join(' '),
+    counts: {
+      totalSteps: summary.totalSteps,
+      passedSteps: summary.passedSteps,
+      failedSteps: summary.failedSteps,
+      optionalFailedSteps: summary.optionalFailedSteps,
+      warningSteps: summary.warningSteps,
+      skippedSteps: summary.skippedSteps
+    },
+    blockingFailures: blockingFailures.map(toGateStepRef),
+    optionalFailures: optionalFailures.map(toGateStepRef),
+    warnings: warnings.map(toGateStepRef),
+    ci: {
+      shouldFailBuild: !passed,
+      exitCode: passed ? 0 : 1,
+      blockingFailureCount: blockingFailures.length,
+      reviewItemCount
+    },
     rulesApplied: {
       failOnRequiredStepFailure: rules.failOnRequiredStepFailure,
       failOnOptionalStepFailure: rules.failOnOptionalStepFailure,
@@ -101,9 +116,6 @@ export function evaluateReleaseGate(
   };
 }
 
-/**
- * 실행 결과 파일들을 artifacts/full-regression/latest/ 하위에 유실 없이 생성합니다.
- */
 export function writeRegressionArtifacts(
   summary: RegressionSummary,
   gateResult: ReleaseGateResult
@@ -115,23 +127,16 @@ export function writeRegressionArtifacts(
       fs.mkdirSync(baseDir, { recursive: true });
     }
 
-    // 1. regression-summary.json
     fs.writeFileSync(path.join(baseDir, 'regression-summary.json'), JSON.stringify(summary, null, 2), 'utf-8');
-
-    // 2. release-gate-result.json
     fs.writeFileSync(path.join(baseDir, 'release-gate-result.json'), JSON.stringify(gateResult, null, 2), 'utf-8');
 
-    // 3. regression-failures.json
-    const failures = summary.stepResults.filter(r => r.status === 'failed' || r.status === 'optionalFailed');
+    const failures = summary.stepResults.filter((result) => result.status === 'failed' || result.status === 'optionalFailed');
     fs.writeFileSync(path.join(baseDir, 'regression-failures.json'), JSON.stringify(failures, null, 2), 'utf-8');
 
-    // 4. regression-warnings.json
-    const warnings = summary.stepResults.filter(r => r.status === 'warning');
+    const warnings = summary.stepResults.filter((result) => result.status === 'warning');
     fs.writeFileSync(path.join(baseDir, 'regression-warnings.json'), JSON.stringify(warnings, null, 2), 'utf-8');
 
-    // 5. regression-summary.md
-    const mdSummary = formatMarkdownSummary(summary, gateResult);
-    fs.writeFileSync(path.join(baseDir, 'regression-summary.md'), mdSummary, 'utf-8');
+    fs.writeFileSync(path.join(baseDir, 'regression-summary.md'), formatMarkdownSummary(summary, gateResult), 'utf-8');
 
     console.log(`[RegressionReporter] Regression artifacts saved to: ${baseDir}`);
   } catch (error) {
@@ -139,105 +144,131 @@ export function writeRegressionArtifacts(
   }
 }
 
-/**
- * 사람이 읽기 쉬운 상세 마크다운 요약 리포트를 구성합니다.
- */
 export function formatMarkdownSummary(
   summary: RegressionSummary,
   gateResult: ReleaseGateResult
 ): string {
-  const formatTime = (isoString: string) => {
-    if (!isoString) return '-';
-    return new Date(isoString).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-  };
+  const rows = summary.stepResults.map((step) => {
+    const classification = step.failureClassification ? `\`${escapeMd(step.failureClassification)}\`` : '-';
+    const note = step.errorDetails ? escapeMd(compactSnippet(step.errorDetails, 120)) : '-';
+    return `| ${escapeMd(step.phase)} | ${escapeMd(step.name)} | ${step.required ? 'Required' : 'Optional'} | ${formatStepStatus(step.status)} | ${formatDuration(step.durationMs)} | ${classification} | ${note} |`;
+  });
 
-  const statusEmojis: Record<string, string> = {
-    PASSED: '🟢 PASSED',
-    FAILED: '🔴 FAILED',
-    REQUIRES_REVIEW: '🟡 REQUIRES_REVIEW'
-  };
+  const md: string[] = [];
+  md.push('# WSOP Web Automation Regression Summary');
+  md.push('');
+  md.push('## 1. Execution Overview');
+  md.push('');
+  md.push('| Attribute | Value |');
+  md.push('| :--- | :--- |');
+  md.push(`| Suite | \`${summary.suiteKey}\` - ${escapeMd(summary.suiteName)} |`);
+  md.push(`| Gate Status | **${gateResult.status}** |`);
+  md.push(`| Release Blocked | **${gateResult.blocking ? 'Yes' : 'No'}** |`);
+  md.push(`| Requires Review | **${gateResult.requiresReview ? 'Yes' : 'No'}** |`);
+  md.push(`| CI Exit Code | \`${gateResult.ci.exitCode}\` |`);
+  md.push(`| Reason | ${escapeMd(gateResult.reason)} |`);
+  md.push(`| Started | ${formatKst(summary.startedAt)} |`);
+  md.push(`| Finished | ${formatKst(summary.finishedAt)} |`);
+  md.push(`| Duration | ${formatDuration(summary.durationMs)} |`);
+  md.push('');
+  md.push('## 2. Step Counts');
+  md.push('');
+  md.push('| Total | Passed | Failed | Optional Failed | Warning | Skipped |');
+  md.push('| ---: | ---: | ---: | ---: | ---: | ---: |');
+  md.push(`| ${summary.totalSteps} | ${summary.passedSteps} | ${summary.failedSteps} | ${summary.optionalFailedSteps} | ${summary.warningSteps} | ${summary.skippedSteps} |`);
+  md.push('');
+  md.push('## 3. Phase Results');
+  md.push('');
+  md.push('| Phase | Step | Policy | Status | Duration | Classification | Note |');
+  md.push('| :--- | :--- | :---: | :---: | ---: | :--- | :--- |');
+  md.push(...rows);
+  md.push('');
 
-  const stepEmojis: Record<string, string> = {
-    passed: '🟢 Passed',
-    failed: '🔴 Failed',
-    optionalFailed: '🟠 Optional Failed',
-    warning: '🟡 Warning',
-    skipped: '⚪ Skipped'
-  };
+  addDetailSection(md, '4. Blocking Failures', summary.stepResults.filter((step) => step.status === 'failed'));
+  addDetailSection(md, '5. Optional Failures', summary.stepResults.filter((step) => step.status === 'optionalFailed'));
+  addDetailSection(md, '6. Warnings / Review Items', summary.stepResults.filter((step) => step.status === 'warning'));
 
-  let md = `# WSOP Web Automation Regression Summary\n\n`;
-  md += `## 1. Execution Overview\n\n`;
-  md += `| Attribute | Value |\n`;
-  md += `| :--- | :--- |\n`;
-  md += `| **Suite Key** | \`${summary.suiteKey}\` |\n`;
-  md += `| **Suite Name** | ${summary.suiteName} |\n`;
-  md += `| **Release Gate** | **${statusEmojis[gateResult.status] ?? gateResult.status}** |\n`;
-  md += `| **Gate Reason** | ${gateResult.reason} |\n`;
-  md += `| **Start Time** | ${formatTime(summary.startedAt)} |\n`;
-  md += `| **End Time** | ${formatTime(summary.finishedAt)} |\n`;
-  md += `| **Total Duration** | ${(summary.durationMs / 1000).toFixed(1)}s |\n\n`;
-
-  md += `## 2. Statistics\n\n`;
-  md += `- **Total Steps**: ${summary.totalSteps}\n`;
-  md += `- **Passed**: ${summary.passedSteps}\n`;
-  md += `- **Failed**: ${summary.failedSteps}\n`;
-  md += `- **Optional Failed**: ${summary.optionalFailedSteps}\n`;
-  md += `- **Warning**: ${summary.warningSteps}\n`;
-  md += `- **Skipped**: ${summary.skippedSteps}\n\n`;
-
-  md += `## 3. Detailed Results by Phase\n\n`;
-  md += `| Phase | Step | Required | Status | Duration | Notes |\n`;
-  md += `| :--- | :--- | :---: | :---: | :---: | :--- |\n`;
-
-  for (const step of summary.stepResults) {
-    const isRequired = summary.stepResults.find(s => s.name === step.name)?.status !== 'optionalFailed' ? 'Yes' : 'No';
-    const duration = `${(step.durationMs / 1000).toFixed(1)}s`;
-    const note = step.failureClassification
-      ? `[${step.failureClassification}] ${step.errorDetails?.substring(0, 60).replace(/\n/g, ' ')}...`
-      : '-';
-
-    md += `| ${step.phase} | ${step.name} | ${isRequired} | ${stepEmojis[step.status]} | ${duration} | ${note} |\n`;
-  }
-
-  md += `\n`;
-
-  // 실패 내역 상세
-  const failures = summary.stepResults.filter(r => r.status === 'failed' || r.status === 'optionalFailed');
-  if (failures.length > 0) {
-    md += `## 4. Failures Detail\n\n`;
-    for (const fail of failures) {
-      md += `### ❌ [${fail.phase}] ${fail.name}\n`;
-      md += `- **Command**: \`${fail.command}\`\n`;
-      md += `- **Exit Code**: \`${fail.exitCode}\`\n`;
-      md += `- **Classification**: \`${fail.failureClassification}\`\n`;
-      md += `- **Error Details**:\n\`\`\`text\n${fail.errorDetails || 'No details'}\n\`\`\`\n\n`;
-    }
-  }
-
-  // 경고 내역 상세
-  const warnings = summary.stepResults.filter(r => r.status === 'warning');
-  if (warnings.length > 0) {
-    md += `## 5. Warnings Detail\n\n`;
-    for (const warn of warnings) {
-      md += `### ⚠️ [${warn.phase}] ${warn.name}\n`;
-      md += `- **Command**: \`${warn.command}\`\n`;
-      md += `- **Classification**: \`${warn.failureClassification}\`\n`;
-      md += `- **Reason**: ${warn.errorDetails || 'Allowable visual or performance threshold warning.'}\n\n`;
-    }
-  }
-
-  // 다음 대피책 가이드라인
-  md += `## 6. Release Next Actions\n\n`;
-  if (gateResult.status === 'PASSED') {
-    md += `> [!NOTE]\n`;
-    md += `> 모든 릴리즈 게이트 통과 기준을 충족했습니다. 배포를 진행하셔도 좋습니다.\n`;
-  } else if (gateResult.status === 'REQUIRES_REVIEW') {
-    md += `> [!WARNING]\n`;
-    md += `> 허용된 경고(Warning)가 발견되었습니다. 시각적 baseline missing 여부 혹은 성능 저하 여부를 체크 및 분석하고 의도된 스펙 변동일 경우 베이스라인을 업데이트한 뒤 배포하십시오.\n`;
+  md.push('## 7. Release Guidance');
+  md.push('');
+  if (gateResult.blocking) {
+    md.push('- Release gate is blocked. Fix required step failures first.');
+  } else if (gateResult.requiresReview) {
+    md.push('- Release gate passed for CI, but review warnings or optional failures before human approval.');
   } else {
-    md += `> [!CAUTION]\n`;
-    md += `> 필수 테스트 실패가 있습니다. 코드 리그레션 혹은 기능 깨짐 현상이므로 원인을 Triage하고 디버깅하여 해결 후 재빌드 하십시오.\n`;
+    md.push('- Release gate passed without review items.');
+  }
+  md.push('- Optional failures and warnings are intentionally reported without failing the release gate unless rules are changed.');
+  md.push('- Visual baseline updates are not run by this regression runner. Use the explicit baseline update scripts only after review.');
+  md.push('');
+
+  return `${md.join('\n')}\n`;
+}
+
+function addDetailSection(md: string[], title: string, steps: RegressionStepResult[]): void {
+  md.push(`## ${title}`);
+  md.push('');
+
+  if (!steps.length) {
+    md.push('- None');
+    md.push('');
+    return;
   }
 
-  return md;
+  for (const step of steps) {
+    md.push(`### ${escapeMd(step.phase)} - ${escapeMd(step.name)}`);
+    md.push('');
+    md.push(`- Command: \`${escapeMd(step.command)}\``);
+    md.push(`- Policy: ${step.required ? 'Required' : 'Optional'}`);
+    md.push(`- Exit Code: \`${step.exitCode}\``);
+    md.push(`- Classification: \`${escapeMd(step.failureClassification ?? 'unclassified')}\``);
+    md.push(`- Duration: ${formatDuration(step.durationMs)}`);
+    md.push('');
+    md.push('```text');
+    md.push(compactSnippet(step.errorDetails || step.stderr || step.stdout || 'No details.', 1600));
+    md.push('```');
+    md.push('');
+  }
+}
+
+function toGateStepRef(step: RegressionStepResult): ReleaseGateStepRef {
+  return {
+    phase: step.phase,
+    name: step.name,
+    command: step.command,
+    required: step.required,
+    status: step.status,
+    exitCode: step.exitCode,
+    classification: step.failureClassification
+  };
+}
+
+function formatStepStatus(status: string): string {
+  const labels: Record<string, string> = {
+    passed: 'Passed',
+    failed: 'Failed',
+    optionalFailed: 'Optional Failed',
+    warning: 'Warning',
+    skipped: 'Skipped'
+  };
+
+  return labels[status] ?? status;
+}
+
+function formatDuration(durationMs: number): string {
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
+
+function formatKst(isoString: string): string {
+  if (!isoString) return '-';
+  return new Date(isoString).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+}
+
+function escapeMd(value: string): string {
+  return value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
+function compactSnippet(value: string, maxLength: number): string {
+  const compacted = value.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+  if (compacted.length <= maxLength) return compacted;
+  return `${compacted.slice(0, maxLength)}\n... truncated ...`;
 }

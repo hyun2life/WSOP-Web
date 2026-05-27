@@ -459,3 +459,40 @@ Run.bat
 - 뉴스 상세 데이터 정합성
 - 로그인/결제/온라인 플레이 기능 검증
 - 모든 내부 링크 전수 검사
+
+## Phase 9 Regression Runner Notes
+
+Phase 9 회귀 suite는 `fixtures/full-regression/regression-suites.fixture.json`에서 관리하고, 실행기는 `tools/regression/runRegressionSuite.ts`입니다.
+
+주요 명령:
+
+```bat
+npm run test:regression:quick
+npm run test:regression:standard
+npm run test:regression:extended
+npm run test:release
+npm run test:release:with-visual
+npm run test:release:with-crawl
+```
+
+정책 메모:
+
+- `quick`은 Phase 1, Phase 2만 required로 실행합니다.
+- `standard`는 crawler, visual, performance 없이 Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6를 실행합니다.
+- `release`는 Phase 1, Phase 2를 required로 유지하고 Phase 3, Phase 5, Phase 6를 required release 후보로 유지합니다.
+- Phase 7과 Phase 8은 기본 release gate에 포함하지 않고 `extended` 또는 명시적 release variant에서 non-blocking으로 실행합니다.
+- 기본 release suite는 crawler를 실행하지 않습니다.
+- visual baseline update 명령은 regression runner에서 차단하며 자동 실행하지 않습니다.
+- optional failure와 warning은 artifact에 남기지만 release gate fail로 만들지 않습니다.
+
+주요 산출물 위치는 `artifacts/full-regression/latest/`입니다.
+
+```text
+regression-summary.md
+regression-summary.json
+regression-failures.json
+regression-warnings.json
+release-gate-result.json
+```
+
+CI는 `release-gate-result.json`의 `ci.shouldFailBuild`가 `true`이거나 `ci.exitCode`가 `1`일 때만 실패 처리하는 것을 권장합니다.

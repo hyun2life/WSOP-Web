@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { RegressionStep, RegressionStepResult, RegressionStatus } from './regressionTypes';
 import knownExceptions from '../../fixtures/full-regression/known-regression-exceptions.fixture.json';
 
@@ -15,31 +15,30 @@ export interface RawCommandResult {
   isTimeout: boolean;
 }
 
-/**
- * 하위 프로세스를 실행하여 쉘 명령을 구동하고 결과를 반환합니다.
- */
 export async function runCommand(
   commandString: string,
   options: RunCommandOptions = {}
 ): Promise<RawCommandResult> {
   const startedAt = Date.now();
-  const timeoutMs = options.timeoutMs ?? 600000; // 기본 10분
-
-  let actualCommand = commandString;
+  const timeoutMs = options.timeoutMs ?? 600000;
   const isWindows = process.platform === 'win32';
-  if (isWindows) {
-    actualCommand = commandString
-      .replace(/^npm\b/, 'npm.cmd')
-      .replace(/^npx\b/, 'npx.cmd');
-  }
-  
-  const child = spawn(actualCommand, {
-    shell: isWindows ? 'powershell.exe' : true,
-    env: {
-      ...process.env,
-      ...options.env
-    }
-  });
+
+  const child = isWindows
+    ? spawn('cmd.exe', ['/d', '/s', '/c', commandString], {
+        shell: false,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          ...options.env
+        }
+      })
+    : spawn(commandString, {
+        shell: true,
+        env: {
+          ...process.env,
+          ...options.env
+        }
+      });
 
   let stdout = '';
   let stderr = '';
@@ -58,24 +57,18 @@ export async function runCommand(
       resolve(code);
     });
     child.on('error', (err) => {
-      console.error(`[CommandRunner] Failed to start command: ${commandString}`, err);
+      stderr += `\n[CommandRunner] Failed to start command: ${commandString}\n${err.message}`;
       resolve(-1);
     });
   });
 
-  // 타임아웃 타이머 연동
   const timeoutPromise = new Promise<number | null>((resolve) => {
     const timer = setTimeout(() => {
       isTimeout = true;
-      try {
-        child.kill();
-      } catch (e) {
-        // 무시
-      }
+      killProcessTree(child.pid);
       resolve(-1);
     }, timeoutMs);
 
-    // 프로세스가 끝나면 타이머 정리
     runPromise.finally(() => clearTimeout(timer));
   });
 
@@ -91,62 +84,43 @@ export async function runCommand(
   };
 }
 
-/**
- * 쉘 명령 실행 결과 원천 데이터를 가공하여 테스트 스펙에 맞게 가공합니다.
- */
 export function classifyCommandResult(
   raw: RawCommandResult,
   step: RegressionStep
 ): RegressionStepResult {
+  const combinedOutput = stripAnsi(`${raw.stdout}\n${raw.stderr}`);
+  const warningCount = countWarningSignals(combinedOutput);
   let status: RegressionStatus = 'passed';
   let failureClassification: string | undefined;
   let errorDetails: string | undefined;
 
-  // 1. Warning 카운트 분석 (warn, slow, timeout 등 검색)
-  const combinedOutput = (raw.stdout + '\n' + raw.stderr).toLowerCase();
-  const warningRegex = /warn|slow|timeout|error/gi;
-  const matches = combinedOutput.match(warningRegex);
-  const warningCount = matches ? matches.length : 0;
-
-  // 2. 에러 및 타임아웃 판정
   if (raw.isTimeout) {
     status = step.required ? 'failed' : 'optionalFailed';
     failureClassification = 'timeout';
     errorDetails = `Command timed out after ${raw.durationMs}ms`;
   } else if (raw.exitCode !== 0) {
-    status = step.required ? 'failed' : 'optionalFailed';
-    errorDetails = raw.stderr || raw.stdout;
+    const knownException = findKnownException(combinedOutput);
+    const inferredClassification = knownException?.key ?? inferFailureClassification(combinedOutput, step);
+    const canDowngradeToWarning = Boolean(
+      step.allowWarnings &&
+      (knownException?.warningOnly || inferredClassification === 'visual-baseline-missing' || inferredClassification === 'crawler-output-missing')
+    );
 
-    // 3. 에러 상세 분석 분류 (known exceptions 기반)
-    let matchedException = false;
-    for (const excKey of Object.keys(knownExceptions)) {
-      const exc = (knownExceptions as any)[excKey];
-      if (exc.pattern && new RegExp(exc.pattern, 'i').test(combinedOutput)) {
-        failureClassification = excKey;
-        matchedException = true;
-        if (exc.warningOnly) {
-          status = 'warning';
-        }
-        break;
-      }
-    }
-
-    if (!matchedException) {
-      if (combinedOutput.includes('snapshot') || combinedOutput.includes('screenshot') || combinedOutput.includes('visual')) {
-        failureClassification = 'visual-baseline-missing';
-        status = 'warning'; // baseline missing은 제품 버그가 아니므로 warning 처리 권장 정책
-      } else if (combinedOutput.includes('selector') || combinedOutput.includes('locator')) {
-        failureClassification = 'selector-issue';
-      } else {
-        failureClassification = 'actual-product-issue';
-      }
-    }
+    status = canDowngradeToWarning ? 'warning' : (step.required ? 'failed' : 'optionalFailed');
+    failureClassification = inferredClassification;
+    errorDetails = extractErrorDetails(raw, combinedOutput, knownException?.reason);
+  } else if (warningCount > 0) {
+    status = 'warning';
+    failureClassification = 'non-blocking-warning';
+    errorDetails = extractWarningDetails(combinedOutput);
   }
 
   return {
     phase: step.phase,
     name: step.name,
     command: step.command,
+    required: step.required,
+    allowWarnings: step.allowWarnings,
     status,
     exitCode: raw.exitCode,
     durationMs: raw.durationMs,
@@ -156,4 +130,93 @@ export function classifyCommandResult(
     failureClassification,
     errorDetails
   };
+}
+
+function killProcessTree(pid?: number): void {
+  if (!pid) return;
+
+  try {
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/pid', String(pid), '/t', '/f'], { windowsHide: true });
+      return;
+    }
+
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    // Best-effort cleanup only. The timeout result is still reported above.
+  }
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
+function countWarningSignals(output: string): number {
+  return output
+    .split(/\r?\n/)
+    .filter((line) => /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line))
+    .length;
+}
+
+function findKnownException(output: string): { key: string; warningOnly: boolean; reason?: string } | undefined {
+  for (const [key, exception] of Object.entries(knownExceptions as Record<string, any>)) {
+    if (exception.pattern && new RegExp(exception.pattern, 'i').test(output)) {
+      return {
+        key,
+        warningOnly: Boolean(exception.warningOnly),
+        reason: exception.reason
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function inferFailureClassification(output: string, step: RegressionStep): string {
+  if (isVisualBaselineMissing(output, step)) {
+    return 'visual-baseline-missing';
+  }
+
+  if (isCrawlerOutputMissing(output, step)) {
+    return 'crawler-output-missing';
+  }
+
+  if (/selector|locator|strict mode violation|waiting for locator/i.test(output)) {
+    return 'selector-issue';
+  }
+
+  if (/timed out|timeout|test timeout/i.test(output)) {
+    return 'timeout';
+  }
+
+  return 'actual-product-issue';
+}
+
+function isVisualBaselineMissing(output: string, step: RegressionStep): boolean {
+  const isVisualStep = /phase 8|phase8|visual/i.test(`${step.phase} ${step.name} ${step.command}`);
+  const hasMissingSnapshotSignal = /snapshot (does not|doesn't) exist|missing snapshot|toHaveScreenshot[\s\S]{0,200}snapshot/i.test(output);
+
+  return isVisualStep && hasMissingSnapshotSignal;
+}
+
+function isCrawlerOutputMissing(output: string, step: RegressionStep): boolean {
+  const isCrawlerStep = step.env?.DATA_SOURCE === 'crawler' || /crawler/i.test(`${step.phase} ${step.name} ${step.command}`);
+  const hasMissingCrawlerSignal = /crawler output.*missing|missing crawler output|no crawler output|ENOENT[\s\S]{0,120}crawler|DATA_SOURCE[\s\S]{0,80}crawler/i.test(output);
+
+  return isCrawlerStep && hasMissingCrawlerSignal;
+}
+
+function extractErrorDetails(raw: RawCommandResult, combinedOutput: string, knownReason?: string): string {
+  const primary = raw.stderr.trim() || raw.stdout.trim() || combinedOutput.trim();
+  const prefix = knownReason ? `${knownReason}\n\n` : '';
+  return `${prefix}${primary}`.trim();
+}
+
+function extractWarningDetails(output: string): string {
+  const warningLines = output
+    .split(/\r?\n/)
+    .filter((line) => /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line))
+    .slice(0, 8);
+
+  return warningLines.join('\n') || 'Warning signal detected in command output.';
 }

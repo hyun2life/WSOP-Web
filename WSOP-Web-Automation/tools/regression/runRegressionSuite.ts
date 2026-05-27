@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { runCommand, classifyCommandResult } from './commandRunner';
 import {
@@ -7,46 +8,15 @@ import {
   writeRegressionArtifacts
 } from './regressionReporter';
 
-// Fixtures
 import suitesFixture from '../../fixtures/full-regression/regression-suites.fixture.json';
 import rulesFixture from '../../fixtures/full-regression/release-gate-rules.fixture.json';
 
 async function main() {
-  // 1. CLI Arguments 파싱
-  let suiteKey = 'standard';
-  const args = process.argv.slice(2);
-  for (const arg of args) {
-    if (arg.startsWith('--suite=')) {
-      suiteKey = arg.split('=')[1];
-    }
-  }
-
+  const suiteKey = parseSuiteKey(process.argv.slice(2));
   console.log(`[RegressionRunner] Resolving suite: "${suiteKey}"`);
 
-  // 2. 스위트 검색 및 extends 처리
-  const suites = suitesFixture.suites;
-  let suite = suites.find((s: any) => s.suiteKey === suiteKey);
-
-  if (!suite) {
-    console.error(`[RegressionRunner] Error: Suite "${suiteKey}" not found in regression-suites.fixture.json`);
-    process.exit(1);
-  }
-
-  // 상속 결합 기능 처리
-  if (suite.extends) {
-    console.log(`[RegressionRunner] Suite "${suiteKey}" extends "${suite.extends}"`);
-    const baseSuite = suites.find((s: any) => s.suiteKey === suite.extends);
-    if (!baseSuite) {
-      console.error(`[RegressionRunner] Error: Base suite "${suite.extends}" not found.`);
-      process.exit(1);
-    }
-    const baseSteps = baseSuite.steps || [];
-    const additionalSteps = suite.additionalSteps || [];
-    suite = {
-      ...suite,
-      steps: [...baseSteps, ...additionalSteps]
-    };
-  }
+  const suite = resolveSuite(suiteKey);
+  validateSuiteConfiguration(suite);
 
   console.log(`[RegressionRunner] Starting execution of suite: ${suite.name}`);
   console.log(`[RegressionRunner] Description: ${suite.description}`);
@@ -55,16 +25,16 @@ async function main() {
   const summary = createRegressionSummary(suite);
   const startedAt = Date.now();
 
-  // 3. 각 단계 순차 구동
   for (let i = 0; i < suite.steps.length; i++) {
     const step = suite.steps[i];
-    console.log(`\n==================================================`);
+    console.log('\n==================================================');
     console.log(`[Step ${i + 1}/${suite.steps.length}] Running Phase: ${step.phase} - ${step.name}`);
     console.log(`[Command]: ${step.command}`);
+    console.log(`[Policy]: ${step.required ? 'required' : 'optional'}, allowWarnings=${step.allowWarnings}`);
     if (step.env) {
       console.log(`[Env Override]: ${JSON.stringify(step.env)}`);
     }
-    console.log(`==================================================`);
+    console.log('==================================================');
 
     try {
       const rawResult = await runCommand(step.command, {
@@ -80,58 +50,124 @@ async function main() {
         console.log(`[Warnings Found]: ${stepResult.warningCount} occurrences`);
       }
       if (stepResult.errorDetails) {
-        console.log(`[Error snippet]:\n${stepResult.errorDetails.substring(0, 200)}...`);
+        console.log(`[Details snippet]:\n${stepResult.errorDetails.substring(0, 300)}...`);
       }
     } catch (err: any) {
-      console.error(`[RegressionRunner] Step execution failed unexpectedly`, err);
+      console.error('[RegressionRunner] Step execution failed unexpectedly', err);
       addStepResult(summary, {
         phase: step.phase,
         name: step.name,
         command: step.command,
+        required: step.required,
+        allowWarnings: step.allowWarnings,
         status: step.required ? 'failed' : 'optionalFailed',
         exitCode: -999,
         durationMs: 0,
         stdout: '',
         stderr: err.message || err.toString(),
         warningCount: 0,
-        failureClassification: 'script-error',
+        failureClassification: 'runner-script-error',
         errorDetails: err.message
       });
     }
   }
 
-  // 4. 실행 완료 마킹 및 게이트 평가
   summary.finishedAt = new Date().toISOString();
   summary.durationMs = Date.now() - startedAt;
 
   const gateResult = evaluateReleaseGate(summary, rulesFixture);
-
-  // 5. 아티팩트 파일 저장
   writeRegressionArtifacts(summary, gateResult);
 
-  // 6. 콘솔 최종 출력
-  console.log(`\n==================================================`);
-  console.log(`                 REGRESSION REPORT               `);
-  console.log(`==================================================`);
+  console.log('\n==================================================');
+  console.log('                 REGRESSION REPORT               ');
+  console.log('==================================================');
   console.log(`Suite: ${summary.suiteName} (${summary.suiteKey})`);
   console.log(`Gate Status: ${gateResult.status} (Passed = ${gateResult.passed})`);
+  console.log(`Release Blocked: ${gateResult.blocking}`);
+  console.log(`Requires Review: ${gateResult.requiresReview}`);
   console.log(`Gate Reason: ${gateResult.reason}`);
   console.log(`Total Steps: ${summary.totalSteps}`);
   console.log(`Passed: ${summary.passedSteps}, Failed: ${summary.failedSteps}, Optional Failed: ${summary.optionalFailedSteps}, Warning: ${summary.warningSteps}`);
   console.log(`Total Duration: ${(summary.durationMs / 1000).toFixed(1)}s`);
-  console.log(`==================================================`);
+  console.log('==================================================');
 
-  // 7. 프로세스 Exit 코드 설정
-  if (!gateResult.passed) {
-    console.error(`[RegressionRunner] Release gate failed. Exiting with failure code.`);
+  if (gateResult.ci.shouldFailBuild) {
+    console.error('[RegressionRunner] Release gate failed. Exiting with failure code.');
+    process.exit(gateResult.ci.exitCode);
+  }
+
+  console.log('[RegressionRunner] Release gate is not blocked. Exiting with success.');
+  process.exit(0);
+}
+
+function parseSuiteKey(args: string[]): string {
+  for (const arg of args) {
+    if (arg.startsWith('--suite=')) {
+      return arg.split('=')[1];
+    }
+  }
+
+  return 'standard';
+}
+
+function resolveSuite(suiteKey: string): any {
+  const suites = suitesFixture.suites;
+  const suite = suites.find((candidate: any) => candidate.suiteKey === suiteKey);
+
+  if (!suite) {
+    console.error(`[RegressionRunner] Error: Suite "${suiteKey}" not found in regression-suites.fixture.json`);
     process.exit(1);
-  } else {
-    console.log(`[RegressionRunner] Release gate checks passed. Exiting with success.`);
-    process.exit(0);
+  }
+
+  if (!suite.extends) {
+    return suite;
+  }
+
+  console.log(`[RegressionRunner] Suite "${suiteKey}" extends "${suite.extends}"`);
+  const baseSuite = suites.find((candidate: any) => candidate.suiteKey === suite.extends);
+  if (!baseSuite) {
+    console.error(`[RegressionRunner] Error: Base suite "${suite.extends}" not found.`);
+    process.exit(1);
+  }
+
+  return {
+    ...suite,
+    steps: [...(baseSuite.steps || []), ...(suite.additionalSteps || [])]
+  };
+}
+
+function validateSuiteConfiguration(suite: any): void {
+  const packageJsonPath = path.resolve(process.cwd(), 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+  const scripts = packageJson.scripts ?? {};
+  const errors: string[] = [];
+
+  for (const step of suite.steps) {
+    const scriptName = extractNpmScriptName(step.command);
+    if (scriptName && !scripts[scriptName]) {
+      errors.push(`${step.phase} - ${step.name}: command references missing package.json script "${scriptName}"`);
+    }
+
+    if (/--update-snapshots|update:visual-baseline|update:phase8-baseline/i.test(step.command)) {
+      errors.push(`${step.phase} - ${step.name}: visual baseline update commands are not allowed in regression suites`);
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error('[RegressionRunner] Suite configuration is invalid:');
+    for (const error of errors) {
+      console.error(`- ${error}`);
+    }
+    process.exit(1);
   }
 }
 
+function extractNpmScriptName(command: string): string | undefined {
+  const match = command.match(/^npm\s+(?:run|run-script)\s+([^\s]+)/);
+  return match?.[1];
+}
+
 main().catch((err) => {
-  console.error(`[RegressionRunner] Fatal execution error`, err);
+  console.error('[RegressionRunner] Fatal execution error', err);
   process.exit(1);
 });

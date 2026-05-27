@@ -1,13 +1,23 @@
 {
   "visual-baseline-missing": {
-    "reason": "Visual regression requires reviewed baselines. Missing baseline should be classified separately from product regression.",
+    "reason": "Visual regression requires reviewed baselines. Missing baselines are review items, not product bugs.",
     "warningOnly": true,
-    "pattern": "A snapshot doesn't exist"
+    "pattern": "snapshot (does not|doesn't) exist|missing snapshot"
+  },
+  "crawler-output-missing": {
+    "reason": "Crawler-derived fixtures are optional release-with-crawl inputs. Missing crawler output is a non-blocking review item.",
+    "warningOnly": true,
+    "pattern": "crawler output.*missing|missing crawler output|no crawler output|ENOENT[\\s\\S]{0,120}crawler|DATA_SOURCE[\\s\\S]{0,80}crawler"
   },
   "crawler-source-of-truth-false": {
-    "reason": "Crawler output from public UI is baseline/candidate data, not a true source of truth.",
+    "reason": "Crawler output from public UI is candidate data, not a true source of truth.",
     "warningOnly": true,
     "pattern": "crawler source of truth"
+  },
+  "performance-threshold-warning": {
+    "reason": "Performance threshold drift is a review item unless core content is broken.",
+    "warningOnly": true,
+    "pattern": "performance threshold|threshold exceeded|p95|slow request|slow response|stability warning"
   },
   "third-party-performance-warning": {
     "reason": "Third-party analytics/ad failures should not block release unless core content is affected.",
