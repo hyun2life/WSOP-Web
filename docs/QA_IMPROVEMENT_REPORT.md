@@ -1,41 +1,49 @@
-# WSOP Web Automation QA 개선 및 안정성 고도화 보고서 (QA Improvement Report)
+# WSOP Web Automation QA 개선 및 자동화 누락 범위(Gap List) 분석 보고서
 
-본 문서는 WSOP.com 공개 웹 테스트의 신뢰성을 극대화하고, CI/CD 배포망에서의 오진(False Negative)을 방지하기 위해 수행한 QA 관점의 안정성 보강 작업 및 대시보드 연동 결과를 정리한 보고서입니다.
+본 문서는 WSOP.com 공개 사이트를 QA의 관점에서 정밀하게 둘러보고, 현재 프로젝트(`WSOP-Web`)에 구현된 자동화 범위(Phase 1~8)와 대조하여 **아직 자동화되지 않았거나 보완이 필요한 시나리오(Test Automation Gap List)**를 정리하고, 금번 과정에서 추가 보강한 테스트 내역을 기재한 보고서입니다.
 
-이 작업은 신규 기능 브랜치(`feature/qa-improvements`)에서 분리 개발 및 검증되었으며, 배포 승인 전에 원격 푸시를 진행했습니다.
-
----
-
-## 1. 주요 개선 사항 요약
-
-### 1.1. 보안 차단 솔루션(Anti-Bot Mitigation) 대응 및 탄력적 스킵 정책 도입
-*   **배경 및 현상**: WSOP.com과 같은 글로벌 상용 웹사이트는 Cloudflare, Akamai 등 고도화된 웹 방화벽(WAF) 및 봇 탐지 솔루션을 탑재하고 있습니다. Playwright 헤드리스 구동 시, 불규칙하게 **HTTP 403 Forbidden** 또는 **Access Denied**, **Cloudflare Challenge** 페이지가 반환되어 제품의 결함이 아님에도 불구하고 전체 빌드가 깨지는 현상(Flaky Test 및 False Negative)이 빈발했습니다.
-*   **개선 조치**:
-    *   공통 검증 헬퍼 모듈인 [support.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/functional/support.ts)에 실시간 보안 차단 및 네트워크 지연 감지 함수 `detectBotBlock`을 신규 구현했습니다.
-    *   HTTP status가 403, 429, 503이거나 HTML 소스 코드에 `cloudflare`, `ray id`, `access denied`, `please verify you are a human` 등의 보안 챌린지 시그널 키워드가 포함되어 있는지 정교하게 파싱합니다.
-    *   보안 차단 감지 시 테스트를 즉시 실패시키는 대신, Playwright 내장 `test.skip(true, 'Bot mitigation active')` 처리를 유연하게 연동하여 **빌드 실패를 차단하고 스킵 사유(Warning/Review 대상)로 분류**하도록 리팩토링했습니다.
-    *   공개 페이지 및 콘솔 오류 점검 등 핵심 스모크 스펙들([public-pages.spec.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/smoke/public-pages.spec.ts), [console-error.spec.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/smoke/console-error.spec.ts))이 해당 공통 헬퍼를 경유하도록 구조를 개선했습니다.
-
-### 1.2. 윈도우 OS 기반 대시보드 기동 및 러너 호환성 완전 해결
-*   **배경 및 현상**: 로컬 윈도우 콘솔 환경에서 `Run.bat` 대시보드를 통해 Phase 8(비주얼) 및 Phase 9(회귀 러너)를 구동할 때, `tsx` 단독 실행 파일에 대한 경로 오류나 `npx.cmd` 호출 시 `spawn EINVAL` 시스템 레벨 오류가 뜨며 실행이 중단되는 문제가 있었습니다.
-*   **개선 조치**:
-    *   [package.json](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/package.json)의 런타임 스크립트를 `npx tsx`로 표준화하여 윈도우 환경 실행 호환성을 확보했습니다.
-    *   대시보드 기동 헬퍼인 [run-phase.cjs](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/scripts/run-phase.cjs) 내 child_process spawn 옵션에 `shell: true`를 적용하여 윈도우용 배치/명령어 프로세스가 정상적으로 쉘 프로세스 트리를 스폰하게 완치했습니다.
-    *   `run-phase.cjs`에서 실행 전 `testDir`이 실제로 존재하는지 엄격히 체크하는 로직으로 인해 Phase 9이 실행 거부되던 문제를 해결하고자 [tests/regression/README.md](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/regression/README.md) 플레이스홀더를 신규 보강했습니다.
-
-### 1.3. 대시보드 상의 미래 백로그 시각화(Roadmap Dashboard) 도입
-*   **배경 및 현상**: Phase 1~9 완료 이후에도 여전히 해결해야 할 다양한 고도화 백로그 과제들이 존재하지만, 대시보드 화면상에는 "구현된 Phase"만 표시되어 로드맵 가독성이 떨어졌습니다.
-*   **개선 조치**:
-    *   [phases.json](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/automation/phases.json) 파일에 **Phase 10 (CI/CD 및 자동 알림)**, **Phase 11 (실시간 API/DB 직접 연동)**, **Phase 12 (Lighthouse 및 사용자 체감 지표)** 3개 신규 가상 Phase를 `"implemented": false` 로 사전 등록했습니다.
-    *   이를 통해 대시보드 하단의 **"준비 중인 Phase" 아코디언** 목록에 향후 로드맵이 자동으로 시각화되며, 클릭 시 우측 패널에 상세 백로그 정보가 로드맵 형태로 노출되어 팀 내 테스트 확장 계획을 상시 트래킹할 수 있게 설계했습니다.
+이 작업은 신규 기능 브랜치(`feature/qa-improvements`)에서 개발 및 검증되었으며, 배포 승인 전에 원격 푸시를 진행했습니다.
 
 ---
 
-## 2. 향후 QA 고도화 권장 로드맵 (Future Actions)
+## 1. WSOP.com 기준 자동화 누락 범위 (Test Automation Gap List)
 
-1.  **Quarantine(격리) 기능 고도화**:
-    *   Live 사이트의 잦은 팝업 광고나 Dynamic 레이아웃 깨짐이 발생하는 특정 UI 페이지의 경우, 정기 회귀 러너에서 Quarantine 스위트로 자동으로 분류하여 릴리즈 블락 영향도를 완화할 것을 권장합니다.
-2.  **Lighthouse Web Vitals 기준치 수립**:
-    *   Phase 12 도입 시, LCP가 2.5s 미만으로 유지되는지 Playwright 구동 속도 이력과 연계해 성능 저하 경보를 발생시킵니다.
-3.  **Slack/Discord 웹훅 알림 주입**:
-    *   Phase 10 준비 시점에, CI 빌드 실패 이력 및 리포트 파일 요약을 마크다운 포맷으로 즉각 메신저 알림 채널로 전송하도록 훅 스크립트를 구현할 예정입니다.
+QA 관점에서 WSOP.com의 비즈니스 목표와 공개 웹맵(Sitemap)을 전수 분석한 결과, 아래의 시나리오들이 현재 테스트 자동화 대상에서 제외되어 있습니다.
+
+### 1.1. 토너먼트 결과 (Tournament Results) 검색 및 상세 흐름 (일부 보강 완료)
+*   **현상 및 문제점**: 기존의 테스트는 Player Profile의 결과 목록에서 상세 Results로 넘어가는 "플레이어 기준의 백링크"만 체크했습니다. 하지만 사용자가 직접 "/results" 대메뉴로 진입하여 연도별, 시리즈별 토너먼트 결과를 검색 및 필터링하고, 상세 결과 테이블(`/tournaments/results/...`)로 들어가 상위 랭커들을 확인하는 **"대회 결과 중심의 탐색 경로"**는 자동화 검증이 누락되어 있었습니다.
+*   **조치 사항**: 금번 리팩토링 과정에서 `tests/functional/tournament-results.spec.ts` 테스트 스펙을 신규 구현하여 해당 경로를 자동화 세트에 추가했습니다.
+
+### 1.2. Play Online 다운로드 링크 무결성 검증 (누락)
+*   **현상 및 문제점**: WSOP.com의 비즈니스 전환(Conversion) 핵심은 사용자가 온라인 포커 클라이언트를 설치하게 만드는 것입니다. 메인 배너의 CTA 및 상단 메뉴의 "Play Online"을 통해 인스톨러 다운로드 페이지(`/download/`)에 진입했을 때, 실제 다운로드 파일(.exe, .dmg)의 URL 경로가 유효한지(Broken link 여부) 및 응답 상태 코드가 200인지 체크하는 비즈니스 기능 검증이 제외되어 있습니다.
+*   **개선 권장**: `test:regression` 또는 `test:release` 단계에서 다운로드 바이너리 URL에 대해 헤더 요청(HEAD request)을 날려 유효성을 자동 검수하는 스펙을 추가할 필요가 있습니다.
+
+### 1.3. 미국 주별(State-specific) 규제 준수 랜딩 페이지 검증 (누락)
+*   **현상 및 문제점**: 미국 게이밍 규정에 따라 Nevada, New Jersey, Pennsylvania, Michigan 등 각 주별로 접속 경로와 프로모션 룰이 달라 주별 서브 도메인 및 분기 페이지(예: `/online-poker/nevada/` 등)가 제공됩니다. 이 주별 분기 페이지들이 누락되거나 리다이렉트가 깨지지 않고 상호 내비게이션되는지 검증하는 반응형 규제 적합성 테스트가 없습니다.
+
+### 1.4. Responsible Gaming (책임감 있는 게임) 정책 공시 및 고객 지원 링크 검증 (누락)
+*   **현상 및 문제점**: 게이밍 라이선스 유지를 위해 필수적인 푸터 영역의 "Responsible Gaming", "Terms of Service", "Privacy Policy" 및 FAQ, 헬프 데스크 안내 링크들이 깨지지 않고 표출되는지에 대한 정기적인 정합성 검증이 제외되어 있습니다.
+
+---
+
+## 2. 금번 추가 보강 내역 (feature/qa-improvements)
+
+사용자 피드백과 QA 진단 결과에 따라, 누락되었던 2가지 핵심 영역을 우선적으로 개발하여 프로젝트에 병합했습니다.
+
+### 2.1. Tournament Results 신규 시나리오 자동화
+*   **신규 파일**: [tournament-results.spec.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/functional/tournament-results.spec.ts)
+*   **검증 시나리오**:
+    1. `/results/` 메인 결과 페이지로 이동하여 HTTP 상태 및 헤더 노출 검증
+    2. 목록 내에 노출된 상세 대회 결과 링크(`/tournaments/results/` 패턴)를 탐색하여 동적 클릭 진입
+    3. 결과 상세 페이지로 정상 이동한 뒤, Prize Pool, Entries, Winner 등의 핵심 메타데이터 렌더링 확인
+    4. 입상자 테이블 내에 순위(Place), 플레이어 이름(Player), 상금(Prize/Earnings) 테이블 헤더 및 데이터 표시 검증
+*   `tests/functional/` 하위에 위치하여 `npm run test:phase2` (Functional Flow) 실행 시 자동으로 연동되어 함께 동작합니다.
+
+### 2.2. 보안 차단(CF Challenge) 및 네트워크 Flakiness 감지 스킵 로직 적용
+*   WAF 보안 솔루션 차단(HTTP 403, Cloudflare Verification 등) 및 네트워크 일시적 지연으로 인해 테스트가 깨져 빌드가 오염되는 현상을 해결했습니다.
+*   [support.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/functional/support.ts) 내 `detectBotBlock` 공통 감지기를 구현하고, WAF Challenge 감지 시 `test.skip(true, 'Bot mitigation active')` 처리를 연동하여 릴리즈 빌드의 안정성을 확보했습니다.
+
+### 2.3. 대시보드 및 러너 호환성 패치
+*   `package.json`의 `tsx` 실행을 `npx tsx`로 일괄 패치하여 윈도우 쉘 실행 호환성을 완치했습니다.
+*   `run-phase.cjs` 내 spawn 옵션에 `shell: true` 및 `.ts` 확장자 시 `npx.cmd tsx` 동적 처리를 주입해 `spawn EINVAL` 오류를 해소했습니다.
+*   [phases.json](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/automation/phases.json)에 향후 로드맵인 Phase 10~12 가상 Phase를 등록하여 대시보드에서 늘 체크하며 보강할 수 있게 구성했습니다.
