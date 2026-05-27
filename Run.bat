@@ -36,7 +36,7 @@ if %errorlevel% equ 0 (
 
 rem 2. Start the server in a hidden window
 echo [INFO] Starting WSOP Web Dashboard server...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'node' -ArgumentList 'scripts\web-runner-server.js' -WorkingDirectory 'WSOP-Web-Automation' -WindowStyle Hidden -RedirectStandardOutput '%SERVER_OUT_LOG%' -RedirectStandardError '%SERVER_ERR_LOG%'"
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "cd WSOP-Web-Automation; node scripts\web-runner-server.js > automation\output\web-runner-server.out.log 2> automation\output\web-runner-server.err.log"
 
 rem 3. Wait for server to initialize
 for /l %%i in (1,1,10) do (
