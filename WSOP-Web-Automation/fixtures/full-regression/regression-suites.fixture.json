@@ -1,19 +1,19 @@
 {
   "metadata": {
     "description": "WSOP Web Automation Regression Suite definitions",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "suites": [
     {
       "suiteKey": "quick",
       "name": "Quick Regression",
-      "description": "Fast confidence check for local or pre-merge validation.",
+      "description": "Fast confidence check for local or pre-merge validation. Keeps only required Phase 1 and Phase 2 gates.",
       "defaultTimeoutMs": 600000,
       "steps": [
         {
           "phase": "Phase 1",
           "name": "Public Smoke",
-          "command": "npm run test:smoke",
+          "command": "npm run test:phase1",
           "required": true,
           "allowWarnings": true
         },
@@ -29,13 +29,63 @@
     {
       "suiteKey": "standard",
       "name": "Standard Regression",
-      "description": "Default release candidate regression without heavy crawler or full visual baseline update.",
+      "description": "Default regression without crawler, visual baseline work, or performance-stability checks.",
       "defaultTimeoutMs": 1800000,
       "steps": [
         {
           "phase": "Phase 1",
           "name": "Public Smoke",
-          "command": "npm run test:smoke",
+          "command": "npm run test:phase1",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 2",
+          "name": "Functional Flow",
+          "command": "npm run test:phase2",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 3",
+          "name": "Player Presentation & Identity UI",
+          "command": "npm run test:phase3",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 4",
+          "name": "Search / Filter / Sort Depth",
+          "command": "npm run test:phase4",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 5",
+          "name": "Tournament / Result Detail Integrity",
+          "command": "npm run test:phase5",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 6",
+          "name": "Data / API Integrity",
+          "command": "npm run test:phase6",
+          "required": true,
+          "allowWarnings": true
+        }
+      ]
+    },
+    {
+      "suiteKey": "extended",
+      "name": "Extended Regression",
+      "description": "Broader scheduled regression including non-blocking performance and visual checks.",
+      "defaultTimeoutMs": 3600000,
+      "steps": [
+        {
+          "phase": "Phase 1",
+          "name": "Public Smoke",
+          "command": "npm run test:phase1",
           "required": true,
           "allowWarnings": true
         },
@@ -80,19 +130,26 @@
           "command": "npm run test:phase7",
           "required": false,
           "allowWarnings": true
+        },
+        {
+          "phase": "Phase 8",
+          "name": "Visual Regression",
+          "command": "npm run test:phase8",
+          "required": false,
+          "allowWarnings": true
         }
       ]
     },
     {
-      "suiteKey": "extended",
-      "name": "Extended Regression",
-      "description": "Broader nightly or scheduled regression including visual checks.",
-      "defaultTimeoutMs": 3600000,
+      "suiteKey": "total",
+      "name": "Total Regression (Phase 1~8 Full)",
+      "description": "Phase 1~8 전체를 순서대로 실행하는 Full Suite. Phase 1~6은 릴리즈 게이트 기준이며 실패 시 전체 실패 처리. Phase 7~8은 warning/review 처리.",
+      "defaultTimeoutMs": 5400000,
       "steps": [
         {
           "phase": "Phase 1",
           "name": "Public Smoke",
-          "command": "npm run test:smoke",
+          "command": "npm run test:phase1",
           "required": true,
           "allowWarnings": true
         },
@@ -150,13 +207,13 @@
     {
       "suiteKey": "release",
       "name": "Release Regression",
-      "description": "Release gate suite. Includes only stable required checks.",
+      "description": "Release gate suite. Keeps crawler, visual, and performance checks out of the default release gate.",
       "defaultTimeoutMs": 2400000,
       "steps": [
         {
           "phase": "Phase 1",
           "name": "Public Smoke",
-          "command": "npm run test:smoke",
+          "command": "npm run test:phase1",
           "required": true,
           "allowWarnings": false
         },
@@ -193,7 +250,7 @@
     {
       "suiteKey": "release-with-visual",
       "name": "Release Regression with Visual",
-      "description": "Release regression including visual checks. Use only when visual baseline is reviewed.",
+      "description": "Release regression plus non-blocking visual checks. Baseline updates are never run by this suite.",
       "defaultTimeoutMs": 3600000,
       "extends": "release",
       "additionalSteps": [
@@ -209,7 +266,7 @@
     {
       "suiteKey": "release-with-crawl",
       "name": "Release Regression with Crawler",
-      "description": "Release regression including crawler-generated Phase 6 fixtures.",
+      "description": "Release regression plus non-blocking crawler and crawler-derived Phase 6 validation.",
       "defaultTimeoutMs": 3600000,
       "extends": "release",
       "additionalSteps": [
@@ -231,7 +288,7 @@
           "phase": "Phase 6",
           "name": "Data / API Integrity with Crawler Data",
           "command": "npm run test:phase6",
-          "required": true,
+          "required": false,
           "allowWarnings": true,
           "env": {
             "DATA_SOURCE": "crawler"
