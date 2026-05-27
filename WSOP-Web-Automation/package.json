@@ -29,7 +29,11 @@
     "test:phase6": "playwright test tests/data-integrity --project=chromium-desktop",
     "crawl:standings": "tsx tools/crawlers/playerStandingsCrawler.ts",
     "generate:phase6-fixtures": "tsx tools/crawlers/generatePhase6Fixtures.ts",
-    "phase6:with-crawl": "npm run crawl:standings && npm run generate:phase6-fixtures && npm run test:phase6"
+    "phase6:with-crawl": "npm run crawl:standings && npm run generate:phase6-fixtures && npm run test:phase6",
+    "test:performance-stability": "playwright test tests/performance-stability --project=chromium-desktop",
+    "test:phase7": "playwright test tests/performance-stability --project=chromium-desktop",
+    "test:phase7:repeat": "playwright test tests/performance-stability --project=chromium-desktop --repeat-each=3",
+    "report:phase7": "playwright show-report"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

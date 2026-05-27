@@ -63,6 +63,14 @@ function inferReportSuite(argv: string[]): string {
     return 'result-detail';
   }
 
+  if (command.includes('tests/data-integrity')) {
+    return 'data-integrity';
+  }
+
+  if (command.includes('tests/performance-stability')) {
+    return 'performance-stability';
+  }
+
   return 'smoke';
 }
 

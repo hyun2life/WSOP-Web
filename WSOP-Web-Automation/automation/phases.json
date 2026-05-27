@@ -135,7 +135,7 @@
       "reportSuite": "performance-stability",
       "testDir": "tests/performance-stability",
       "project": "chromium-desktop",
-      "implemented": false,
+      "implemented": true,
       "nameKo": "성능 및 안정성 점검",
       "shortSummaryKo": "로드 시간, 재시도, 안정성, 오류 예산을 점검할 예정입니다.",
       "description": "Reserved for basic load timing, retry, stability, and error budget checks.",

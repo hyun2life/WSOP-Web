@@ -1,0 +1,14 @@
+{
+  "third-party-analytics": {
+    "reason": "Analytics/ad scripts can be slow or blocked depending on environment. Treat as warning unless they block core content.",
+    "warningOnly": true
+  },
+  "stage-slower-than-prod": {
+    "reason": "Stage environment may be slower than production. Threshold violations may be warning unless core selector fails.",
+    "warningOnly": true
+  },
+  "image-asset-slow": {
+    "reason": "Large player/tournament images may load slowly. Treat slow asset as warning unless image is required for UI integrity.",
+    "warningOnly": true
+  }
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "pageKey": "home",
+    "name": "Home",
+    "url": "/",
+    "criticalTexts": ["World Series of Poker"],
+    "criticalSelectors": ["body"],
+    "category": "public"
+  },
+  {
+    "pageKey": "schedule",
+    "name": "Tournament Schedule",
+    "url": "/schedule/",
+    "criticalTexts": ["Schedule"],
+    "criticalSelectors": ["body"],
+    "category": "tournament"
+  },
+  {
+    "pageKey": "player-standings",
+    "name": "Player Standings",
+    "url": "/player-standings/",
+    "criticalTexts": ["Player"],
+    "criticalSelectors": ["body"],
+    "category": "player"
+  },
+  {
+    "pageKey": "player-search",
+    "name": "Player Search",
+    "url": "/player-search/",
+    "criticalTexts": ["Player"],
+    "criticalSelectors": ["body"],
+    "category": "player"
+  },
+  {
+    "pageKey": "hall-of-fame",
+    "name": "Hall of Fame",
+    "url": "/hall-of-fame/",
+    "criticalTexts": ["Hall of Fame"],
+    "criticalSelectors": ["body"],
+    "category": "player"
+  },
+  {
+    "pageKey": "news",
+    "name": "News",
+    "url": "/news/",
+    "criticalTexts": ["News"],
+    "criticalSelectors": ["body"],
+    "category": "content"
+  }
+]

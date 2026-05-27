@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "mode": "initial",
+    "strictRecommended": false,
+    "description": "Initial Phase 7 thresholds. Most threshold violations should be warnings until baseline is stabilized."
+  },
+  "pageLoad": {
+    "domContentLoadedMs": {
+      "warning": 5000,
+      "fail": 15000
+    },
+    "loadMs": {
+      "warning": 8000,
+      "fail": 20000
+    },
+    "criticalSelectorMs": {
+      "warning": 5000,
+      "fail": 12000
+    },
+    "totalPageReadyMs": {
+      "warning": 10000,
+      "fail": 25000
+    }
+  },
+  "requests": {
+    "slowRequestMs": {
+      "warning": 3000,
+      "fail": 10000
+    },
+    "slowAssetMs": {
+      "warning": 5000,
+      "fail": 15000
+    },
+    "allowedThirdPartyFailurePatterns": [
+      "analytics",
+      "googletag",
+      "doubleclick",
+      "ads",
+      "facebook",
+      "twitter"
+    ]
+  },
+  "flow": {
+    "totalFlowMs": {
+      "warning": 15000,
+      "fail": 30000
+    },
+    "stepMs": {
+      "warning": 8000,
+      "fail": 15000
+    }
+  },
+  "stability": {
+    "repeatCount": 3,
+    "allowedWarningRuns": 1,
+    "allowedFailedRuns": 0
+  }
+}

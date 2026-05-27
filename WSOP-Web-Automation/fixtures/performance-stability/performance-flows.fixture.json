@@ -1,0 +1,49 @@
+[
+  {
+    "flowKey": "standings-to-profile",
+    "name": "Player Standings to Player Profile",
+    "startUrl": "/player-standings/",
+    "steps": [
+      {
+        "type": "clickFirstPlayerLink",
+        "expectedUrlContains": "/players/"
+      },
+      {
+        "type": "expectTextAny",
+        "texts": ["Player Profile", "Bracelets", "Rings", "Total Earnings"]
+      }
+    ],
+    "category": "player"
+  },
+  {
+    "flowKey": "player-search-to-profile",
+    "name": "Player Search to Profile",
+    "startUrl": "/player-search/",
+    "searchKeyword": "Phil Hellmuth",
+    "steps": [
+      {
+        "type": "searchPlayerIfPossible",
+        "keyword": "Phil Hellmuth"
+      },
+      {
+        "type": "clickPlayerLink",
+        "expectedUrlContains": "/players/"
+      }
+    ],
+    "category": "search"
+  },
+  {
+    "flowKey": "news-to-detail",
+    "name": "News List to News Detail",
+    "startUrl": "/news/",
+    "steps": [
+      {
+        "type": "clickFirstNewsLink"
+      },
+      {
+        "type": "expectPageLoaded"
+      }
+    ],
+    "category": "content"
+  }
+]
