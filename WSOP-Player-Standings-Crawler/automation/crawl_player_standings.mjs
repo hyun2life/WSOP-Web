@@ -4585,6 +4585,10 @@ function runSelfTest() {
   if (!audFallbackRow || audFallbackRow.no !== 9 || audFallbackRow.earnings !== 65408) {
     throw new Error("Final result text fallback should read the earnings beside the matched player");
   }
+  const vndFallbackRow = findResultRowInBodyText("Final Result No Player Country Earnings 7 Punnat Punsri Thailand ₫1,564,687,416", { name: "Punnat Punsri", standingsSources: [] }, 7, 1564687416);
+  if (!vndFallbackRow || vndFallbackRow.no !== 7 || vndFallbackRow.earnings !== 1564687416) {
+    throw new Error("Final result text fallback should read the Vietnamese Dong earnings or match it numeric-only");
+  }
   const resultEarningsMismatchChecks = {
     hasFinalResultRows: true,
     directPageClicked: false,
