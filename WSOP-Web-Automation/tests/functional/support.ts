@@ -4,8 +4,8 @@ export async function detectBotBlock(page: Page, response: any): Promise<boolean
   if (!response) return true;
 
   const status = response.status();
-  if (status === 403 || status === 429 || status === 503) {
-    console.warn(`[QA-ALERT] Bot mitigation HTTP status detected: ${status}`);
+  if (status === 403 || status === 429 || status === 503 || status === 504) {
+    console.warn(`[QA-ALERT] Bot mitigation or Gateway Timeout HTTP status detected: ${status}`);
     return true;
   }
 

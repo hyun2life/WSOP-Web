@@ -33,10 +33,11 @@ QA 관점에서 WSOP.com의 비즈니스 목표와 공개 웹맵(Sitemap)을 전
 ### 2.1. Tournament Results 신규 시나리오 자동화
 *   **신규 파일**: [tournament-results.spec.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/functional/tournament-results.spec.ts)
 *   **검증 시나리오**:
-    1. `/results/` 메인 결과 페이지로 이동하여 HTTP 상태 및 헤더 노출 검증
-    2. 목록 내에 노출된 상세 대회 결과 링크(`/tournaments/results/` 패턴)를 탐색하여 동적 클릭 진입
-    3. 결과 상세 페이지로 정상 이동한 뒤, Prize Pool, Entries, Winner 등의 핵심 메타데이터 렌더링 확인
-    4. 입상자 테이블 내에 순위(Place), 플레이어 이름(Player), 상금(Prize/Earnings) 테이블 헤더 및 데이터 표시 검증
+    1. `/past-tournaments/` 메인 과거 대회 목록 페이지로 이동하여 HTTP 상태 및 헤더("Past Tournaments") 노출 검증 (기존의 존재하지 않는 `/results/` URL 대신 실존 경로 적용)
+    2. 과거 대회 목록 내에 노출된 상세 대회 링크(`/tournaments/` 패턴)를 탐색하여 동적 클릭 진입 및 로딩 완료까지 대기
+    3. 상세 대회 페이지 내부에서 개별 이벤트 상세 결과 링크(`/tournaments/result/` 패턴)를 동적으로 탐색하고 클릭하여 진입
+    4. 결과 상세 페이지로 정상 이동한 뒤, Prize Pool, Entries, Winner 등의 핵심 메타데이터 렌더링 확인
+    5. 입상자 테이블 내에 순위(Place), 플레이어 이름(Player), 상금(Prize/Earnings) 테이블 헤더 및 데이터 표시 검증
 *   `tests/functional/` 하위에 위치하여 `npm run test:phase2` (Functional Flow) 실행 시 자동으로 연동되어 함께 동작합니다.
 
 ### 2.2. "왜 PASS인가?" 검수 기준(Acceptance Criteria) 시각화 및 리포트 자동 보강
@@ -49,8 +50,14 @@ QA 관점에서 WSOP.com의 비즈니스 목표와 공개 웹맵(Sitemap)을 전
 ### 2.3. 보안 차단(CF Challenge) 및 네트워크 Flakiness 감지 스킵 로직 적용
 *   WAF 보안 솔루션 차단(HTTP 403, Cloudflare Verification 등) 및 네트워크 일시적 지연으로 인해 테스트가 깨져 빌드가 오염되는 현상을 해결했습니다.
 *   [support.ts](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/tests/functional/support.ts) 내 `detectBotBlock` 공통 감지기를 구현하고, WAF Challenge 감지 시 `test.skip(true, 'Bot mitigation active')` 처리를 연동하여 릴리즈 빌드의 안정성을 확보했습니다.
+*   **추가 핫픽스**: 라이브 사이트(wsop.com)의 일시적인 네트워크 장애로 인한 **HTTP 504 Gateway Timeout** 응답도 감지하여 테스트를 깨뜨리는 대신 건너뛰도록(skip) 처리하여 테스트 안정성을 강화했습니다.
 
 ### 2.4. 대시보드 및 러너 호환성 패치
 *   `package.json`의 `tsx` 실행을 `npx tsx`로 일괄 패치하여 윈도우 쉘 실행 호환성을 완치했습니다.
 *   `run-phase.cjs` 내 spawn 옵션에 `shell: true` 및 `.ts` 확장자 시 `npx.cmd tsx` 동적 처리를 주입해 `spawn EINVAL` 오류를 해소했습니다.
 *   [phases.json](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/WSOP-Web-Automation/automation/phases.json)에 향후 로드맵인 Phase 10~12 가상 Phase를 등록하여 대시보드에서 늘 체크하며 보강할 수 있게 구성했습니다.
+
+### 2.5. 대시보드 리포트 싱크 에러 해결
+*   **문제 현상**: 대시보드에서 전체 회귀(`Phase 9`)를 돌렸을 때 내부적으로 Phase 4~8 테스트가 실제로 실패했으나, 대시보드 우측의 각 Phase별 개별 리포트 버튼을 누르면 전부 성공(PASS)으로 표시되어 싱크가 맞지 않는 문제가 있었습니다.
+*   **원인**: 부모 프로세스인 회귀 러너(`runRegressionSuite.ts`)에서 환경 변수 `WSOP_REPORT_SUITE`가 `'regression'`으로 설정된 상태에서, 자식으로 실행되는 `npm run test:phase4` 등이 `run-phase.cjs` 래핑 스크립트를 거치지 않고 `playwright test`를 직접 실행했습니다. 이로 인해 환경 변수가 그대로 상속되어 Phase 4~8 리포트 파일명이 고유의 리포트 명칭이 아닌 `wsop-public-regression-*.html`로 덮어씌워졌습니다. 대시보드는 각 Phase 고유의 리포트 명칭(예: `search-filter-sort`)을 찾아 열어주므로, 방금 실패한 최신 리포트 대신 과거에 단독으로 성공시켰을 때의 옛날 리포트가 열리게 되어 싱크 불일치가 유발되었습니다.
+*   **해결책**: `package.json` 스크립트에서 Phase 4~8 실행 시 `node scripts/run-phase.cjs` 래퍼 스크립트를 반드시 통과하도록 변경했습니다. 래퍼 스크립트는 상속된 `WSOP_REPORT_SUITE` 환경 변수를 각 Phase 고유의 리포트 명칭으로 항상 안전하게 덮어쓰므로, 회귀 테스트 내에서 실행되더라도 항상 올바른 개별 리포트가 생성 및 연결되도록 싱크 불일치 문제를 해결했습니다.
