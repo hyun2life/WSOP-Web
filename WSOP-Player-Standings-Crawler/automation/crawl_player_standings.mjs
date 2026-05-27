@@ -305,17 +305,24 @@ function resultPlayerMatches(rowPlayer, player) {
   return rowNames.some((rowName) => targetNames.some((targetName) => rowName.includes(targetName) || targetName.includes(rowName)));
 }
 
-// 금액 파싱 헬퍼는 프로필 row, Result 표, 본문 텍스트 fallback에서 함께 쓴다.
-// 비교를 위해 소수점은 반올림해 정수 금액으로 맞춘다.
+function parseLastNumberAsMoney(value) {
+  if (!value) return null;
+  const matches = Array.from(normalizeText(value).matchAll(/-?\d[\d,]*(?:\.\d+)?/g));
+  if (matches.length === 0) return null;
+  const lastMatch = matches[matches.length - 1][0];
+  const parsed = Number(lastMatch.replace(/[,\s]/g, ""));
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
+
 function parseMoneyFromText(value) {
   const match = normalizeText(value).match(/(?:[$\u20ac\u00a3\u20a9\u20b1₱₩]|[A-Z]{1,4}\$?)\s*(-?\d[\d,]*(?:\.\d+)?)/);
-  return match ? Math.round(Number(match[1].replace(/[,\s]/g, ""))) : null;
+  return match ? Math.round(Number(match[1].replace(/[,\s]/g, ""))) : parseLastNumberAsMoney(value);
 }
 
 function parseLastMoneyFromText(value) {
   const matches = Array.from(normalizeText(value).matchAll(/(?:[$\u20ac\u00a3\u20a9\u20b1₱₩]|[A-Z]{1,4}\$?)\s*(-?\d[\d,]*(?:\.\d+)?)/g));
   const match = matches[matches.length - 1];
-  return match ? Math.round(Number(match[1].replace(/[,\s]/g, ""))) : null;
+  return match ? Math.round(Number(match[1].replace(/[,\s]/g, ""))) : parseLastNumberAsMoney(value);
 }
 
 function parseMoneyNearPlayerName(text, rawNames) {
@@ -329,6 +336,13 @@ function parseMoneyNearPlayerName(text, rawNames) {
     const beforeNextRank = afterName.split(/\s+\d{1,6}\s+/)[0] || afterName;
     const match = beforeNextRank.match(/(?:[$\u20ac\u00a3\u20a9\u20b1₱₩]|[A-Z]{1,4}\$?)\s*(-?\d[\d,]*(?:\.\d+)?)/);
     if (match) return Math.round(Number(match[1].replace(/[,\s]/g, "")));
+  }
+  const hasName = (rawNames || []).some(name => {
+    const norm = normalizeText(name);
+    return norm && normalizedText.toLowerCase().includes(norm.toLowerCase());
+  });
+  if (hasName) {
+    return parseLastNumberAsMoney(text);
   }
   return null;
 }
@@ -1488,7 +1502,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
         continue;
       }
       console.log(`[디버그] ALL 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
-      expansion.stoppedReason = "complete";
+      expansion.stoppedReason = expected && events.length < expected ? "load-more-not-found" : "complete";
       break;
     }
 
@@ -1513,7 +1527,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
   }
 
   if (expansion.stoppedReason === "not-started") {
-    expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : "complete";
+    expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : (expected && events.length < expected ? "load-more-not-found" : "complete");
   }
   if (expected && events.length >= expected) expansion.reachedExpectedCashes = true;
   expansion.finalEventCount = events.length;
@@ -1541,7 +1555,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
         continue;
       }
       console.log(`[디버그] 단일 지표 탭 Load More 버튼을 찾지 못했습니다. (현재 수집된 이벤트 수: ${events.length}, 기대치: ${expected || '없음'})`);
-      expansion.stoppedReason = "complete";
+      expansion.stoppedReason = expected && events.length < expected ? "load-more-not-found" : "complete";
       break;
     }
 
@@ -1569,7 +1583,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
     expansion.reachedExpectedRows = true;
     expansion.stoppedReason = "expected-rows-reached";
   } else if (expected && expansion.stoppedReason === "not-started") {
-    expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : "complete";
+    expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : (expected && events.length < expected ? "load-more-not-found" : "complete");
   }
 
   return { events, expansion };
@@ -2324,7 +2338,7 @@ function evaluateResultFromCachedPages(cachedPages, player, event, urlKey) {
     targetRankCovered: !targetRank || Boolean(foundRow) || cacheCoversTarget,
     rankMatches: !targetRank || Boolean(foundRow && foundRow.no === targetRank),
     playerMatches: Boolean(foundRow),
-    earningsMatches: targetEarnings === null || targetEarnings === undefined || Boolean(foundRow && foundRow.earnings === targetEarnings)
+    earningsMatches: targetEarnings === null || targetEarnings === undefined || Boolean(foundRow && (foundRow.earnings === targetEarnings || (targetEarnings !== null && targetEarnings !== undefined && foundRow.rowText && foundRow.rowText.replace(/[^0-9]/g, "").includes(String(targetEarnings)))))
   };
   const missing = resultMissingChecks(checks);
 
@@ -2447,7 +2461,7 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
     targetRankCovered,
     rankMatches: !targetRank || Boolean(foundRow && foundRow.no === targetRank),
     playerMatches: Boolean(foundRow),
-    earningsMatches: targetEarnings === null || targetEarnings === undefined || Boolean(foundRow && foundRow.earnings === targetEarnings)
+    earningsMatches: targetEarnings === null || targetEarnings === undefined || Boolean(foundRow && (foundRow.earnings === targetEarnings || (targetEarnings !== null && targetEarnings !== undefined && foundRow.rowText && foundRow.rowText.replace(/[^0-9]/g, "").includes(String(targetEarnings)))))
   };
   const missing = resultMissingChecks(checks);
   const body = lastBody || normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
@@ -2593,7 +2607,7 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
       targetRankCovered,
       rankMatches: !targetRank || Boolean(foundRow && foundRow.no === targetRank),
       playerMatches: Boolean(foundRow),
-      earningsMatches: targetEarnings === null || targetEarnings === undefined || Boolean(foundRow && foundRow.earnings === targetEarnings)
+      earningsMatches: targetEarnings === null || targetEarnings === undefined || Boolean(foundRow && (foundRow.earnings === targetEarnings || (targetEarnings !== null && targetEarnings !== undefined && foundRow.rowText && foundRow.rowText.replace(/[^0-9]/g, "").includes(String(targetEarnings)))))
     };
     const missing = resultMissingChecks(checks);
     const body = lastBody || normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
@@ -2988,16 +3002,16 @@ function koreanHtmlPath(htmlPath) {
 // 프리미엄 인터랙티브 HTML 템플릿 렌더러 함수
 // 영문/국문 리포트가 같은 HTML 템플릿을 공유한다.
 // 데이터 모델은 같고, 라벨과 일부 문구만 isKo 플래그로 바꾼다.
-function renderHtml(report) {
-  return renderDashboardTemplate(report, false);
+function renderHtml(report, pastReports = []) {
+  return renderDashboardTemplate(report, false, pastReports);
 }
 
-function renderKoreanHtml(report) {
-  return renderDashboardTemplate(report, true);
+function renderKoreanHtml(report, pastReports = []) {
+  return renderDashboardTemplate(report, true, pastReports);
 }
 
 // 프리미엄 인터랙티브 HTML 대시보드 템플릿
-function renderDashboardTemplate(report, isKo) {
+function renderDashboardTemplate(report, isKo, pastReports = []) {
   const summary = summarize(report);
   const defects = flattenDefects(report);
   const reviewNotes = flattenReviewNotes(report);
@@ -3276,7 +3290,18 @@ function renderDashboardTemplate(report, isKo) {
         <h1>${escapeHtml(t.title)}</h1>
         <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>${summary.interruptedReason ? ` (${escapeHtml(summary.interruptedReason)})` : ""} | ${escapeHtml(t.source)}: <a href="${escapeHtml(report.playersUrl || "")}">${escapeHtml(report.playersUrl || "")}</a></p>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        ${pastReports.length > 0 ? `
+          <div class="history-selector-wrapper" style="display: flex; align-items: center; gap: 8px;">
+            <label for="history-select" style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              ${isKo ? "이전 리포트 기록:" : "Past Reports:"}
+            </label>
+            <select id="history-select" class="select-dropdown" onchange="if(this.value) window.location.href=this.value" style="margin: 0; padding: 6px 12px; font-size: 12px; height: auto;">
+              <option value="">-- ${isKo ? "리포트 선택" : "Select Report"} --</option>
+              ${pastReports.map(rep => `<option value="${escapeHtml(rep.fileName)}">${escapeHtml(rep.label)}</option>`).join("")}
+            </select>
+          </div>
+        ` : ""}
         <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>
       </div>
     </div>
@@ -3584,10 +3609,10 @@ function renderDashboardTemplate(report, isKo) {
         "finalTables": "Final Tables",
         "cashes": "Cashes",
         "totalEarnings": "Total Earnings",
-        "Title": "Title 탭",
-        "Bracelets": "Bracelets 탭",
-        "Rings": "Rings 탭",
-        "Final Tables": "Final Tables 탭"
+        "Title": "Title",
+        "Bracelets": "Bracelets",
+        "Rings": "Rings",
+        "Final Tables": "Final Tables"
       }[label] || label;
     }
 
@@ -4010,7 +4035,7 @@ function renderDashboardTemplate(report, isKo) {
                     <tbody>
                       \${(player.tabChecks || []).map(item => \`
                         <tr>
-                          <td><strong>\${escapeHtml(formatLabel(item.label))}</strong></td>
+                          <td><strong>\${escapeHtml(formatLabel(item.label))}\${isKo ? " 탭" : ""}</strong></td>
                           <td><code>\${escapeHtml(item.selectedTab || "-")}</code></td>
                           <td>\${escapeHtml(formatValue(item.label, item.expected))}</td>
                           <td>\${escapeHtml(formatValue(item.label, item.actual))}</td>
@@ -4310,6 +4335,17 @@ function renderDashboardTemplate(report, isKo) {
       renderPlayerList();
       initCharts();
 
+      // Set active item in history dropdown
+      const currentFileName = window.location.pathname.split('/').pop();
+      const historySelect = document.getElementById('history-select');
+      if (historySelect && currentFileName) {
+        for (let i = 0; i < historySelect.options.length; i++) {
+          if (historySelect.options[i].value === currentFileName) {
+            historySelect.selectedIndex = i;
+            break;
+          }
+        }
+      }
     });
   </script>
 </body>
@@ -4398,12 +4434,51 @@ function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEnt
   return report;
 }
 
+function getPastHtmlReports(htmlReportPath, isKo = false) {
+  try {
+    const dir = path.dirname(htmlReportPath);
+    if (!fs.existsSync(dir)) return [];
+    
+    const files = fs.readdirSync(dir);
+    const reportFiles = files.filter(f => {
+      if (isKo) {
+        return f.endsWith("-report-ko.html");
+      } else {
+        return f.endsWith("-report.html") && !f.endsWith("-report-ko.html");
+      }
+    });
+
+    reportFiles.sort((a, b) => b.localeCompare(a));
+
+    return reportFiles.map(file => {
+      const match = file.match(/(\d{8})-(\d{6})/);
+      let dateLabel = file;
+      if (match) {
+        const dateStr = match[1];
+        const timeStr = match[2];
+        dateLabel = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`;
+      }
+      return {
+        fileName: file,
+        label: dateLabel
+      };
+    });
+  } catch (err) {
+    console.error("Error reading past HTML reports:", err);
+    return [];
+  }
+}
+
 function writeReportArtifacts(args, report) {
   writeJson(args.out, report);
   fs.mkdirSync(path.dirname(args.html), { recursive: true });
-  fs.writeFileSync(args.html, renderHtml(report), "utf8");
+
+  const pastEnglishReports = getPastHtmlReports(args.html, false);
+  const pastKoreanReports = getPastHtmlReports(args.html, true);
+
+  fs.writeFileSync(args.html, renderHtml(report, pastEnglishReports), "utf8");
   const koreanHtml = koreanHtmlPath(args.html);
-  fs.writeFileSync(koreanHtml, renderKoreanHtml(report), "utf8");
+  fs.writeFileSync(koreanHtml, renderKoreanHtml(report, pastKoreanReports), "utf8");
   writeCsv(args.defects, flattenDefects(report));
 
   return koreanHtml;

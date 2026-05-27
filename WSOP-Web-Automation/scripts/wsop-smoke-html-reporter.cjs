@@ -13,6 +13,41 @@ const RUN_ID = process.env.WSOP_REPORT_RUN_ID || process.env.SMOKE_REPORT_RUN_ID
 const REPORT_SUITE = normalizeReportSuite(process.env.WSOP_REPORT_SUITE) || 'smoke';
 const REPORT_PREFIX = process.env.WSOP_REPORT_PREFIX || `wsop-public-${REPORT_SUITE}`;
 
+function getPastHtmlReports(prefix, isKo = false) {
+  try {
+    if (!fs.existsSync(OUTPUT_DIR)) return [];
+    
+    const files = fs.readdirSync(OUTPUT_DIR);
+    
+    const reportFiles = files.filter(f => {
+      if (isKo) {
+        return f.startsWith(prefix) && f.endsWith("-report-ko.html");
+      } else {
+        return f.startsWith(prefix) && f.endsWith("-report.html") && !f.endsWith("-report-ko.html");
+      }
+    });
+
+    reportFiles.sort((a, b) => b.localeCompare(a));
+
+    return reportFiles.map(file => {
+      const match = file.match(/(\d{8})-(\d{6})/);
+      let dateLabel = file;
+      if (match) {
+        const dateStr = match[1];
+        const timeStr = match[2];
+        dateLabel = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)} ${timeStr.slice(0, 2)}:${timeStr.slice(2, 4)}:${timeStr.slice(4, 6)}`;
+      }
+      return {
+        fileName: file,
+        label: dateLabel
+      };
+    });
+  } catch (err) {
+    console.error("Error reading past HTML reports:", err);
+    return [];
+  }
+}
+
 class WsopSmokeHtmlReporter {
   constructor() {
     this.startedAt = new Date();
@@ -84,9 +119,12 @@ class WsopSmokeHtmlReporter {
     const htmlPath = path.join(OUTPUT_DIR, `${REPORT_PREFIX}-${RUN_ID}-report.html`);
     const koHtmlPath = path.join(OUTPUT_DIR, `${REPORT_PREFIX}-${RUN_ID}-report-ko.html`);
 
+    const pastEnglishReports = getPastHtmlReports(REPORT_PREFIX, false);
+    const pastKoreanReports = getPastHtmlReports(REPORT_PREFIX, true);
+
     fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
-    fs.writeFileSync(htmlPath, renderDashboard(report, false), 'utf8');
-    fs.writeFileSync(koHtmlPath, renderDashboard(report, true), 'utf8');
+    fs.writeFileSync(htmlPath, renderDashboard(report, false, pastEnglishReports), 'utf8');
+    fs.writeFileSync(koHtmlPath, renderDashboard(report, true, pastKoreanReports), 'utf8');
 
     console.log(`WSOP ${REPORT_SUITE} report: ${htmlPath}`);
     console.log(`WSOP ${REPORT_SUITE} Korean report: ${koHtmlPath}`);
@@ -128,7 +166,7 @@ function normalizeOverallStatus(status, results) {
   return status || 'passed';
 }
 
-function renderDashboard(report, isKo) {
+function renderDashboard(report, isKo, pastReports = []) {
   const t = dictionary(isKo, report.suite);
   const summary = report.summary;
   const failedTests = report.results.filter((item) => ['failed', 'timedOut', 'interrupted'].includes(item.status));
@@ -169,6 +207,8 @@ function renderDashboard(report, isKo) {
       --shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
       --card-border: 1px solid #30363d;
     }
+    .select-dropdown { background: var(--bg-card); border: var(--card-border); color: var(--text-main); padding: 10px 20px; border-radius: 8px; outline: none; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow); }
+    .select-dropdown:focus { border-color: var(--primary); }
     * { box-sizing: border-box; transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.2s; }
     body { margin: 0; background: var(--bg-main); color: var(--text-main); font-family: 'Inter', sans-serif; line-height: 1.5; padding-bottom: 60px; }
     h1, h2, h3, .eyebrow { font-family: 'Outfit', sans-serif; }
@@ -351,7 +391,18 @@ function renderDashboard(report, isKo) {
         <h1>${escapeHtml(t.title)}</h1>
         <p>${escapeHtml(t.subtitle)}</p>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        ${pastReports.length > 0 ? `
+          <div class="history-selector-wrapper" style="display: flex; align-items: center; gap: 8px;">
+            <label for="history-select" style="font-size: 12px; color: var(--text-muted); font-weight: 600;">
+              ${isKo ? "이전 리포트 기록:" : "Past Reports:"}
+            </label>
+            <select id="history-select" class="select-dropdown" onchange="if(this.value) window.location.href=this.value" style="margin: 0; padding: 6px 12px; font-size: 12px; height: auto;">
+              <option value="">-- ${isKo ? "리포트 선택" : "Select Report"} --</option>
+              ${pastReports.map(rep => `<option value="${escapeHtml(rep.fileName)}">${escapeHtml(rep.label)}</option>`).join("")}
+            </select>
+          </div>
+        ` : ""}
         <span class="status-badge ${statusClass}">${escapeHtml(formatOverallStatus(summary.status, isKo))}</span>
       </div>
     </div>
@@ -633,6 +684,18 @@ function renderDashboard(report, isKo) {
           if (window.scrollY > 300) scrollTopBtn.classList.add('visible');
           else scrollTopBtn.classList.remove('visible');
         });
+      }
+
+      // Set active item in history dropdown
+      const currentFileName = window.location.pathname.split('/').pop();
+      const historySelect = document.getElementById('history-select');
+      if (historySelect && currentFileName) {
+        for (let i = 0; i < historySelect.options.length; i++) {
+          if (historySelect.options[i].value === currentFileName) {
+            historySelect.selectedIndex = i;
+            break;
+          }
+        }
       }
     });
   </script>
