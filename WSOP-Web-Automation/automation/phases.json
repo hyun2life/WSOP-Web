@@ -106,6 +106,33 @@
         "pagination/load more가 있으면 제한된 범위에서 플레이어 row 탐색"
       ]
     },
+    {
+      "id": "phase6",
+      "aliases": ["data-integrity", "api-integrity", "p6"],
+      "name": "Data and API integrity",
+      "reportSuite": "data-integrity",
+      "testDir": "tests/data-integrity",
+      "project": "chromium-desktop",
+      "implemented": true,
+      "nameKo": "데이터/API 정합성 검증",
+      "shortSummaryKo": "스냅샷/가공 Fixture 데이터와 공개 UI 수치 데이터 간의 정합성을 비교 검증합니다.",
+      "description": "Validates consistency between crawler snapshot/generated expected fixtures and public UI data, including total earnings, bracelets, rings, cashes, and identity mapping consistency.",
+      "descriptionKo": "크롤러로 수집된 정보와 가공된 Expected Fixture 데이터를 토대로, 선수 프로필 및 랭킹 스탠딩의 수치(상금, 우승 횟수, 반지 등)와 URL/ID 매핑의 정합성을 최종 검증합니다.",
+      "stepsKo": [
+        "스탠딩 페이지의 카테고리별 순위 및 수치 데이터 정합성 확인",
+        "플레이어 프로필 요약 카드 데이터 정합성 확인",
+        "플레이어 프로필 입상 내역 상세 정합성 확인",
+        "대회 상세(Result Detail) 페이지 내 플레이어 정보 정합성 확인",
+        "플레이어 ID 식별자 및 URL 백링크 일관성 확인",
+        "입상 내역 합산과 요약 통계 수계산 일관성 검증",
+        "DATA_SOURCE=crawler 활성화 시 baseline 완화 정책(Warning 강등) 통합 연동 확인"
+      ]
+    },
+    {
+      "id": "phase7",
+      "aliases": ["performance-stability", "p7"],
+      "name": "Performance and stability",
+      "reportSuite": "performance-stability",
       "testDir": "tests/performance-stability",
       "project": "chromium-desktop",
       "implemented": false,
