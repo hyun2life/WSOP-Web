@@ -210,6 +210,58 @@
         "크롤러 output JSON/HTML 리포트 생성",
         "Phase 3과 별도 산출물로 관리"
       ]
+    },
+    {
+      "id": "phase10",
+      "aliases": ["notification-history", "p10"],
+      "name": "CI/CD & Notification Integrations",
+      "reportSuite": "notification",
+      "testDir": "tests/notification",
+      "implemented": false,
+      "nameKo": "CI/CD 연동 및 자동 알림",
+      "shortSummaryKo": "빌드 결과의 외부 메신저 알림 연동 및 성능 히스토리 이력을 분석합니다. (준비 중)",
+      "description": "Reserved for Slack/Discord notifications, historical execution tracking, and packaging release artifacts.",
+      "descriptionKo": "테스트 통과 여부를 Slack/Discord 등으로 자동 통보하고, 매 빌드마다 실행 및 지연 속도 트렌드를 비교 수집하는 백로그 단계입니다.",
+      "stepsKo": [
+        "빌드 완료 시 Slack / Discord 웹훅 알림 연동",
+        "빌드 실행 속도 추이 히스토리 데이터 수집 및 성능 Regression 분석 (P95/P99)",
+        "릴리즈 증적 꾸러미 (Release Evidence Pack) 자동 압축 및 아카이빙"
+      ]
+    },
+    {
+      "id": "phase11",
+      "aliases": ["live-api-db", "p11"],
+      "name": "Live API & DB Integration",
+      "reportSuite": "api-db-integration",
+      "testDir": "tests/api-db-integration",
+      "implemented": false,
+      "nameKo": "실시간 API 및 DB 직접 연동",
+      "shortSummaryKo": "라이브 API 호출 및 DB 데이터와의 실시간 UI 데이터 무결성을 검증합니다. (준비 중)",
+      "description": "Reserved for fetching real-time APIs and testing DB queries directly to compare with public UI metrics.",
+      "descriptionKo": "정적인 Fixture를 넘어, 실제 동작하는 Live API의 응답 및 스테이징/운영 데이터베이스에 쿼리를 날려 화면상의 입상 통계 정보와 대조하는 백로그 단계입니다.",
+      "stepsKo": [
+        "Live API 응답 fetch 및 UI 실시간 데이터 정합성 비교",
+        "DB DataSource 연결 확보 및 가공 전 원천 데이터 쿼리 검증",
+        "상금 합산, 반지/팔찌 획득 공식 수계산 고도화 논리 보완"
+      ]
+    },
+    {
+      "id": "phase12",
+      "aliases": ["lighthouse-web-vitals", "p12"],
+      "name": "Lighthouse & Web Vitals UX Metric",
+      "reportSuite": "lighthouse",
+      "testDir": "tests/lighthouse",
+      "implemented": false,
+      "nameKo": "Lighthouse 및 사용자 체감 지표",
+      "shortSummaryKo": "구글 Lighthouse와 연동하여 LCP, FID, CLS 등 실제 UX 성능 지표를 측정합니다. (준비 중)",
+      "description": "Reserved for Lighthouse integration, Core Web Vitals checks, and environment-specific threshold adjustments.",
+      "descriptionKo": "로딩 속도 측정 단계를 심화하여 구글 Lighthouse 측정 지표를 통합하고, Stage/Prod 환경에 따라 지연 시간 임계치를 동적으로 분리 적용하는 백로그 단계입니다.",
+      "stepsKo": [
+        "Playwright에 Google Lighthouse 감사 모듈 연동",
+        "Core Web Vitals 핵심 지표 (LCP, FID, CLS) 측정 및 검증",
+        "모바일 뷰포트 (mobile-chrome) 성능 지연 이력 수집 병렬화",
+        "Stage 개발망 및 Prod 운영망 환경별 지연 허용치(Threshold) 동적 분리"
+      ]
     }
   ]
 }
