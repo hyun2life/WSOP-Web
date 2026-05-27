@@ -1,14 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { publicPages } from '../../data/public-pages';
+import { openPublicPage } from '../functional/support';
 
 test.describe('Public pages smoke', () => {
   for (const publicPage of publicPages) {
     test(`${publicPage.name} opens and shows core content`, async ({ page }) => {
-      const response = await page.goto(publicPage.url, { waitUntil: 'domcontentloaded' });
-
-      expect(response, `${publicPage.name} should return a response`).not.toBeNull();
-      expect(response!.status(), `${publicPage.name} HTTP status`).toBeLessThan(400);
-      await expect(page.locator('body')).toBeVisible();
+      await openPublicPage(page, publicPage.url);
 
       const bodyText = await page.locator('body').innerText();
       const hasExpectedText = publicPage.expectedTexts.some((text) =>

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { publicPages } from '../../data/public-pages';
+import { openPublicPage } from '../functional/support';
 
 const ignoredPatterns = [
   /favicon/i,
@@ -31,12 +32,7 @@ test.describe('Console errors smoke', () => {
         }
       });
 
-      const response = await page.goto(publicPage.url, { waitUntil: 'domcontentloaded' });
-      expect(response, `${publicPage.name} should return a response`).not.toBeNull();
-      expect(response!.status(), `${publicPage.name} HTTP status`).toBeLessThan(400);
-
-      // Give late bootstrapping scripts a brief chance to surface console errors.
-      await page.waitForLoadState('load', { timeout: 15_000 }).catch(() => undefined);
+      await openPublicPage(page, publicPage.url);
 
       expect(consoleErrors, unexpectedConsoleErrorsMessage(publicPage.name, consoleErrors)).toEqual([]);
     });
