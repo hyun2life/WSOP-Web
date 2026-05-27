@@ -64,3 +64,28 @@
 - **최초 생성 및 의도된 개편 (`npm run update:phase8-baseline`)**:
   - 의도된 UI 레이아웃 개편 또는 최초 도입 시점에만 사용하며, 베이스라인 생성 뒤 반드시 사람이 수동으로 이상 여부를 확인하고 올바른 이미지임이 확인된 경우에만 Git에 커밋하여 반영합니다.
 
+---
+
+## 5. 회귀 테스트 및 릴리즈 게이트 통합 예외 정책 (Phase 9)
+
+### 베이스라인 유실(Visual Baseline Missing) 오분류
+- **이슈 설명**: 로컬 베이스라인이 없는 상태에서 전체 회귀를 실행하면 시각적 비교 단언문 실패가 제품 기능 버그로 오인될 수 있습니다.
+- **예외 정책**:
+  - `known-regression-exceptions.fixture.json`에 `visual-baseline-missing` 정규식을 매핑하여, 스냅샷 미존재 실패는 제품 결함이 아닌 `Warning` 수준의 베이스라인 갱신 필요 건으로 자동 우회 분류하여 통과시킵니다.
+
+### 크롤러 데이터 원천 신뢰성 제약
+- **이슈 설명**: 크롤러에 의해 수집된 standing 정보는 동적 UI에서 가져온 baseline-candidate 성격의 데이터이므로, 원천 API/DB 데이터와 비교 시 약간의 오차가 있을 수 있습니다.
+- **예외 정책**:
+  - `crawler-source-of-truth-false` 예외 처리를 통해, 크롤링된 가공 데이터 대조 지점에서 발생하는 세부 수치 정합성 경고는 경고(`Warning`) 수준으로 처리하여 게이트 통과를 가로막지 않습니다.
+
+### 서드파티 통신 장애에 따른 성능 평가 제외
+- **이슈 설명**: DoubleClick 광고 배너, Google Tag Manager 등 외부 서비스 실패가 전체 릴리즈 검증을 차단하는 결함으로 판독될 수 있습니다.
+- **예외 정책**:
+  - `third-party-performance-warning` 정책에 부합하는 서드파티 스크립트 지연/실패는 경고 처리하여 릴리즈 승인(`PASSED`) 처리를 부여합니다.
+
+### 선택(Optional) 단계 실패 및 경고
+- **이슈 설명**: 성능(Phase 7)이나 시각(Phase 8)은 환경 변화나 외부 요인에 매우 Flaky합니다.
+- **예외 정책**:
+  - `rules.failOnOptionalStepFailure`는 기본 `false`로 두어, Phase 7/8이 실패하더라도 전체 빌드 게이트는 통과하며 단지 `REQUIRES_REVIEW` 상태로 아티팩트를 저장해 수동 검수를 권고합니다.
+
+

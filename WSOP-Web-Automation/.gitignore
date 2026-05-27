@@ -12,3 +12,5 @@ artifacts/crawlers/
 fixtures/data-integrity/generated/*.json
 artifacts/performance-stability/
 artifacts/visual-regression/
+artifacts/full-regression/
+

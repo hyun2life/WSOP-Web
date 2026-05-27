@@ -1,0 +1,22 @@
+{
+  "visual-baseline-missing": {
+    "reason": "Visual regression requires reviewed baselines. Missing baseline should be classified separately from product regression.",
+    "warningOnly": true,
+    "pattern": "A snapshot doesn't exist"
+  },
+  "crawler-source-of-truth-false": {
+    "reason": "Crawler output from public UI is baseline/candidate data, not a true source of truth.",
+    "warningOnly": true,
+    "pattern": "crawler source of truth"
+  },
+  "third-party-performance-warning": {
+    "reason": "Third-party analytics/ad failures should not block release unless core content is affected.",
+    "warningOnly": true,
+    "pattern": "doubleclick|google-analytics|googletag|adarea|iframe"
+  },
+  "stage-prod-data-drift": {
+    "reason": "Stage and production may differ in data freshness or assets.",
+    "warningOnly": true,
+    "pattern": "data drift|stage vs prod"
+  }
+}

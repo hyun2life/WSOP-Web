@@ -1,0 +1,243 @@
+{
+  "metadata": {
+    "description": "WSOP Web Automation Regression Suite definitions",
+    "version": "1.0.0"
+  },
+  "suites": [
+    {
+      "suiteKey": "quick",
+      "name": "Quick Regression",
+      "description": "Fast confidence check for local or pre-merge validation.",
+      "defaultTimeoutMs": 600000,
+      "steps": [
+        {
+          "phase": "Phase 1",
+          "name": "Public Smoke",
+          "command": "npm run test:smoke",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 2",
+          "name": "Functional Flow",
+          "command": "npm run test:phase2",
+          "required": true,
+          "allowWarnings": true
+        }
+      ]
+    },
+    {
+      "suiteKey": "standard",
+      "name": "Standard Regression",
+      "description": "Default release candidate regression without heavy crawler or full visual baseline update.",
+      "defaultTimeoutMs": 1800000,
+      "steps": [
+        {
+          "phase": "Phase 1",
+          "name": "Public Smoke",
+          "command": "npm run test:smoke",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 2",
+          "name": "Functional Flow",
+          "command": "npm run test:phase2",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 3",
+          "name": "Player Presentation & Identity UI",
+          "command": "npm run test:phase3",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 4",
+          "name": "Search / Filter / Sort Depth",
+          "command": "npm run test:phase4",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 5",
+          "name": "Tournament / Result Detail Integrity",
+          "command": "npm run test:phase5",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 6",
+          "name": "Data / API Integrity",
+          "command": "npm run test:phase6",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 7",
+          "name": "Performance / Stability",
+          "command": "npm run test:phase7",
+          "required": false,
+          "allowWarnings": true
+        }
+      ]
+    },
+    {
+      "suiteKey": "extended",
+      "name": "Extended Regression",
+      "description": "Broader nightly or scheduled regression including visual checks.",
+      "defaultTimeoutMs": 3600000,
+      "steps": [
+        {
+          "phase": "Phase 1",
+          "name": "Public Smoke",
+          "command": "npm run test:smoke",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 2",
+          "name": "Functional Flow",
+          "command": "npm run test:phase2",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 3",
+          "name": "Player Presentation & Identity UI",
+          "command": "npm run test:phase3",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 4",
+          "name": "Search / Filter / Sort Depth",
+          "command": "npm run test:phase4",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 5",
+          "name": "Tournament / Result Detail Integrity",
+          "command": "npm run test:phase5",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 6",
+          "name": "Data / API Integrity",
+          "command": "npm run test:phase6",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 7",
+          "name": "Performance / Stability",
+          "command": "npm run test:phase7",
+          "required": false,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 8",
+          "name": "Visual Regression",
+          "command": "npm run test:phase8",
+          "required": false,
+          "allowWarnings": true
+        }
+      ]
+    },
+    {
+      "suiteKey": "release",
+      "name": "Release Regression",
+      "description": "Release gate suite. Includes only stable required checks.",
+      "defaultTimeoutMs": 2400000,
+      "steps": [
+        {
+          "phase": "Phase 1",
+          "name": "Public Smoke",
+          "command": "npm run test:smoke",
+          "required": true,
+          "allowWarnings": false
+        },
+        {
+          "phase": "Phase 2",
+          "name": "Functional Flow",
+          "command": "npm run test:phase2",
+          "required": true,
+          "allowWarnings": false
+        },
+        {
+          "phase": "Phase 3",
+          "name": "Player Presentation & Identity UI",
+          "command": "npm run test:phase3",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 5",
+          "name": "Tournament / Result Detail Integrity",
+          "command": "npm run test:phase5",
+          "required": true,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 6",
+          "name": "Data / API Integrity",
+          "command": "npm run test:phase6",
+          "required": true,
+          "allowWarnings": true
+        }
+      ]
+    },
+    {
+      "suiteKey": "release-with-visual",
+      "name": "Release Regression with Visual",
+      "description": "Release regression including visual checks. Use only when visual baseline is reviewed.",
+      "defaultTimeoutMs": 3600000,
+      "extends": "release",
+      "additionalSteps": [
+        {
+          "phase": "Phase 8",
+          "name": "Visual Regression",
+          "command": "npm run test:phase8",
+          "required": false,
+          "allowWarnings": true
+        }
+      ]
+    },
+    {
+      "suiteKey": "release-with-crawl",
+      "name": "Release Regression with Crawler",
+      "description": "Release regression including crawler-generated Phase 6 fixtures.",
+      "defaultTimeoutMs": 3600000,
+      "extends": "release",
+      "additionalSteps": [
+        {
+          "phase": "Crawler",
+          "name": "Player Standings Crawler",
+          "command": "npm run crawl:standings",
+          "required": false,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Crawler",
+          "name": "Generate Phase 6 Fixtures",
+          "command": "npm run generate:phase6-fixtures",
+          "required": false,
+          "allowWarnings": true
+        },
+        {
+          "phase": "Phase 6",
+          "name": "Data / API Integrity with Crawler Data",
+          "command": "npm run test:phase6",
+          "required": true,
+          "allowWarnings": true,
+          "env": {
+            "DATA_SOURCE": "crawler"
+          }
+        }
+      ]
+    }
+  ]
+}

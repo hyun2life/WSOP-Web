@@ -1,0 +1,48 @@
+{
+  "metadata": {
+    "description": "Release gate policy for WSOP Web Automation"
+  },
+  "rules": {
+    "failOnRequiredStepFailure": true,
+    "failOnOptionalStepFailure": false,
+    "failOnWarning": false,
+    "failOnMissingReport": false,
+    "maxAllowedRequiredFailures": 0,
+    "maxAllowedOptionalFailures": 2,
+    "warningRequiresReview": true
+  },
+  "phasePolicies": {
+    "Phase 1": {
+      "required": true,
+      "warningsAllowed": false
+    },
+    "Phase 2": {
+      "required": true,
+      "warningsAllowed": false
+    },
+    "Phase 3": {
+      "required": true,
+      "warningsAllowed": true
+    },
+    "Phase 4": {
+      "required": false,
+      "warningsAllowed": true
+    },
+    "Phase 5": {
+      "required": true,
+      "warningsAllowed": true
+    },
+    "Phase 6": {
+      "required": true,
+      "warningsAllowed": true
+    },
+    "Phase 7": {
+      "required": false,
+      "warningsAllowed": true
+    },
+    "Phase 8": {
+      "required": false,
+      "warningsAllowed": true
+    }
+  }
+}
