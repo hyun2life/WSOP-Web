@@ -239,7 +239,7 @@ const server = http.createServer((req, res) => {
         activeProcess.on('exit', (code, signal) => {
           const reason = signal ? `interrupted by ${signal}` : `exit code ${code}`;
           sendToSse('log', { text: `\n[SERVER] Process finished: ${reason}\n` });
-          
+
           const finalStatus = code === 0 ? 'success' : 'failed';
           sendToSse('status', { status: finalStatus, code });
 
@@ -374,6 +374,16 @@ function serveFile(filePath, contentType, res) {
 
 function getLatestReportPath(suite, mode) {
   const normalized = suite.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+
+  if (normalized === 'regression') {
+    const htmlName = mode === 'en' ? 'regression-summary.html' : 'regression-summary-ko.html';
+    const htmlPath = path.join(PROJECT_ROOT, 'artifacts', 'full-regression', 'latest', htmlName);
+    if (fs.existsSync(htmlPath)) {
+      return htmlPath;
+    }
+    throw new Error(`No regression summary HTML found at: ${htmlPath}`);
+  }
+
   let outputDir;
   let prefix;
 
@@ -438,14 +448,14 @@ server.listen(PORT, HOST, () => {
 
 function parseLineForPhaseStatus(line) {
   // 1. Start check
-  let match = line.match(/Running\s+(phase\d+|crawler)\s*:/i) || 
-              line.match(/Starting:\s*(phase\d+|crawler)/i);
+  let match = line.match(/Running\s+(phase\d+|crawler)\s*:/i) ||
+    line.match(/Starting:\s*(phase\d+|crawler)/i);
   if (match) {
     const phaseId = match[1].toLowerCase();
     updatePhaseStatus(phaseId, 'running');
     return;
   }
-  
+
   // 2. Success check
   match = line.match(/\[SUCCESS\]\s*(phase\d+|crawler)\s+completed/i);
   if (match) {
@@ -453,10 +463,10 @@ function parseLineForPhaseStatus(line) {
     updatePhaseStatus(phaseId, 'success');
     return;
   }
-  
+
   // 3. Failed check
-  match = line.match(/\[ERROR\]\s*(phase\d+|crawler)\s+failed/i) || 
-          line.match(/Execution\s+failed\s+for\s*(phase\d+|crawler)/i);
+  match = line.match(/\[ERROR\]\s*(phase\d+|crawler)\s+failed/i) ||
+    line.match(/Execution\s+failed\s+for\s*(phase\d+|crawler)/i);
   if (match) {
     const phaseId = match[1].toLowerCase();
     updatePhaseStatus(phaseId, 'failed');

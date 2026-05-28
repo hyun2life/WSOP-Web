@@ -1617,6 +1617,9 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
   const isSearchFilterSort = suite === 'search-filter-sort';
   const isResultDetail = suite === 'result-detail';
   const isDataIntegrity = suite === 'data-integrity';
+  const isPerformanceStability = suite === 'performance-stability';
+  const isVisualRegression = suite === 'visual-regression';
+  const isRegression = suite === 'regression';
 
   let titleKo = 'WSOP Web 자동화 리포트';
   let titleEn = 'WSOP Web Automation Report';
@@ -1667,6 +1670,27 @@ dictionary = function dictionaryOverride(isKo, suite = '') {
     subtitleEn = 'A verification of public UI metrics, player identity mapping, and sum calculations against expected data.';
     eyebrowKo = 'WSOP Phase 6 Data & API Integrity';
     eyebrowEn = 'WSOP Phase 6 Data & API Integrity';
+  } else if (isPerformanceStability) {
+    titleKo = 'WSOP Phase 7 성능 및 안정성 리포트';
+    titleEn = 'WSOP Phase 7 Core Flow Performance & Stability Report';
+    subtitleKo = '핵심 기능 시나리오(Standings to Profile, Search to Profile)의 인터랙션 반응 시간 및 성능 지표 검증 결과입니다.';
+    subtitleEn = 'Interaction response times and performance metrics validation for key user flow scenarios.';
+    eyebrowKo = 'WSOP Phase 7 Performance';
+    eyebrowEn = 'WSOP Phase 7 Performance';
+  } else if (isVisualRegression) {
+    titleKo = 'WSOP Phase 8 시각적 회귀 검증 리포트';
+    titleEn = 'WSOP Phase 8 Visual Regression Verification Report';
+    subtitleKo = '핵심 UI 화면들의 스크린샷을 기존 기준 이미지(Baseline)와 비교하여 예기치 못한 레이아웃 뒤틀림이 없는지 검증한 결과입니다.';
+    subtitleEn = 'Layout integrity check comparing screenshot variations against active visual baselines.';
+    eyebrowKo = 'WSOP Phase 8 Visual Regression';
+    eyebrowEn = 'WSOP Phase 8 Visual Regression';
+  } else if (isRegression) {
+    titleKo = 'WSOP Phase 9 최종 릴리즈 게이트 리포트';
+    titleEn = 'WSOP Phase 9 Full Regression Verification Report';
+    subtitleKo = '배포 전 필수 검증 단계들의 최종 성공 여부 및 경고 상태를 종합 조율하여 게이트 통과를 검증한 결과입니다.';
+    subtitleEn = 'Release gate clearance status combining multiple regression suites and validation checks.';
+    eyebrowKo = 'WSOP Phase 9 Regression';
+    eyebrowEn = 'WSOP Phase 9 Regression';
   }
 
   return isKo
@@ -1818,6 +1842,21 @@ readMeFirst = function readMeFirstOverride(report, isKo) {
     return isKo
       ? 'Phase 6는 공개 UI의 수치 정보가 원천 데이터(expected fixture)와 일치하는지, 계산 및 ID 매핑이 정합한지 검증합니다. 실데이터 변경에 따른 Stale Warning을 감안해 확인해 주세요.'
       : 'Phase 6 checks consistency between public UI values and source (expected) data. Review annotations for potentially stale fixtures due to real-time site updates.';
+  }
+  if (report.suite === 'performance-stability') {
+    return isKo
+      ? 'Phase 7은 주요 페이지 최초 로딩 및 핵심 시나리오 반응 속도를 측정합니다. 반응 속도가 5.0초 임계치를 초과하는 경우 실패 처리됩니다.'
+      : 'Phase 7 measures initial page load and key scenario interaction latency. Latency exceeding 5.0s is flagged as failure.';
+  }
+  if (report.suite === 'visual-regression') {
+    return isKo
+      ? 'Phase 8은 기존 Baseline 스크린샷과 비교하여 레이아웃 무결성을 검증합니다. 시각적 허용 오차는 1.5% 미만이어야 합니다.'
+      : 'Phase 8 checks layout visual consistency with baseline images. Pixels mismatch threshold must be under 1.5%.';
+  }
+  if (report.suite === 'regression') {
+    return isKo
+      ? 'Phase 9는 전체 릴리즈 게이트 통과를 위해 필수 단계(Phase 1~6)의 결과를 취합하여 통과 요건을 검증합니다.'
+      : 'Phase 9 evaluates overall release eligibility by aggregating results from required validation steps (Phase 1 to 6).';
   }
   return isKo
     ? '모든 검증이 통과했습니다. 브라우저 실행 상세는 Playwright 기본 HTML 리포트에서 확인할 수 있습니다.'

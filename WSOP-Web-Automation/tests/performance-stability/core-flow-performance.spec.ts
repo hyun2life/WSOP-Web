@@ -130,10 +130,8 @@ async function executeFlowStep(page: Page, step: any) {
   if (step.type === 'clickFirstPlayerLink') {
     const firstPlayerLink = page.locator('a[href*="/players/"]').first();
     await firstPlayerLink.waitFor({ state: 'visible', timeout: 8000 });
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      firstPlayerLink.click()
-    ]);
+    await firstPlayerLink.click();
+    await page.waitForURL(/\/players\//i, { timeout: 10000, waitUntil: 'load' });
     if (step.expectedUrlContains) {
       expect(page.url()).toContain(step.expectedUrlContains);
     }
@@ -182,20 +180,16 @@ async function executeFlowStep(page: Page, step: any) {
     const dummyPlayer = { displayName: 'Phil Hellmuth', searchKeyword: 'Phil Hellmuth' };
     const linkResult = await findPlayerProfileLink(page, dummyPlayer);
     await linkResult.locator.waitFor({ state: 'visible', timeout: 5000 });
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      linkResult.locator.click()
-    ]);
+    await linkResult.locator.click();
+    await page.waitForURL(/\/players\//i, { timeout: 10000, waitUntil: 'load' });
     if (step.expectedUrlContains) {
       expect(page.url()).toContain(step.expectedUrlContains);
     }
   } else if (step.type === 'clickFirstNewsLink') {
     const newsLink = page.locator('a[href*="/news/"]').first();
     await newsLink.waitFor({ state: 'visible', timeout: 8000 });
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      newsLink.click()
-    ]);
+    await newsLink.click();
+    await page.waitForURL(/\/news\//i, { timeout: 10000, waitUntil: 'load' });
   } else if (step.type === 'expectPageLoaded') {
     await page.waitForLoadState('load');
   } else {

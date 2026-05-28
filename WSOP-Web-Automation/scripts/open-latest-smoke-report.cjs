@@ -5,6 +5,27 @@ const { execSync } = require('child_process');
 const suite = normalizeSuite(process.argv[2]) || 'smoke';
 const mode = (process.argv[3] || 'ko').toLowerCase();
 
+if (suite === 'regression') {
+  const htmlName = mode === 'en' ? 'regression-summary.html' : 'regression-summary-ko.html';
+  const filePath = path.resolve(process.cwd(), 'artifacts', 'full-regression', 'latest', htmlName);
+  if (fs.existsSync(filePath)) {
+    console.log(`Opening latest regression report: ${filePath}`);
+    try {
+      if (process.platform === 'win32') {
+        execSync(`start "" "${filePath}"`, { stdio: 'ignore' });
+        process.exit(0);
+      }
+      const command = process.platform === 'darwin' ? 'open' : 'xdg-open';
+      execSync(`${command} "${filePath}"`, { stdio: 'ignore' });
+      process.exit(0);
+    } catch (err) {
+      fail(`Failed to open report: ${err.message}`);
+    }
+  } else {
+    fail(`No regression summary HTML found at: ${filePath}`);
+  }
+}
+
 let outputDir;
 let prefix;
 
