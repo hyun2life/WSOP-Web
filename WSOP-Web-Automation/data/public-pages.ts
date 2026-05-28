@@ -8,7 +8,7 @@ export const publicPages: PublicPage[] = [
   {
     name: 'Home',
     url: '/',
-    expectedTexts: ['Upcoming Tournaments', 'Latest News'],
+    expectedTexts: ['Upcoming Tournaments', 'Top Stories'],
   },
   {
     name: 'Tournament Schedule',
