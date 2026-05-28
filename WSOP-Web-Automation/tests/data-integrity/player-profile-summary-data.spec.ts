@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { test, expect } from '@playwright/test';
+import { openPublicPage } from '../functional/support';
 import { FixtureDataSource } from '../../utils/dataIntegrity/fixtureDataSource';
 import { ApiDataSource } from '../../utils/dataIntegrity/apiDataSource';
 import { CrawlerDataSource } from '../../utils/dataIntegrity/crawlerDataSource';
@@ -52,13 +53,7 @@ test.describe('Phase 6 - Player Profile Summary Data Integrity', () => {
 
       // 2. 프로필 URL 접속
       const targetUrl = player.profileUrl;
-      const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch((err) => {
-        expect(false, `Failed to navigate to profile page for ${player.displayName}: ${err.message}`).toBeTruthy();
-        return null;
-      });
-
-      if (!response) return;
-      expect(response.status(), `Profile URL should return < 400. url=${targetUrl}`).toBeLessThan(400);
+      await openPublicPage(page, targetUrl);
 
       // 3. UI 데이터 추출
       const actual = await extractPlayerProfileSummary(page, player);

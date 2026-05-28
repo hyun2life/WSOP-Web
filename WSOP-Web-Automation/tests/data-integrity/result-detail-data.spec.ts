@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { test, expect } from '@playwright/test';
+import { openPublicPage } from '../functional/support';
 import { FixtureDataSource } from '../../utils/dataIntegrity/fixtureDataSource';
 import { ApiDataSource } from '../../utils/dataIntegrity/apiDataSource';
 import { CrawlerDataSource } from '../../utils/dataIntegrity/crawlerDataSource';
@@ -54,13 +55,7 @@ test.describe('Phase 6 - Result Detail Data Integrity', () => {
 
       // 2. 결과 상세 페이지 접속
       const targetUrl = result.resultUrl;
-      const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch((err) => {
-        expect(false, `Failed to navigate to result detail page: ${targetUrl}. error=${err.message}`).toBeTruthy();
-        return null;
-      });
-
-      if (!response) return;
-      expect(response.status(), `Result detail URL should return < 400. url=${targetUrl}`).toBeLessThan(400);
+      await openPublicPage(page, targetUrl);
 
       // 테이블 내부의 데이터가 실제로 렌더링될 때까지 대기
       // 1. 테이블 내 플레이어 프로필 링크가 렌더링될 때까지 대기 (비동기 데이터 바인딩 대기)

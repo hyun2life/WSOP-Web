@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { test, expect } from '@playwright/test';
+import { openPublicPage } from '../functional/support';
 import { FixtureDataSource } from '../../utils/dataIntegrity/fixtureDataSource';
 import { ApiDataSource } from '../../utils/dataIntegrity/apiDataSource';
 import { CrawlerDataSource } from '../../utils/dataIntegrity/crawlerDataSource';
@@ -48,13 +49,7 @@ test.describe('Phase 6 - Player Standings Data Integrity', () => {
 
       // 2. 스탠딩 페이지 접속
       const targetUrl = category.pageUrl;
-      const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch((err) => {
-        expect(false, `Failed to navigate to standings page: ${targetUrl}. error=${err.message}`).toBeTruthy();
-        return null;
-      });
-
-      if (!response) return;
-      expect(response.status(), `Standings URL should return < 400. url=${targetUrl}`).toBeLessThan(400);
+      await openPublicPage(page, targetUrl);
 
       // 테이블 또는 리스트 데이터 렌더링 대기
       const firstCell = page.locator('table tbody tr td, ul li, ol li, [class*="row" i] td, a[href*="/players/"]').first();

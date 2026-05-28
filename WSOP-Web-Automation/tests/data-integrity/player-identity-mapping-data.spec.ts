@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { test, expect } from '@playwright/test';
+import { openPublicPage } from '../functional/support';
 import { FixtureDataSource } from '../../utils/dataIntegrity/fixtureDataSource';
 import { ApiDataSource } from '../../utils/dataIntegrity/apiDataSource';
 import { CrawlerDataSource } from '../../utils/dataIntegrity/crawlerDataSource';
@@ -49,13 +50,7 @@ test.describe('Phase 6 - Player Identity & URL Mapping Integrity', () => {
 
       // 2. 프로필 다이렉트 페이지 접속 및 URL 검증
       const targetUrl = mapping.profileUrl;
-      const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch((err) => {
-        expect(false, `Failed to navigate to target profile page: ${targetUrl}. error=${err.message}`).toBeTruthy();
-        return null;
-      });
-
-      if (!response) return;
-      expect(response.status(), `Target profile URL status should be < 400. url=${targetUrl}`).toBeLessThan(400);
+      await openPublicPage(page, targetUrl);
 
       const details = [];
       const context = `Identity Mapping -> ${mapping.displayName}`;

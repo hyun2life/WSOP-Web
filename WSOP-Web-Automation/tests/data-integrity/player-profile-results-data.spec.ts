@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { test, expect } from '@playwright/test';
+import { openPublicPage } from '../functional/support';
 import { FixtureDataSource } from '../../utils/dataIntegrity/fixtureDataSource';
 import { ApiDataSource } from '../../utils/dataIntegrity/apiDataSource';
 import { CrawlerDataSource } from '../../utils/dataIntegrity/crawlerDataSource';
@@ -48,13 +49,7 @@ test.describe('Phase 6 - Player Profile Results Data Integrity', () => {
 
       // 2. 프로필 URL 접속
       const targetUrl = results.profileUrl;
-      const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch((err) => {
-        expect(false, `Failed to navigate to results page for ${results.playerKey}: ${err.message}`).toBeTruthy();
-        return null;
-      });
-
-      if (!response) return;
-      expect(response.status(), `Profile URL should return < 400. url=${targetUrl}`).toBeLessThan(400);
+      await openPublicPage(page, targetUrl);
 
       // 3. UI에서 결과 목록 추출
       // playerDataExtractors는 기존의 헬퍼 함수를 내부적으로 사용하여 UI rows를 반환함
