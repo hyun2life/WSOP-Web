@@ -3012,16 +3012,8 @@ function renderKoreanHtml(report, pastReports = []) {
 }
 
 // 프리미엄 인터랙티브 HTML 대시보드 템플릿
-function renderDashboardTemplate(report, isKo, pastReports = []) {
-  const summary = summarize(report);
-  const defects = flattenDefects(report);
-  const reviewNotes = flattenReviewNotes(report);
-  const standingsSourceSummary = summarizeStandingsSources(report.players);
-
-  const totalChecked = summary.checkedPlayers || 1;
-  const passPercent = Math.round((summary.passedPlayers / totalChecked) * 100);
-
-  const t = {
+function getDashboardTranslations(isKo) {
+  return {
     title: isKo ? "WSOP 선수 순위 크롤러 대시보드" : "WSOP Player Standings Dashboard",
     generated: isKo ? "생성 시간" : "Generated",
     source: isKo ? "대상 사이트" : "Source",
@@ -3084,12 +3076,12 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       ["Result", "Open Results and verify that No, Player, and Earnings all match exactly."]
     ]
   };
+}
 
-  const reportJson = JSON.stringify(report).replace(/</g, '\u003c').replace(/>/g, '\u003e');
 
-  return `<!doctype html>
-<html lang="${isKo ? "ko" : "en"}">
-<head>
+function renderDashboardHead(ctx) {
+  const { summary, defects, t } = ctx;
+  return `<head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(t.title)}</title>
@@ -3282,9 +3274,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .group-body.collapsed { grid-template-rows: 0fr; }
     .group-body-inner { overflow: hidden; }
   </style>
-</head>
-<body>
-  <header>
+</head>`;
+}
+
+
+function renderDashboardHeader(ctx) {
+  const { report, isKo, pastReports, summary, t } = ctx;
+  return `<header>
     <div class="header-content">
       <div class="header-title">
         <div class="eyebrow">${isKo ? "WSOP 플레이어 standings 크롤러" : "WSOP PLAYER STANDINGS CRAWLER"}</div>
@@ -3306,10 +3302,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>
       </div>
     </div>
-  </header>
+  </header>`;
+}
 
-  <main>
-    <!-- KPI Dashboard Grid -->
+
+function renderDashboardKpiGrid(ctx) {
+  const { isKo, summary, defects, reviewNotes, t } = ctx;
+  return `<!-- KPI Dashboard Grid -->
     <div class="dashboard-grid">
       <div class="kpi-card" onclick="filterByStatus('all')">
         <div class="kpi-label">${escapeHtml(t.category)}</div>
@@ -3337,7 +3336,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
     </div>
 
-    <!-- Visualizations Row -->
+    `;
+}
+
+
+function renderDashboardVisualizations(ctx) {
+  const { isKo, defects, passPercent } = ctx;
+  return `<!-- Visualizations Row -->
     <div class="visualizations-row">
       <div class="chart-panel">
         <h3>${isKo ? "데이터 무결성 통계" : "Data Integrity Status"}</h3>
@@ -3363,7 +3368,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
     </div>
 
-    <!-- Execution Summary & Readme First -->
+    `;
+}
+
+
+function renderDashboardSummary(ctx) {
+  const { report, isKo, summary, defects } = ctx;
+  return `<!-- Execution Summary & Readme First -->
     <section class="grid">
       <div class="panel">
         <h2>${isKo ? "실행 요약" : "Execution Summary"}</h2>
@@ -3395,7 +3406,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
     </section>
 
-    <!-- Crawler Coverage & Guidelines -->
+    `;
+}
+
+
+function renderDashboardCoverage(ctx) {
+  const { isKo, summary, standingsSourceSummary, t } = ctx;
+  return `<!-- Crawler Coverage & Guidelines -->
     <h2>
       <svg viewBox="0 0 24 24" style="fill: var(--primary); width: 24px; height: 24px;"><path d="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M13,16H11V18H13V16M13,6H11V14H13V6Z"/></svg>
       ${isKo ? "크롤러 수집 범위 및 검증 기준" : "Crawler Coverage & Validation Guidelines"}
@@ -3433,7 +3450,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
     </div>
 
-    <!-- Validation Rules Collapsible Card -->
+    `;
+}
+
+
+function renderDashboardRules(ctx) {
+  const { isKo, t } = ctx;
+  return `<!-- Validation Rules Collapsible Card -->
     <div class="group-card" style="margin-bottom: 40px;">
       <div class="group-header" onclick="toggleGroupCollapse('metadata', 'rules')">
         <div class="group-header-left">
@@ -3458,7 +3481,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
     </div>
 
-    <!-- Defect Inspector List -->
+    `;
+}
+
+
+function renderDashboardInspectorLists(ctx) {
+  const { defects, t } = ctx;
+  return `<!-- Defect Inspector List -->
     <h2>
       <svg viewBox="0 0 24 24"><path d="M12,2L1,21H23M12,6L19.8,20H4.2M11,10V14H13V10M11,16V18H13V16"/></svg>
       ${escapeHtml(t.defectList)}
@@ -3472,7 +3501,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     </h2>
     <div id="warnings-grouped-container"></div>
 
-    <!-- Players Detail Section -->
+    `;
+}
+
+
+function renderDashboardPlayersDetail(ctx) {
+  const { isKo, t } = ctx;
+  return `<!-- Players Detail Section -->
     <div class="search-filter-bar" id="player-directory">
       <h2>
         <svg viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.28 19.33,13 16,13M8,13C4.67,13 1,14.28 1,16.5V19H15V16.5C15,14.28 11.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg>
@@ -3505,13 +3540,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
     <!-- Dynamic Player List Container -->
     <div id="players-list"></div>
-  </main>
+  `;
+}
 
-  <button class="scroll-top-btn" id="scroll-to-top" onclick="window.scrollTo({top:0, behavior:'smooth'})">
-    <svg viewBox="0 0 24 24"><path d="M7.41,18.41L6,17L12,11L18,17L16.59,18.41L12,13.83L7.41,18.41M7.41,12.41L6,11L12,5L18,11L16.59,12.41L12,7.83L7.41,12.41Z"/></svg>
-  </button>
 
-  <script>
+function renderDashboardScripts(ctx) {
+  const { isKo, summary, defects, t, reportJson } = ctx;
+  return `<script>
     // Embedded JSON data with safe string escape
     const reportData = ${reportJson};
     const isKo = ${isKo};
@@ -4348,11 +4383,46 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         }
       }
     });
-  </script>
-</body>
-</html>
-`;
+  </script>`;
 }
+
+
+function renderDashboardTemplate(report, isKo, pastReports = []) {
+  const summary = summarize(report);
+  const defects = flattenDefects(report);
+  const reviewNotes = flattenReviewNotes(report);
+  const standingsSourceSummary = summarizeStandingsSources(report.players);
+
+  const totalChecked = summary.checkedPlayers || 1;
+  const passPercent = Math.round((summary.passedPlayers / totalChecked) * 100);
+
+  const t = getDashboardTranslations(isKo);
+  const reportJson = JSON.stringify(report).replace(/</g, '\u003c').replace(/>/g, '\u003e');
+
+  const ctx = { report, isKo, pastReports, summary, defects, reviewNotes, standingsSourceSummary, passPercent, t, reportJson };
+
+  return `<!doctype html>
+<html lang="${isKo ? "ko" : "en"}">
+${renderDashboardHead(ctx)}
+<body>
+  ${renderDashboardHeader(ctx)}
+  <main>
+    ${renderDashboardKpiGrid(ctx)}
+    ${renderDashboardVisualizations(ctx)}
+    ${renderDashboardSummary(ctx)}
+    ${renderDashboardCoverage(ctx)}
+    ${renderDashboardRules(ctx)}
+    ${renderDashboardInspectorLists(ctx)}
+    ${renderDashboardPlayersDetail(ctx)}
+  </main>
+  <button class="scroll-top-btn" id="scroll-to-top" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+    <svg viewBox="0 0 24 24"><path d="M7.41,18.41L6,17L12,11L18,17L16.59,18.41L12,13.83L7.41,18.41M7.41,12.41L6,11L12,5L18,11L16.59,12.41L12,7.83L7.41,12.41Z"/></svg>
+  </button>
+  ${renderDashboardScripts(ctx)}
+</body>
+</html>`;
+}
+
 
 function writeJson(filePath, payload) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
