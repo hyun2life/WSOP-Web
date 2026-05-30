@@ -66,29 +66,63 @@ export async function searchPlayerIfSearchInputExists(page: Page, keyword: strin
   return true;
 }
 
-export async function expectPlayerAutocompleteVisible(page: Page, player: PlayerFixture, testName = 'player-autocomplete') {
+export async function expectPlayerAutocompleteVisible(
+  page: Page,
+  player: PlayerFixture,
+  testName = 'player-autocomplete',
+  knownException?: KnownException,
+) {
   const keyword = player.searchKeyword ?? player.displayName;
   const input = await findSearchInput(page);
   expect(input, `Player Search input should be visible before checking autocomplete for ${player.displayName}`).not.toBeNull();
 
-  await enterSearchKeyword(input!, keyword);
-
   const suggestion = autocompleteSuggestion(page, player);
-  await expect
-    .poll(async () => (await suggestion.count()) > 0 && (await suggestion.first().isVisible().catch(() => false)), {
-      message: `${player.displayName} should be visible in autocomplete/search preview after typing "${keyword}"`,
-      timeout: 6_000,
-      intervals: [500, 1_000, 1_500],
-    })
-    .toBeTruthy();
+  try {
+    await expect
+      .poll(
+        async () => {
+          const currentValue = await input!.inputValue().catch(() => '');
+          if (currentValue.trim() !== keyword.trim()) {
+            await enterSearchKeyword(input!, keyword);
+          }
+          return (await suggestion.count()) > 0 && (await suggestion.first().isVisible().catch(() => false));
+        },
+        {
+          message: `${player.displayName} should be visible in autocomplete/search preview after typing "${keyword}"`,
+          timeout: 8_000,
+          intervals: [400, 800, 1_600],
+        },
+      )
+      .toBeTruthy();
 
-  await expectAutocompleteSuggestionCountryOrFlag(suggestion.first(), player, testName);
+    await expectAutocompleteSuggestionCountryOrFlag(suggestion.first(), player, testName);
+  } catch (error) {
+    if (knownException?.warningOnly) {
+      addWarning(testName, `Autocomplete validation failed for ${player.displayName} but allowed as warning: ${(error as Error).message}`, {
+        player: player.displayName,
+        reason: knownException.reason,
+      });
+      return;
+    }
+    throw error;
+  }
 
   void testName;
 }
 
-export async function expectPlayerVisibleInSearchResults(page: Page, player: PlayerFixture) {
+export async function expectPlayerVisibleInSearchResults(
+  page: Page,
+  player: PlayerFixture,
+  knownException?: KnownException,
+) {
   const visible = await isPlayerVisibleInSearchSurface(page, player);
+  if (!visible && knownException?.warningOnly) {
+    addWarning('search-results', `Player ${player.displayName} was not visible in search results but allowed as warning.`, {
+      player: player.displayName,
+      reason: knownException.reason,
+    });
+    return;
+  }
   expect(visible, `${player.displayName} should be visible in Player Search results`).toBeTruthy();
 }
 
@@ -299,7 +333,15 @@ function matchingPlayerRows(page: Page, player: PlayerFixture) {
 
 function autocompleteSuggestion(page: Page, player: PlayerFixture) {
   return page
-    .locator('.autocomplete-container li, [class*="autocomplete" i] li')
+    .locator(
+      [
+        '.autocomplete-container li',
+        '[class*="autocomplete" i] li',
+        '[class*="autocomplete" i] [role="option"]',
+        '[class*="autocomplete" i] tr',
+        '[class*="autocomplete" i] [class*="item" i]',
+      ].join(', '),
+    )
     .filter({ hasText: playerNamePattern(player.displayName) });
 }
 

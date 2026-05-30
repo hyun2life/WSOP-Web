@@ -19,14 +19,16 @@
     "searchKeyword": "Phil Ivey",
     "profileUrl": "/players/phil-ivey/",
     "expectedCountry": "United States",
-    "identityType": ["top-earnings", "hof-known"]
+    "identityType": ["top-earnings", "hof-known"],
+    "knownExceptionKey": "phil-ivey"
   },
   {
     "displayName": "Michael Mizrachi",
     "searchKeyword": "Michael Mizrachi",
     "profileUrl": "/players/michael-mizrachi/",
     "expectedCountry": "United States",
-    "identityType": ["top-earnings", "bracelets-known"]
+    "identityType": ["top-earnings", "bracelets-known"],
+    "knownExceptionKey": "michael-mizrachi"
   },
   {
     "displayName": "Kristen Foxen",

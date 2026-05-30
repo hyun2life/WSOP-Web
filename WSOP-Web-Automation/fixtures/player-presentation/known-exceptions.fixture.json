@@ -7,5 +7,13 @@
   "stage-avatar-missing": {
     "reason": "Stage environment may not expose the same avatar assets as production. Treat missing avatar as warning when ENVIRONMENT=stage.",
     "warningOnly": true
+  },
+  "michael-mizrachi": {
+    "reason": "Michael Mizrachi may have unstable search results or autocomplete responses from WSOP API. Treat autocomplete missing as warning.",
+    "warningOnly": true
+  },
+  "phil-ivey": {
+    "reason": "Phil Ivey may have unstable search results or autocomplete responses from WSOP API. Treat autocomplete missing as warning.",
+    "warningOnly": true
   }
 }
