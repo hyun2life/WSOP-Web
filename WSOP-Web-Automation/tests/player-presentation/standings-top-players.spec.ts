@@ -193,13 +193,12 @@ type StandingCoverage = {
 
 async function countVisibleRows(rows: Locator) {
   const rowCount = await rows.count();
-  let visibleCount = 0;
+  const visibilityChecks = [];
   for (let index = 0; index < rowCount; index += 1) {
-    if (await rows.nth(index).isVisible().catch(() => false)) {
-      visibleCount += 1;
-    }
+    visibilityChecks.push(rows.nth(index).isVisible().catch(() => false));
   }
-  return visibleCount;
+  const results = await Promise.all(visibilityChecks);
+  return results.filter(Boolean).length;
 }
 
 interface ExtractedRowData {
