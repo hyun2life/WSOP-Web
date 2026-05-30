@@ -1,0 +1,20 @@
+
+Running 12 tests using 2 workers
+
+  ✓   1 [chromium-desktop] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Home (4.8s)
+  ✓   2 [mobile-chrome] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Home (4.9s)
+  ✓   4 [mobile-chrome] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Tournament Schedule (2.4s)
+  ✓   3 [chromium-desktop] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Tournament Schedule (2.7s)
+  ✓   6 [chromium-desktop] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Player Standings (3.6s)
+  ✓   5 [mobile-chrome] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Player Standings (4.0s)
+  ✓   7 [chromium-desktop] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Player Search (1.9s)
+  ✓   8 [mobile-chrome] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Player Search (2.1s)
+  ✓   9 [chromium-desktop] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Hall of Fame (1.4s)
+  ✓  10 [mobile-chrome] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: Hall of Fame (1.8s)
+  ✓  11 [chromium-desktop] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: News (1.3s)
+  ✓  12 [mobile-chrome] › tests/performance-stability/page-load-performance.spec.ts:47:9 › Phase 7 - Page Load Performance & Stability › Measure load performance for page: News (1.7s)
+
+  12 passed (23.4s)
+WSOP performance-stability report: /app/WSOP-Web-Automation/automation/output/wsop-public-performance-stability-20260530-205354-report.html
+WSOP performance-stability Korean report: /app/WSOP-Web-Automation/automation/output/wsop-public-performance-stability-20260530-205354-report-ko.html
+WSOP performance-stability Playwright report: /app/WSOP-Web-Automation/automation/output/wsop-public-performance-stability-20260530-205354-playwright-report/index.html
