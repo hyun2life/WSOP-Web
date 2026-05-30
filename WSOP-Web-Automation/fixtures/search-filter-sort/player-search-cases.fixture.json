@@ -28,7 +28,7 @@
     "caseName": "Exact full name - Kristen Foxen",
     "keyword": "Kristen Foxen",
     "expectedPlayer": "Kristen Foxen",
-    "expectedCountry": "Canada",
+    "expectedCountry": "United States",
     "expectedProfileUrlContains": "/players/",
     "minExpectedResults": 1
   },
