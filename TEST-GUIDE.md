@@ -41,9 +41,9 @@ graph TD
 | **Phase 4** | 검색, 필터, 정렬 심화 | **완료** | 검색창 입력 반응, 탭 전환, 정렬 조작, pagination 안정성 | `wsop-public-search-filter-sort-{timestamp}-report-ko.html` |
 | **Phase 5** | 결과 상세 연결 무결성 | **완료** | 프로필 결과 목록 row와 결과 상세 페이지 간 양방향 링크 무결성 | `wsop-public-result-detail-{timestamp}-report-ko.html` |
 | **Phase 6** | 데이터/API 정합성 검증 | **완료** | 수집된 Fixture와 공개 UI 수치(상금, 우승 등) 데이터 비교 | `wsop-public-data-integrity-{timestamp}-report-ko.html` |
-| **Phase 7** | 성능 및 안정성 점검 | *예약* | 로딩 타임, 반복 실행 안정성, 오류 예산 수립 | 향후 추가 예정 |
-| **Phase 8** | 화면 회귀 검증 | *예약* | 스크린샷 baseline 기반 레이아웃 깨짐/겹침 자동 감지 | 향후 추가 예정 |
-| **Phase 9** | 전체 회귀 검증 | *예약* | 릴리즈 전 이전 페이즈의 핵심 커버리지 묶음 검증 | 향후 추가 예정 |
+| **Phase 7** | 성능 및 안정성 점검 | **완료** | 로딩 속도 측정, 메모리 및 커넥션 누수 확인, 지연 요청 감시 | Playwright HTML Report |
+| **Phase 8** | 화면 회귀 검증 | **완료** | 해상도별 스크린샷 픽셀 단위 비교, 반응형 깨짐 자동 감지 | Baseline 이미지 대조 / Playwright Report |
+| **Phase 9** | 전체 회귀 검증 | **완료** | 릴리즈 전 종합 스위트 자동 실행 및 릴리즈 게이트 판정 | `wsop-regression-summary-{timestamp}.json` |
 | **Crawler** | 플레이어 스탠딩 크롤러 | **완료** | 스탠딩 TOP 플레이어 데이터 및 상세 대회 입상 실적 수집 | `crawler-report-{timestamp}-ko.html` |
 
 ---
@@ -115,18 +115,34 @@ graph TD
 
 ---
 
-## 4. 로드맵 및 예약 단계 (Phases 7~9)
+## 4. 7~9단계 상세 시나리오 및 검증 항목
 
-현재 테스트 자동화 프레임워크는 Phase 1 ~ 6 및 크롤러까지 구현이 완료되어 있으며, 다음 단계들은 장기 고도화 계획으로 예약되어 있습니다.
+### 7단계 (Phase 7): 성능 및 안정성 점검 (Performance and stability)
+* **목적**: 주요 공개 페이지의 로딩 지연 시간을 측정하고, API/에셋의 불안정 요청을 감시하며, 반복 실행 시 자산 누수가 없는지 확인합니다.
+* **검증 항목**:
+  - **핵심 흐름 성능 (Core flow performance)**: 사용자가 주요 페이지를 차례로 탐색하는 전체 동선의 각 단계별 지연 시간(Duration)을 측정합니다.
+  - **페이지 로드 성능 (Page load performance)**: 대표적인 공개 페이지의 HTML, JS, CSS 파싱 및 초기 렌더링 소요 시간을 측정합니다.
+  - **에셋 로딩 안정성 (Asset loading stability)**: 사이트 구동 시 로드되지 않는 이미지, 깨진 폰트, 누락된 CSS 등 자산 오류율을 모니터링합니다.
+  - **지연 요청 감시 (Slow request detection)**: 서버 API 요청 혹은 네트워크 응답 중 2초(2000ms)를 초과하여 대기하는 비정상적인 지연을 감지하고 Warning으로 기록합니다.
+  - **반복 구동 안정성 (Repeated run stability)**: 단일 페이지를 반복적으로 새로고침 및 탐색할 때 메모리 유실 및 브라우저 IPC 부하 누적이 일어나지 않는지 안정성을 검증합니다.
 
-```text
-- [예약] Phase 7: 성능 및 안정성 점검 (Performance and stability)
-  - 목적: 사이트 로딩 지연 시간, 반복 구동 시 에러 임계치, 대기 시간 최적화를 검증합니다.
-- [예약] Phase 8: 화면 회귀 검증 (Visual regression)
-  - 목적: 리드 뷰포트(데스크톱/모바일)별 UI 스크린샷 baseline을 생성해 레이아웃 겹침, 색상 변화를 픽셀 단위로 비교합니다.
-- [예약] Phase 9: 전체 회귀 검증 (Full regression suite)
-  - 목적: 배포 전 릴리즈 게이트 역할을 하기 위해 Phase 1~8의 주요 검증 항목만 엄선한 최종 회귀 테스트 세트를 패키징합니다.
-```
+### 8단계 (Phase 8): 화면 회귀 검증 (Visual regression)
+* **목적**: 뷰포트 해상도(데스크톱/모바일)별로 레이아웃 겹침, 깨짐, 비정상적 여백 노출 등을 픽셀 단위 스크린샷 대조를 통해 자동 감지합니다.
+* **검증 항목**:
+  - **핵심 화면 픽셀 비교**: 홈, 뉴스 목록/상세, 랭킹 스탠딩 테이블, 토너먼트 일정 페이지 등의 시각적 결과물 대조.
+  - **반응형 레이아웃 대조 (Responsive Visual)**: 모바일 크롬 크기(Viewport 390x844)와 데스크톱 크기(1280x720) 하에서 반응형 UI 가로축 깨짐, 겹침을 단언 검증.
+  - **시각적 기준선(Baseline) 관리**: `npm run update:visual-baseline` 명령어를 통해 최신 빌드의 스크린샷을 검증용 픽셀 Baseline 이미지로 일괄 갱신합니다.
+
+### 9단계 (Phase 9): 전체 회귀 검증 (Full regression suite)
+* **목적**: 배포 전 릴리즈 최종 단계에서 Phase 1~8 전체의 주요 검증 단계를 오케스트레이터 스크립트를 통해 원스톱 실행하고, 릴리즈 게이트 판정 규칙에 맞춰 최종 승인 여부를 진단합니다.
+* **오케스트레이션 실행 모드 (Suite)**:
+  - **`quick`**: 사전 머지용 빠른 신뢰도 검증 (Phase 1~2 필수 게이트만 포함).
+  - **`standard`**: 크롤러 및 비기능을 배제한 UI 기능성 핵심 검증 (Phase 1~6 필수 게이트 포함).
+  - **`extended`**: 표준 검증에 비차단 비기능 검증(Phase 7 성능, Phase 8 시각 비교)을 결합하여 실행.
+  - **`total`**: Phase 1~8 전 범위를 풀타임으로 구동하는 종합 통합 스위트.
+  - **`release`**: 배포 게이트 전용 (Phase 1, 2, 3, 5, 6 필수 게이트를 작동하되, 경고가 전혀 없는 무결점 빌드 기준 적용).
+  - **`release-with-visual`**: 배포 게이트에 시각적 회귀(Phase 8) 비차단 검증을 결합.
+  - **`release-with-crawl`**: 배포 게이트에 크롤러 기동 및 크롤러 스냅샷 Fixture 기반의 Phase 6 정합성 검증을 자동 연계 구동.
 
 ---
 
@@ -139,11 +155,11 @@ graph TD
 
 ```bat
 # 1단계 Smoke 테스트 실행 및 리포트 생성
-npm run test:smoke
+npm run test:phase1
 npm run report:smoke:ko
 
 # 2단계 Functional 테스트 실행 및 리포트 생성
-npm run test:functional
+npm run test:phase2
 npm run report:functional:ko
 
 # 3단계 Player Presentation 테스트 실행 (standings-only 크롤러 자동 연계 실행)
@@ -162,7 +178,28 @@ npm run report:result-detail:ko
 npm run test:phase6
 npm run report:data-integrity:ko
 
-# 단독 크롤러 기동 (Player Standings Crawler 폴더로 이동 후 실행)
+# 7단계 Performance/Stability 성능 및 안정성 테스트 실행
+npm run test:phase7
+npm run test:phase7:repeat        # 측정 정밀화를 위한 3회 반복 구동 테스트
+npm run report:phase7
+
+# 8단계 Visual Regression 시각적 회귀 테스트 실행
+npm run test:phase8
+npm run update:visual-baseline   # 기준선 스냅샷 이미지 일괄 갱신/업데이트
+npm run report:phase8
+
+# 9단계 Full Regression 종합 회귀 테스트 오케스트레이터 기동
+npm run test:phase9              # 기본(standard) 스위트 자동 실행
+npm run test:regression:quick    # 빠른 신뢰성 체크 (Phase 1~2)
+npm run test:regression:standard # 표준 회귀 테스트 (Phase 1~6)
+npm run test:regression:extended # 비기능 결합 확장 회귀 테스트 (Phase 1~8)
+npm run test:regression:total    # 전체 검증 풀 타임 실행 (Phase 1~8)
+npm run test:release             # 배포 게이트 전용 엄격성 검증
+npm run test:release:with-visual # 배포 게이트 + 시각 회귀 결합 검증
+npm run test:release:with-crawl  # 배포 게이트 + 크롤러 연동 데이터 정합성 검증
+npm run report:regression        # 회귀 테스트 실행 결과 Playwright Report 열기
+
+# 단독 크롤러 기동 (WSOP-Player-Standings-Crawler 폴더로 이동 후 실행)
 cd WSOP-Player-Standings-Crawler
 RUN_WSOP_PLAYER_CRAWLER_LIVE.bat
 ```
