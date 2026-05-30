@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
+set "AUTO_LAUNCH=false"
 title WSOP Web Dashboard
 
 cd /d "%~dp0"
