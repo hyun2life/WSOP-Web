@@ -59,24 +59,12 @@ test.describe('Phase 3 - standings top player presentation', () => {
   });
 
   test('crawler standings-only target rows expose player identity UI', async ({ page }, testInfo) => {
-    test.setTimeout(90_000);
+    test.setTimeout(150_000);
     const standingTargets = loadStandingTargetsFromStandingsOnlyOutput();
     expect(
       standingTargets.length,
       `Standings-only crawler output should expose at least ${MIN_STANDING_TARGETS_FOR_PHASE3} targets for Phase 3 UI validation`,
     ).toBeGreaterThanOrEqual(MIN_STANDING_TARGETS_FOR_PHASE3);
-
-    // 샘플링: 카테고리당 최대 4개 대상만 선정하여 UI 테스트를 진행한다.
-    const sampledTargets: StandingTarget[] = [];
-    const categoryCounts = new Map<string, number>();
-    const maxTargetsPerCategory = 4;
-    for (const target of standingTargets) {
-      const count = categoryCounts.get(target.category) ?? 0;
-      if (count < maxTargetsPerCategory) {
-        categoryCounts.set(target.category, count + 1);
-        sampledTargets.push(target);
-      }
-    }
 
     const missingProfileLink: string[] = [];
     const missingName: string[] = [];
@@ -89,7 +77,7 @@ test.describe('Phase 3 - standings top player presentation', () => {
       label: string;
     }> = [];
 
-    for (const [sourcePath, targets] of groupTargetsBySource(sampledTargets)) {
+    for (const [sourcePath, targets] of groupTargetsBySource(standingTargets)) {
       const response = await page.goto(sourcePath, { waitUntil: 'domcontentloaded' });
       expect(response, `${sourcePath} should return a response`).not.toBeNull();
       expect(response!.status(), `${sourcePath} HTTP status`).toBeLessThan(400);
@@ -104,8 +92,10 @@ test.describe('Phase 3 - standings top player presentation', () => {
         })
         .toBeGreaterThan(0);
 
+      const extractedRows = await extractAllStandingRows(page);
+
       for (const target of targets) {
-        const row = await collectStandingRowForTarget(page, target);
+        const row = findAndBuildStandingRowForTarget(extractedRows, target);
         if (!row) {
           missingName.push(`${target.label} - row not found`);
           coverage.push(toStandingCoverage(target, null));
@@ -212,25 +202,58 @@ async function countVisibleRows(rows: Locator) {
   return visibleCount;
 }
 
-async function collectStandingRowForTarget(page: Page, target: StandingTarget): Promise<StandingRowUi | null> {
-  const rows = page.getByRole('row').filter({ hasText: playerNamePattern(target.name) });
-  const rowCount = await rows.count();
+interface ExtractedRowData {
+  text: string;
+  href: string;
+  linkText: string;
+  images: Array<{
+    alt: string;
+    title: string;
+    src: string;
+    srcset: string;
+    className: string;
+    width: number;
+    height: number;
+    naturalWidth: number;
+  }>;
+}
 
-  for (let index = 0; index < rowCount; index += 1) {
-    const row = rows.nth(index);
-    if (!(await row.isVisible().catch(() => false))) {
-      continue;
-    }
+async function extractAllStandingRows(page: Page): Promise<ExtractedRowData[]> {
+  const selector = 'tr:has(a[href*="/players/"]), [role="row"]:has(a[href*="/players/"])';
+  const data = await page.$$eval(selector, (elements) => {
+    return elements.map((el) => {
+      const style = window.getComputedStyle(el);
+      const isVisible = style.display !== 'none' && style.visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
+      if (!isVisible) {
+        return null;
+      }
 
-    const rowUi = await collectStandingRowUi(row, target);
-    if (rowUi.href && target.url && normalizeProfilePath(rowUi.href) !== normalizeProfilePath(target.url)) {
-      continue;
-    }
+      const link = el.querySelector('a[href*="/players/"]');
+      const href = link ? link.getAttribute('href') || '' : '';
+      const linkText = link ? (link as HTMLElement).innerText || '' : '';
+      const text = (el as HTMLElement).innerText || '';
+      
+      const imgs = Array.from(el.querySelectorAll('img'));
+      const images = imgs.map((image) => ({
+        alt: image.getAttribute('alt') || '',
+        title: image.getAttribute('title') || '',
+        src: image.getAttribute('src') || '',
+        srcset: image.getAttribute('srcset') || '',
+        className: image.getAttribute('class') || '',
+        width: image.width || 0,
+        height: image.height || 0,
+        naturalWidth: image.naturalWidth || 0,
+      }));
 
-    return rowUi;
-  }
-
-  return null;
+      return {
+        text,
+        href,
+        linkText,
+        images,
+      };
+    });
+  });
+  return data.filter((item): item is ExtractedRowData => item !== null);
 }
 
 async function attachStandingCoverage(testInfo: TestInfo, coverage: StandingCoverage[]) {
@@ -276,43 +299,38 @@ function toStandingCoverage(target: StandingTarget, row: StandingRowUi | null): 
   };
 }
 
-async function collectStandingRowUi(row: Locator, target: StandingTarget): Promise<StandingRowUi> {
-  const link = row.locator('a[href*="/players/"]').first();
-  const href = (await link.getAttribute('href').catch(() => null)) ?? '';
-  const linkText = await link.innerText().catch(() => '');
-  const text = await row.innerText().catch(() => '');
-  const playerName = cleanStandingPlayerName(linkText || target.name || text);
-  const images = await row.locator('img').evaluateAll((items) =>
-    items.map((image) => ({
-      alt: image.getAttribute('alt') || '',
-      title: image.getAttribute('title') || '',
-      src: image.getAttribute('src') || '',
-      srcset: image.getAttribute('srcset') || '',
-      className: image.getAttribute('class') || '',
-      width: image.width || 0,
-      height: image.height || 0,
-      naturalWidth: image.naturalWidth || 0,
-    })),
-  );
-  const rowHaystack = `${text} ${images.flatMap((image) => [image.alt, image.title, image.src, image.srcset, image.className]).join(' ')}`;
+function findAndBuildStandingRowForTarget(rows: ExtractedRowData[], target: StandingTarget): StandingRowUi | null {
+  const namePattern = playerNamePattern(target.name);
+  for (const row of rows) {
+    if (namePattern.test(row.linkText) || namePattern.test(row.text)) {
+      if (row.href && target.url && normalizeProfilePath(row.href) !== normalizeProfilePath(target.url)) {
+        continue;
+      }
 
-  return {
-    label: `${target.category} #${target.rank ?? '-'} ${target.name}`,
-    text,
-    playerName,
-    href,
-    rank: target.rank,
-    sourcePath: target.sourcePath,
-    hasCountryText: hasCountryLikeText(text),
-    hasFlagImage: images.some((image) => /flag|country|\/flag\/|country code/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`)),
-    hasPlayerImage:
-      images.some(
-        (image) =>
-          /avatar|player|profile|headshot|photo|portrait|players/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`) &&
-          (image.naturalWidth > 0 || image.width > 10 || image.height > 10) &&
-          !(image.src.toLowerCase().includes('profile_default') || (image.src.toLowerCase().includes('/default/') && !image.src.toLowerCase().includes('good-game-service.com')))
-      ),
-  };
+      const playerName = cleanStandingPlayerName(row.linkText || target.name || row.text);
+      const images = row.images;
+
+      return {
+        label: `${target.category} #${target.rank ?? '-'} ${target.name}`,
+        text: row.text,
+        playerName,
+        href: row.href,
+        rank: target.rank,
+        sourcePath: target.sourcePath,
+        hasCountryText: hasCountryLikeText(row.text),
+        hasFlagImage: images.some((image) => /flag|country|\/flag\/|country code/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`)),
+        hasPlayerImage:
+          images.some(
+            (image) =>
+              /avatar|player|profile|headshot|photo|portrait|players/i.test(`${image.alt} ${image.title} ${image.src} ${image.srcset} ${image.className}`) &&
+              (image.naturalWidth > 0 || image.width > 10 || image.height > 10) &&
+              !(image.src.toLowerCase().includes('profile_default') || (image.src.toLowerCase().includes('/default/') && !image.src.toLowerCase().includes('good-game-service.com')))
+          ),
+      };
+    }
+  }
+
+  return null;
 }
 
 async function applyAllPlayerStatsProfileImageChecks(
