@@ -6,9 +6,9 @@ import { normalizePlayerName, normalizeText } from './resultRowAssertions';
 
 export async function findResultPaginationControls(page: Page): Promise<Locator[]> {
   const candidates = [
-    page.getByRole('button', { name: /next|load more|show more|more/i }).first(),
-    page.getByRole('link', { name: /next|load more|show more|more/i }).first(),
-    page.locator('button, a').filter({ hasText: /next|load more|show more|more/i }).first(),
+    page.getByRole('button', { name: /\b(next|load more|show more|more)\b/i }).first(),
+    page.getByRole('link', { name: /\b(next|load more|show more|more)\b/i }).first(),
+    page.locator('button, a').filter({ hasText: /\b(next|load more|show more|more)\b/i }).first(),
     page.locator('[class*="pagination" i] a, [class*="paging" i] a, [class*="pager" i] a').first(),
     page.locator('[class*="pagination" i] a, [class*="paging" i] a, [class*="pager" i] a').last(),
   ];

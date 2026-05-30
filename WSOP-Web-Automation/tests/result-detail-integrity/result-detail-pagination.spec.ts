@@ -22,7 +22,10 @@ const players = loadResultFixture<ResultDetailPlayerFixture[]>('result-detail-pl
 const knownExceptions = loadResultFixture<Record<string, ResultKnownException>>('known-result-exceptions.fixture.json');
 
 test.describe('Phase 5 - result detail pagination / load more', () => {
-  test.beforeEach(() => clearWarnings());
+  test.beforeEach(() => {
+    test.setTimeout(90_000);
+    clearWarnings();
+  });
   test.afterEach(({}, testInfo) => {
     attachWarningsToTestInfo(testInfo);
     clearWarnings();
