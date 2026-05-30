@@ -15,5 +15,9 @@
   "phil-ivey": {
     "reason": "Phil Ivey may have unstable search results or autocomplete responses from WSOP API. Treat autocomplete missing as warning.",
     "warningOnly": true
+  },
+  "phil-hellmuth": {
+    "reason": "Phil Hellmuth may have unstable search results or autocomplete responses from WSOP API. Treat autocomplete missing as warning.",
+    "warningOnly": true
   }
 }

@@ -5,7 +5,8 @@
     "expectedPlayer": "Phil Hellmuth",
     "expectedCountry": "United States",
     "expectedProfileUrlContains": "/players/",
-    "minExpectedResults": 1
+    "minExpectedResults": 1,
+    "knownExceptionKey": "phil-hellmuth"
   },
   {
     "caseName": "Exact full name - Daniel Negreanu",

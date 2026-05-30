@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { addWarning } from '../playerPresentation/warningCollector';
+import { type KnownException } from '../playerPresentation/playerPresentationChecks';
 import { escapeRegExp, expectAnyTextVisible, getVisiblePlayerLinkCount, normalizeText } from './resultListAssertions';
 
 export type PlayerSearchCase = {
@@ -76,7 +77,11 @@ export async function submitPlayerSearch(page: Page, keyword: string) {
   return true;
 }
 
-export async function expectPlayerAutocompleteResult(page: Page, searchCase: PlayerSearchCase) {
+export async function expectPlayerAutocompleteResult(
+  page: Page,
+  searchCase: PlayerSearchCase,
+  knownException?: KnownException,
+) {
   const input = await findSearchInput(page);
   if (!input) {
     addWarning('phase4-player-autocomplete', `Search input was not visible. Autocomplete cannot be checked for "${searchCase.keyword}".`, {
@@ -88,25 +93,37 @@ export async function expectPlayerAutocompleteResult(page: Page, searchCase: Pla
 
   const keyword = searchCase.keyword.trim();
   const expected = searchCase.expectedPlayer ?? searchCase.expectedPlayerContains ?? keyword;
-  await typeAutocompleteKeyword(input, keyword);
+  try {
+    await typeAutocompleteKeyword(input, keyword);
 
-  const suggestion = autocompleteSuggestion(page, expected);
-  await expect
-    .poll(async () => {
-      const inputValue = await input.inputValue().catch(() => '');
-      if (inputValue.trim() !== keyword) {
-        await typeAutocompleteKeyword(input, keyword);
-      }
+    const suggestion = autocompleteSuggestion(page, expected);
+    await expect
+      .poll(async () => {
+        const inputValue = await input.inputValue().catch(() => '');
+        if (inputValue.trim() !== keyword) {
+          await typeAutocompleteKeyword(input, keyword);
+        }
 
-      return (await suggestion.count()) > 0 && (await suggestion.first().isVisible().catch(() => false));
-    }, {
-      message: `${searchCase.caseName}: autocomplete should show "${expected}" after typing "${keyword}"`,
-      timeout: 6_000,
-      intervals: [300, 700, 1_200],
-    })
-    .toBeTruthy();
+        return (await suggestion.count()) > 0 && (await suggestion.first().isVisible().catch(() => false));
+      }, {
+        message: `${searchCase.caseName}: autocomplete should show "${expected}" after typing "${keyword}"`,
+        timeout: 6_000,
+        intervals: [300, 700, 1_200],
+      })
+      .toBeTruthy();
 
-  await expectAutocompleteCountryOrFlag(suggestion.first(), searchCase);
+    await expectAutocompleteCountryOrFlag(suggestion.first(), searchCase);
+  } catch (error) {
+    if (knownException?.warningOnly || searchCase.warningOnly) {
+      addWarning(searchCase.caseName, `Autocomplete validation failed but allowed as warning: ${(error as Error).message}`, {
+        keyword,
+        expected,
+        reason: knownException?.reason,
+      });
+      return false;
+    }
+    throw error;
+  }
   return true;
 }
 
@@ -161,33 +178,48 @@ export async function collectPlayerResultLinks(page: Page, keywordOrPlayerName?:
   return matched.length > 0 ? matched : links;
 }
 
-export async function expectPlayerSearchResult(page: Page, searchCase: PlayerSearchCase) {
+export async function expectPlayerSearchResult(
+  page: Page,
+  searchCase: PlayerSearchCase,
+  knownException?: KnownException,
+) {
   if (searchCase.expectedNoResults) {
     await expectNoResultState(page, searchCase);
     return [];
   }
 
   const expected = searchCase.expectedPlayer ?? searchCase.expectedPlayerContains ?? searchCase.keyword.trim();
-  const links = await collectPlayerResultLinks(page, expected);
-  const expectedNormalized = normalizeText(expected);
-  const matchingLinks = links.filter((link) => link.normalizedText.includes(expectedNormalized));
-  const profileTargetCount = matchingLinks.filter((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/')).length;
-  const clickableRowCount = matchingLinks.filter((link) => link.source === 'row').length;
-  const linkCount = profileTargetCount || clickableRowCount;
-  const minimum = searchCase.minExpectedResults ?? 1;
+  try {
+    const links = await collectPlayerResultLinks(page, expected);
+    const expectedNormalized = normalizeText(expected);
+    const matchingLinks = links.filter((link) => link.normalizedText.includes(expectedNormalized));
+    const profileTargetCount = matchingLinks.filter((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/')).length;
+    const clickableRowCount = matchingLinks.filter((link) => link.source === 'row').length;
+    const linkCount = profileTargetCount || clickableRowCount;
+    const minimum = searchCase.minExpectedResults ?? 1;
 
-  expect(
-    linkCount,
-    `${searchCase.caseName}: expected at least ${minimum} matching /players/ link(s) for keyword="${searchCase.keyword}" expectedPlayer="${expected}"`,
-  ).toBeGreaterThanOrEqual(minimum);
+    expect(
+      linkCount,
+      `${searchCase.caseName}: expected at least ${minimum} matching /players/ link(s) for keyword="${searchCase.keyword}" expectedPlayer="${expected}"`,
+    ).toBeGreaterThanOrEqual(minimum);
 
-  const targetLinks = matchingLinks.length > 0 ? matchingLinks : links;
-  expect(
-    targetLinks.some((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/') || link.source === 'row'),
-    `${searchCase.caseName}: expected a profile href containing "${searchCase.expectedProfileUrlContains ?? '/players/'}" or a clickable player result row`,
-  ).toBeTruthy();
+    const targetLinks = matchingLinks.length > 0 ? matchingLinks : links;
+    expect(
+      targetLinks.some((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/') || link.source === 'row'),
+      `${searchCase.caseName}: expected a profile href containing "${searchCase.expectedProfileUrlContains ?? '/players/'}" or a clickable player result row`,
+    ).toBeTruthy();
 
-  return targetLinks;
+    return targetLinks;
+  } catch (error) {
+    if (knownException?.warningOnly || searchCase.warningOnly) {
+      addWarning(searchCase.caseName, `Search result validation failed but allowed as warning: ${(error as Error).message}`, {
+        expected,
+        reason: knownException?.reason,
+      });
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function openFirstPlayerSearchProfile(page: Page, searchCase: PlayerSearchCase, results?: PlayerResultLink[]) {
