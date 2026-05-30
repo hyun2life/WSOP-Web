@@ -154,7 +154,12 @@ function stripAnsi(text: string): string {
 function countWarningSignals(output: string): number {
   return output
     .split(/\r?\n/)
-    .filter((line) => /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line))
+    .filter((line) => {
+      if (/\b(DeprecationWarning|trace-deprecation)\b/i.test(line)) {
+        return false;
+      }
+      return /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line);
+    })
     .length;
 }
 
@@ -215,7 +220,12 @@ function extractErrorDetails(raw: RawCommandResult, combinedOutput: string, know
 function extractWarningDetails(output: string): string {
   const warningLines = output
     .split(/\r?\n/)
-    .filter((line) => /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line))
+    .filter((line) => {
+      if (/\b(DeprecationWarning|trace-deprecation)\b/i.test(line)) {
+        return false;
+      }
+      return /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line);
+    })
     .slice(0, 8);
 
   return warningLines.join('\n') || 'Warning signal detected in command output.';
