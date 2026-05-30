@@ -158,7 +158,8 @@ function countWarningSignals(output: string): number {
       if (/\b(DeprecationWarning|trace-deprecation)\b/i.test(line)) {
         return false;
       }
-      return /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line);
+      return /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line) ||
+             /PLAYER_PRESENTATION_WARNING/i.test(line);
     })
     .length;
 }
@@ -224,7 +225,8 @@ function extractWarningDetails(output: string): string {
       if (/\b(DeprecationWarning|trace-deprecation)\b/i.test(line)) {
         return false;
       }
-      return /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line);
+      return /\b(warn|warning|slow|threshold exceeded|performance threshold|third-party)\b/i.test(line) ||
+             /PLAYER_PRESENTATION_WARNING/i.test(line);
     })
     .slice(0, 8);
 
