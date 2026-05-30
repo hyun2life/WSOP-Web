@@ -60,24 +60,31 @@ export async function measurePageLoad(
   // Measure Critical Selector/Text
   let criticalSelectorMs = 0;
   const selectorStart = Date.now();
+
+  const criticalPromises: Promise<void>[] = [];
+
   if (pageConfig.criticalSelectors && pageConfig.criticalSelectors.length > 0) {
     for (const selector of pageConfig.criticalSelectors) {
-      try {
-        await page.locator(selector).first().waitFor({ state: 'visible', timeout: 8000 });
-      } catch (err) {
-        failures.push(`Critical selector "${selector}" not visible within timeout`);
-      }
+      criticalPromises.push(
+        page.locator(selector).first().waitFor({ state: 'visible', timeout: 8000 }).catch(() => {
+          failures.push(`Critical selector "${selector}" not visible within timeout`);
+        })
+      );
     }
   }
 
   if (pageConfig.criticalTexts && pageConfig.criticalTexts.length > 0) {
     for (const text of pageConfig.criticalTexts) {
-      try {
-        await page.locator(`text=${text}`).first().waitFor({ state: 'visible', timeout: 8000 });
-      } catch (err) {
-        failures.push(`Critical text "${text}" not visible within timeout`);
-      }
+      criticalPromises.push(
+        page.locator(`text=${text}`).first().waitFor({ state: 'visible', timeout: 8000 }).catch(() => {
+          failures.push(`Critical text "${text}" not visible within timeout`);
+        })
+      );
     }
+  }
+
+  if (criticalPromises.length > 0) {
+    await Promise.allSettled(criticalPromises);
   }
   criticalSelectorMs = Date.now() - selectorStart;
 
