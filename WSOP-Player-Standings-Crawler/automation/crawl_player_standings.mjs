@@ -3644,9 +3644,18 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       return "Missing: " + (result.missing || []).join(", ");
     }
 
-    function escapeHtml(str) {
+    function escapeJs(str) {
       if (typeof str !== 'string') return str;
       return str
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r");
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -3730,14 +3739,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
           html += \`
             <div class="group-card">
-              <div class="group-header" onclick="toggleGroupCollapse('defects', '\${typeKey}')">
+              <div class="group-header" onclick="toggleGroupCollapse('defects', '\${escapeHtml(escapeJs(typeKey))}')">
                 <div class="group-header-left">
                   <span class="status-badge fail">\${escapeHtml(localizedType)}</span>
-                  <span class="item-count-badge">\${rows.length} \${isKo ? '건' : 'items'}</span>
+                  <span class="item-count-badge">\${escapeHtml(rows.length)} \${isKo ? '건' : 'items'}</span>
                 </div>
-                <svg class="group-arrow-icon" id="defects-group-arrow-\${typeKey}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+                <svg class="group-arrow-icon" id="defects-group-arrow-\${escapeHtml(typeKey)}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
               </div>
-              <div class="group-body collapsed" id="defects-group-body-\${typeKey}">
+              <div class="group-body collapsed" id="defects-group-body-\${escapeHtml(typeKey)}">
                 <div class="group-body-inner">
                   <div class="table-container" style="border-top: 1px solid var(--border);">
                     <table>
@@ -3746,7 +3755,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                       </thead>
                       <tbody>
                         \${rows.map(row => \`
-                          <tr class="clickable-row" onclick="inspectPlayer('\${escapeHtml(row.player)}')">
+                          <tr class="clickable-row" onclick="inspectPlayer('\${escapeHtml(escapeJs(row.player))}')">
                             <td class="nowrap"><strong>\${escapeHtml(row.player)}</strong></td>
                             <td>\${escapeHtml(formatLabel(row.item))}</td>
                             <td><code>\${escapeHtml(row.expected)}</code></td>
@@ -3764,7 +3773,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         });
         defectsContainer.innerHTML = html;
       } else {
-        defectsContainer.innerHTML = \`<div class="panel" style="padding: 20px; text-align: center; color: var(--text-muted);">\${labels.noDefects}</div>\`;
+        defectsContainer.innerHTML = \`<div class="panel" style="padding: 20px; text-align: center; color: var(--text-muted);">\${escapeHtml(labels.noDefects)}</div>\`;
       }
 
       // 3. Warnings Grouped Accordion
@@ -3797,14 +3806,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
           html += \`
             <div class="group-card">
-              <div class="group-header" onclick="toggleGroupCollapse('warnings', '\${typeKey}')">
+              <div class="group-header" onclick="toggleGroupCollapse('warnings', '\${escapeHtml(escapeJs(typeKey))}')">
                 <div class="group-header-left">
                   <span class="status-badge warn">\${escapeHtml(localizedType)}</span>
-                  <span class="item-count-badge">\${rows.length} \${isKo ? '건' : 'items'}</span>
+                  <span class="item-count-badge">\${escapeHtml(rows.length)} \${isKo ? '건' : 'items'}</span>
                 </div>
-                <svg class="group-arrow-icon" id="warnings-group-arrow-\${typeKey}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+                <svg class="group-arrow-icon" id="warnings-group-arrow-\${escapeHtml(typeKey)}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
               </div>
-              <div class="group-body collapsed" id="warnings-group-body-\${typeKey}">
+              <div class="group-body collapsed" id="warnings-group-body-\${escapeHtml(typeKey)}">
                 <div class="group-body-inner">
                   <div class="table-container" style="border-top: 1px solid var(--border);">
                     <table>
@@ -3813,7 +3822,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                       </thead>
                       <tbody>
                         \${rows.map(row => \`
-                          <tr class="clickable-row" onclick="inspectPlayer('\${escapeHtml(row.player)}')">
+                          <tr class="clickable-row" onclick="inspectPlayer('\${escapeHtml(escapeJs(row.player))}')">
                             <td class="nowrap"><strong>\${escapeHtml(row.player)}</strong></td>
                             <td>\${row.url ? \`<a href="\${escapeHtml(row.url)}" target="_blank" onclick="event.stopPropagation();">\${escapeHtml(formatLabel(row.item))}</a>\` : escapeHtml(formatLabel(row.item))}</td>
                             <td style="max-width:600px; font-size:12px; color:var(--text-muted); word-break:break-word;">\${escapeHtml(localizeWarning(row.detail || ""))}</td>
@@ -3829,7 +3838,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         });
         warningsContainer.innerHTML = html;
       } else {
-        warningsContainer.innerHTML = \`<div class="panel" style="padding: 20px; text-align: center; color: var(--text-muted);">\${labels.noReviewNotes}</div>\`;
+        warningsContainer.innerHTML = \`<div class="panel" style="padding: 20px; text-align: center; color: var(--text-muted);">\${escapeHtml(labels.noReviewNotes)}</div>\`;
       }
     }
 
@@ -3934,7 +3943,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
               <td class="nowrap">\${escapeHtml(event.rankText || event.rank || "-")}</td>
               <td class="nowrap">\${escapeHtml(formatValue("totalEarnings", event.earnings))}</td>
               <td>\${link ? \`<a href="\${escapeHtml(link)}" target="_blank" onclick="event.stopPropagation();">Link</a>\` : "-"}</td>
-              <td><span class="status-badge \${resStatus}">\${escapeHtml(resText)}</span></td>
+              <td><span class="status-badge \${escapeHtml(resStatus)}">\${escapeHtml(resText)}</span></td>
               <td style="font-size:12px;color:var(--text-muted);max-width:320px;word-break:break-all;">\${escapeHtml(resultDetail)}</td>
             </tr>
           \`;
@@ -3968,18 +3977,18 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
       return \`
         <div class="player-card" data-status="\${player.status}" data-name="\${escapeHtml(player.name)}">
-          <div class="player-header" onclick="toggleAccordion('\${escapeHtml(player.name)}')">
+          <div class="player-header" onclick="toggleAccordion('\${escapeHtml(escapeJs(player.name))}')">
             <div class="player-info-left">
               <h3>\${highlightText(player.name, state.searchQuery)}</h3>
               <div class="player-meta-info">
                 <span>🔗 <a href="\${escapeHtml(player.url)}" onclick="event.stopPropagation();" target="_blank">\${escapeHtml(player.url)}</a></span>
-                <span>🏆 Cashed Events: <strong>\${totalEvents}</strong></span>
-                <span>Cashes (Profile): <strong>\${player.summary?.cashes ?? "-"}</strong></span>
-                <span>Load More: <strong>\${player.expansion?.loadMoreClicks ?? 0}</strong></span>
+                <span>🏆 Cashed Events: <strong>\${escapeHtml(totalEvents)}</strong></span>
+                <span>Cashes (Profile): <strong>\${escapeHtml(player.summary?.cashes ?? "-")}</strong></span>
+                <span>Load More: <strong>\${escapeHtml(player.expansion?.loadMoreClicks ?? 0)}</strong></span>
               </div>
             </div>
             <div class="player-header-right">
-              <span class="status-badge \${player.status}">\${escapeHtml(statusText)}</span>
+              <span class="status-badge \${escapeHtml(player.status)}">\${escapeHtml(statusText)}</span>
               <svg class="arrow-icon" viewBox="0 0 24 24"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
             </div>
           </div>
@@ -3999,9 +4008,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
                 <!-- Tab Headers -->
                 <div class="sub-tabs-container">
-                  <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(player.name)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
-                  <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(player.name)}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
-                  <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
+                  <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(escapeJs(player.name))}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
+                  <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(escapeJs(player.name))}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
+                  <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(escapeJs(player.name))}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
                   <div class="tab-active-bar"></div>
                 </div>
 
@@ -4010,7 +4019,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Summary Metrics Check</h4>
                   <table style="width:100%;">
                     <thead>
-                      <tr><th>Stat</th><th>\${labels.profileStat}</th><th>\${labels.calculatedValue}</th><th>\${labels.statusText}</th></tr>
+                      <tr><th>Stat</th><th>\${escapeHtml(labels.profileStat)}</th><th>\${escapeHtml(labels.calculatedValue)}</th><th>\${escapeHtml(labels.statusText)}</th></tr>
                     </thead>
                     <tbody>
                       \${(player.comparisons || []).map(item => \`
@@ -4030,7 +4039,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Profile Tabs Integrity</h4>
                   <table style="width:100%;">
                     <thead>
-                      <tr><th>\${labels.tabHeader}</th><th>\${labels.selectedTabLabel}</th><th>\${labels.profileStat}</th><th>\${labels.visibleRows}</th><th>\${labels.statusText}</th></tr>
+                      <tr><th>\${escapeHtml(labels.tabHeader)}</th><th>\${escapeHtml(labels.selectedTabLabel)}</th><th>\${escapeHtml(labels.profileStat)}</th><th>\${escapeHtml(labels.visibleRows)}</th><th>\${escapeHtml(labels.statusText)}</th></tr>
                     </thead>
                     <tbody>
                       \${(player.tabChecks || []).map(item => \`
@@ -4052,7 +4061,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                     <h4 style="margin:0; font-family:'Outfit',sans-serif;">Cashed Events Results Matching</h4>
                     <div class="search-box" style="min-width:200px; flex:0 1 250px;">
                       <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
-                      <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(player.name)}', this.value)">
+                      <input type="text" class="events-search-input" placeholder="\${escapeHtml(labels.searchEventsPlaceholder)}" oninput="searchEvents('\${escapeHtml(escapeJs(player.name))}', this.value)">
                     </div>
                   </div>
 
@@ -4060,13 +4069,13 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                     <table>
                       <thead>
                         <tr>
-                          <th>\${labels.seriesEvent}</th>
-                          <th>\${labels.dateText}</th>
-                          <th>\${labels.rankText}</th>
-                          <th>\${labels.earningsText}</th>
-                          <th>\${labels.resultUrlText}</th>
-                          <th>\${labels.resultCheckText}</th>
-                          <th>\${labels.finalFindingText}</th>
+                          <th>\${escapeHtml(labels.seriesEvent)}</th>
+                          <th>\${escapeHtml(labels.dateText)}</th>
+                          <th>\${escapeHtml(labels.rankText)}</th>
+                          <th>\${escapeHtml(labels.earningsText)}</th>
+                          <th>\${escapeHtml(labels.resultUrlText)}</th>
+                          <th>\${escapeHtml(labels.resultCheckText)}</th>
+                          <th>\${escapeHtml(labels.finalFindingText)}</th>
                         </tr>
                       </thead>
                       <tbody class="events-tbody">
@@ -4076,9 +4085,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   </div>
 
                   <div class="pagination-bar">
-                    <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', -1)">◀ Prev</button>
+                    <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(escapeJs(player.name))}', -1)">◀ Prev</button>
                     <span class="events-page-info">1 / 1 (0)</span>
-                    <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', 1)">Next ▶</button>
+                    <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(escapeJs(player.name))}', 1)">Next ▶</button>
                   </div>
                 </div>
 
