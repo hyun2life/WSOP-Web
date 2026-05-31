@@ -112,7 +112,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-limit-check">
                       <span class="checkmark"></span>
-                      Limit Players <span class="help-icon" data-tooltip="카테고리별 수집할 선수 정원 (예: 50 설정 시 상위 50명 수집)">?</span>
+                      Limit Players <span class="help-icon" data-tooltip="랭킹 목록에서 카테고리당 수집할 선수의 수를 제한합니다. 적은 값(예: 5~10명)을 쓰면 크롤링 실행 시간을 매우 많이 단축할 수 있습니다.">?</span>
                     </label>
                     <input type="number" id="opt-limit-input" value="50" min="1" disabled class="form-input">
                   </div>
@@ -120,7 +120,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-auth-check">
                       <span class="checkmark"></span>
-                      Auth Wait (ms) <span class="help-icon" data-tooltip="방화벽(Cloudflare) 우회를 위해 브라우저를 열어두고 수동 로그인 대기할 최대 시간(ms)">?</span>
+                      Auth Wait (ms) <span class="help-icon" data-tooltip="보안 정책(Cloudflare 우회 등) 수동 처리를 위해 브라우저를 띄워두고 대기하는 최대 시간입니다. 수동 처리 완료 시 바로 수집이 시작됩니다.">?</span>
                     </label>
                     <input type="number" id="opt-auth-input" value="300000" min="1000" disabled class="form-input">
                   </div>
@@ -128,7 +128,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-concurrency-check">
                       <span class="checkmark"></span>
-                      Concurrency <span class="help-icon" data-tooltip="동시에 열어 수집할 브라우저 탭/컨텍스트의 최대 개수 (추천: 5~10)">?</span>
+                      Concurrency <span class="help-icon" data-tooltip="동시에 데이터를 스크래핑할 브라우저 창(탭)의 수입니다. 값이 높을수록 수집 속도가 크게 빨라지지만 메모리 사용량도 늘어납니다 (추천: 5~10)">?</span>
                     </label>
                     <input type="number" id="opt-concurrency-input" value="10" min="1" disabled class="form-input">
                   </div>
@@ -136,7 +136,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-reslimit-check">
                       <span class="checkmark"></span>
-                      Result Limit <span class="help-icon" data-tooltip="선수별로 검증할 최종 대회 결과(Result) 상세 페이지 수 제한 (0은 무제한)">?</span>
+                      Result Limit <span class="help-icon" data-tooltip="선수별로 검증을 수행할 대회 결과(Result) 상세 페이지의 제한 수입니다. 0으로 두면 해당 선수의 전체 이력을 꼼꼼히 끝까지 검증합니다.">?</span>
                     </label>
                     <input type="number" id="opt-reslimit-input" value="0" min="0" disabled class="form-input">
                   </div>
@@ -144,7 +144,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-brand-check">
                       <span class="checkmark"></span>
-                      Brand Filter <span class="help-icon" data-tooltip="수집 시 특정 브랜드의 대회 결과만 필터링하여 수집">?</span>
+                      Brand Filter <span class="help-icon" data-tooltip="수집 시 특정 브랜드의 대회 결과만 필터링하여 수집하도록 지정합니다. 브랜드 통합 데이터 검수나 고속 수집 시 유용합니다.">?</span>
                     </label>
                     <div class="custom-select-wrapper" style="width: 100%; max-width: 140px;">
                       <select id="opt-brand-select" disabled class="form-select" style="padding: 4px 8px; font-size: 0.8rem; height: 30px; border-radius: 4px; background-position: right 8px center;">
@@ -174,7 +174,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-standingsonly-check">
                       <span class="checkmark"></span>
-                      Standings Only <span class="help-icon" data-tooltip="상세 프로필 수집 및 Result 비교를 스킵하고 순위 목록만 빠르게 수집">?</span>
+                      Standings Only <span class="help-icon" data-tooltip="선수 상세 프로필 스크래핑과 무거운 Result 대조 검증을 전면 스킵하고, 오직 순위 목록 겉면 정보만 빠르게 수집하는 모드입니다.">?</span>
                     </label>
                     <input type="text" id="opt-standingsonly-input" value="true" style="display: none;">
                   </div>
@@ -188,7 +188,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-grep-check">
                       <span class="checkmark"></span>
-                      Grep Filter <span class="help-icon" data-tooltip="지정한 키워드/정규식 이름이 포함된 테스트 케이스만 필터링하여 실행">?</span>
+                      Grep Filter <span class="help-icon" data-tooltip="입력한 키워드나 정규식 이름이 포함된 특정 테스트 케이스만 골라 실행합니다. 특정 파일이나 흐름만 선별 검증할 때 편리합니다.">?</span>
                     </label>
                     <input type="text" id="opt-grep-input" value="schedule" disabled class="form-input">
                   </div>
@@ -196,7 +196,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-timeout-check">
                       <span class="checkmark"></span>
-                      Timeout (ms) <span class="help-icon" data-tooltip="각 개별 테스트 케이스의 최대 허용 실행 시간(초과 시 타임아웃 오류)">?</span>
+                      Timeout (ms) <span class="help-icon" data-tooltip="각 개별 테스트 케이스의 최대 제한 시간입니다. 이 시간 내에 렌더링이나 클릭 완료 등이 응답하지 않으면 해당 테스트는 실패 처리됩니다.">?</span>
                     </label>
                     <input type="number" id="opt-timeout-input" value="30000" min="1000" disabled class="form-input">
                   </div>
@@ -204,7 +204,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-repeat-check">
                       <span class="checkmark"></span>
-                      Repeat Each <span class="help-icon" data-tooltip="불안정한 테스트(Flakiness) 점검을 위해 각 테스트를 반복 실행할 횟수">?</span>
+                      Repeat Each <span class="help-icon" data-tooltip="불안정한 테스트(Flakiness) 분석을 위해 동일한 테스트를 지정한 횟수만큼 여러 번 반복 구동해 보는 기능입니다.">?</span>
                     </label>
                     <input type="number" id="opt-repeat-input" value="1" min="1" disabled class="form-input">
                   </div>
@@ -212,7 +212,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-retries-check">
                       <span class="checkmark"></span>
-                      Retries Limit <span class="help-icon" data-tooltip="테스트 실패 시 자동으로 재도전하여 실행해볼 최대 횟수">?</span>
+                      Retries Limit <span class="help-icon" data-tooltip="일시적인 네트워크 지연 등으로 테스트가 실패했을 때, 전체 빌드가 깨지는 것을 막기 위해 자동으로 즉각 재시도해 볼 횟수입니다.">?</span>
                     </label>
                     <input type="number" id="opt-retries-input" value="0" min="0" disabled class="form-input">
                   </div>
