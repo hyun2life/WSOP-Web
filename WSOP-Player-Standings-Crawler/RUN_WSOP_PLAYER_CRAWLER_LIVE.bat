@@ -51,12 +51,17 @@ if "%HEADED%"=="true" (set "HEADED_FLAG=-Headed") else (set "HEADED_FLAG=")
 
 if "%UI%"=="true" (set "UI_FLAG=-Ui") else (set "UI_FLAG=")
 
+if "%STANDINGS_ONLY%"=="true" (set "STANDINGS_ONLY_FLAG=-StandingsOnly") else (set "STANDINGS_ONLY_FLAG=")
+if not "%BRAND%"=="" (set "BRAND_FLAG=-Brand ^"%BRAND%^"") else (set "BRAND_FLAG=")
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" ^
   -PlayersUrl "%PLAYERS_URL%" ^
   -OutputTag "%OUTPUT_TAG%" ^
   -RunId "%RUN_ID%" ^
   %HEADED_FLAG% ^
   %UI_FLAG% ^
+  %STANDINGS_ONLY_FLAG% ^
+  %BRAND_FLAG% ^
   -AuthWaitMs %AUTH_WAIT_MS% ^
   -Limit %PLAYER_LIMIT% ^
   -ResultLimit %RESULT_LIMIT% ^

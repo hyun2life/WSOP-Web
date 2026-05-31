@@ -102,6 +102,7 @@ function parseArgs(argv) {
     selfTest: false,
     standingsOnly: false,
     concurrency: DEFAULT_CONCURRENCY,
+    brand: null,
     help: false
   };
 
@@ -142,6 +143,7 @@ function parseArgs(argv) {
     }
     else if (arg === "--self-test") args.selfTest = true;
     else if (arg === "--standings-only") args.standingsOnly = true;
+    else if (arg === "--brand") args.brand = argv[++i];
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -1029,7 +1031,7 @@ function categoryUrlFor(playersUrl, category) {
 }
 
 
-async function collectPlayerEntries(page, playersUrl, limit, authWaitMs) {
+async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand = null) {
   if (limit <= 0) return [];
 
   await retryWithBackoff(async () => {
@@ -1042,6 +1044,11 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs) {
   let selectedAnyCategory = false;
 
   for (const category of STANDINGS_CATEGORIES) {
+    // brand 필터링 조건이 있을 경우, 2026 Standings는 대상에서 제외
+    if (brand && category.label === "2026 Standings") {
+      continue;
+    }
+
     const categoryUrl = categoryUrlFor(playersUrl, category);
     let selected = false;
 
@@ -1080,7 +1087,49 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs) {
       selected = await clickExactTextControl(page, category.label);
     }
     if (!selected) continue;
-    const rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
+
+    // 브랜드 필터가 지정된 경우 필터 적용
+    if (brand) {
+      console.log(`  [크롤러] 브랜드 필터 적용 중: "${brand}"`);
+      const selectLocator = page.locator('select').first();
+      const hasSelect = (await selectLocator.count()) > 0 && (await selectLocator.isVisible().catch(() => false));
+      
+      if (hasSelect) {
+        await selectLocator.selectOption({ label: brand }).catch(() => {});
+      } else {
+        const dropdownTrigger = page.locator('button, a, div, span').filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+        if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+          await dropdownTrigger.click().catch(() => {});
+          await page.waitForTimeout(300);
+          
+          const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${brand}$`, 'i') }).first();
+          if ((await optionItems.count()) > 0) {
+            await optionItems.click().catch(() => {});
+          }
+        }
+      }
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(1000);
+    }
+
+    let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
+
+    // 브랜드 필터 지정 시 2페이지까지 수집 지원
+    if (brand && rows.length < limit) {
+      const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
+      const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
+      
+      if (hasNext) {
+        console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
+        await nextButton.click().catch(() => {});
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+        await page.waitForTimeout(1000);
+        
+        const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
+        rows = rows.concat(page2Rows);
+      }
+    }
+
     if (!rows.length) continue;
     selectedAnyCategory = true;
 
@@ -4928,7 +4977,7 @@ async function main() {
     }));
     if (!playerEntries.length) {
       const listPage = await context.newPage();
-      playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs);
+      playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs, args.brand);
       await listPage.close().catch(() => {});
     }
 

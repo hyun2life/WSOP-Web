@@ -140,6 +140,30 @@
                     </label>
                     <input type="number" id="opt-reslimit-input" value="0" min="0" disabled class="form-input">
                   </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-brand-check">
+                      <span class="checkmark"></span>
+                      Brand Filter
+                    </label>
+                    <div class="custom-select-wrapper" style="width: 100%; max-width: 140px;">
+                      <select id="opt-brand-select" disabled class="form-select" style="padding: 4px 8px; font-size: 0.8rem; height: 30px; border-radius: 4px; background-position: right 8px center;">
+                        <option value="WSOP">WSOP</option>
+                        <option value="GGPoker">GGPoker</option>
+                        <option value="WPT">WPT</option>
+                        <option value="PGT (Poker Go Tour)">PGT</option>
+                        <option value="Irish Poker Open">Irish Poker Open</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="option-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-standingsonly-check">
+                      <span class="checkmark"></span>
+                      Standings Only
+                    </label>
+                    <input type="text" id="opt-standingsonly-input" value="true" style="display: none;">
+                  </div>
                 </div>
               </div>
 

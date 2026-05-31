@@ -17,6 +17,7 @@ param(
   [string]$HtmlReport = "",
   [string]$DefectReport = "",
   [int]$Concurrency = 5,
+  [string]$Brand = "",
   [switch]$StandingsOnly,
   [switch]$Headed,
   [switch]$Ui
@@ -267,6 +268,9 @@ try {
   }
   if ($StandingsOnly) {
     $scriptArgs += "--standings-only"
+  }
+  if ($Brand) {
+    $scriptArgs += @("--brand", $Brand)
   }
 
   & $nodeCmd @scriptArgs

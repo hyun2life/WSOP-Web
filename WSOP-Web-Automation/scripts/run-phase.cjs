@@ -265,7 +265,9 @@ function setEnvVar(key, val, env) {
     'disabled-result-mode': 'DISABLED_RESULT_MODE',
     'concurrency': 'CONCURRENCY',
     'headed': 'HEADED',
-    'ui': 'UI'
+    'ui': 'UI',
+    'brand': 'BRAND',
+    'standings-only': 'STANDINGS_ONLY'
   };
   const envKey = mapping[key.toLowerCase()];
   if (envKey) {

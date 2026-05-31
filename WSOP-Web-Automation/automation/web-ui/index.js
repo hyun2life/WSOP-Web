@@ -35,6 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     auth: { chk: document.getElementById('opt-auth-check'), input: document.getElementById('opt-auth-input'), arg: 'auth-wait-ms' },
     concurrency: { chk: document.getElementById('opt-concurrency-check'), input: document.getElementById('opt-concurrency-input'), arg: 'concurrency' },
     reslimit: { chk: document.getElementById('opt-reslimit-check'), input: document.getElementById('opt-reslimit-input'), arg: 'result-limit' },
+    brand: { chk: document.getElementById('opt-brand-check'), input: document.getElementById('opt-brand-select'), arg: 'brand' },
+    standingsOnly: { chk: document.getElementById('opt-standingsonly-check'), input: document.getElementById('opt-standingsonly-input'), arg: 'standings-only' },
   };
 
   const pwOpts = {
