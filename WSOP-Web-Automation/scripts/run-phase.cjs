@@ -152,11 +152,9 @@ function runPhasePromise(phase, rawArgs) {
     } else {
       // Playwright test runner
       const project = phase.project || 'chromium-desktop';
-      const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-      const args = ['playwright', 'test', phase.testDir, '--project', project, ...passthrough];
-      spawnCommand = process.platform === 'win32' ? 'cmd.exe' : command;
-      spawnArgs = process.platform === 'win32' ? ['/d', '/s', '/c', command, ...args] : args;
-      commandDisplay = `${command} ${args.join(' ')}`;
+      spawnCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+      spawnArgs = ['playwright', 'test', phase.testDir, '--project', project, ...passthrough];
+      commandDisplay = `${spawnCommand} ${spawnArgs.join(' ')}`;
       workingDirectory = process.cwd();
     }
 
@@ -168,7 +166,8 @@ function runPhasePromise(phase, rawArgs) {
     const child = spawn(spawnCommand, spawnArgs, {
       env,
       stdio: 'inherit',
-      shell: true,
+      shell: false,
+      windowsHide: false,
       cwd: workingDirectory,
     });
 

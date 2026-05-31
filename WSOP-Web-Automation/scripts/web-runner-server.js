@@ -14,6 +14,11 @@ let activeProcess = null;
 let activePhaseId = null;
 let sseClients = [];
 let phaseStatuses = {};
+let lastRunPhaseId = null;
+let lastRunStartedAt = null;
+let lastRunFinishedAt = null;
+let lastRunExitCode = null;
+let lastRunStatus = 'ready';
 
 function terminateProcessTree(childProcess, reason = 'termination request') {
   if (!childProcess || !childProcess.pid) {
@@ -184,6 +189,11 @@ const server = http.createServer((req, res) => {
 
         sendToSse('status', { status: 'running', phaseId });
         sendToSse('log', { text: `[SERVER] Starting execution: node ${args.join(' ')}\n` });
+        lastRunPhaseId = phaseId;
+        lastRunStartedAt = new Date().toISOString();
+        lastRunFinishedAt = null;
+        lastRunExitCode = null;
+        lastRunStatus = 'running';
 
         const spawnEnv = { ...process.env };
         if (baseUrl) {
@@ -232,6 +242,9 @@ const server = http.createServer((req, res) => {
         activeProcess.on('error', err => {
           sendToSse('log', { text: `[SERVER_ERROR] Failed to start process: ${err.message}\n` });
           sendToSse('status', { status: 'failed', code: -1 });
+          lastRunFinishedAt = new Date().toISOString();
+          lastRunExitCode = -1;
+          lastRunStatus = 'failed';
           activeProcess = null;
           activePhaseId = null;
         });
@@ -242,6 +255,9 @@ const server = http.createServer((req, res) => {
 
           const finalStatus = code === 0 ? 'success' : 'failed';
           sendToSse('status', { status: finalStatus, code });
+          lastRunFinishedAt = new Date().toISOString();
+          lastRunExitCode = code ?? 1;
+          lastRunStatus = finalStatus;
 
           if (activePhaseId && activePhaseId !== 'all') {
             updatePhaseStatus(activePhaseId, finalStatus);
@@ -301,7 +317,13 @@ const server = http.createServer((req, res) => {
 
         try {
           const reportPath = getLatestReportPath(suite, mode);
-          sendToSse('log', { text: `[SERVER] Opening latest ${mode} report for ${suite}: ${reportPath}\n` });
+          const reportMtimeIso = new Date(fs.statSync(reportPath).mtimeMs).toISOString();
+          sendToSse('log', { text: `[SERVER] Opening latest ${mode} report for ${suite}: ${reportPath} (mtime: ${reportMtimeIso})\n` });
+          if (lastRunStartedAt && Date.parse(reportMtimeIso) < Date.parse(lastRunStartedAt)) {
+            sendToSse('log', {
+              text: `[SERVER_WARN] Report file is older than the latest run start time. report=${reportMtimeIso}, runStart=${lastRunStartedAt}\n`
+            });
+          }
 
           if (process.platform === 'win32') {
             execSync(`start "" "${reportPath}"`, { stdio: 'ignore' });
@@ -351,7 +373,14 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       isRunning: activeProcess !== null,
       phaseId: activePhaseId,
-      phaseStatuses: phaseStatuses
+      phaseStatuses: phaseStatuses,
+      lastRun: {
+        phaseId: lastRunPhaseId,
+        startedAt: lastRunStartedAt,
+        finishedAt: lastRunFinishedAt,
+        exitCode: lastRunExitCode,
+        status: lastRunStatus,
+      },
     }));
     return;
   }
