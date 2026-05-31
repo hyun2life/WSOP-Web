@@ -140,9 +140,15 @@ function runPhasePromise(phase, rawArgs) {
       const otherArgs = passthrough.filter(arg => arg !== '--ui' && arg !== '--headed');
 
       if (isTs) {
-        spawnCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-        spawnArgs = ['tsx', scriptPath, ...extraNodeArgs, ...otherArgs];
-        commandDisplay = `${spawnCommand} tsx ${scriptPath} ${[...extraNodeArgs, ...otherArgs].join(' ')}`;
+        if (process.platform === 'win32') {
+          spawnCommand = 'cmd.exe';
+          spawnArgs = ['/d', '/s', '/c', 'npx', 'tsx', scriptPath, ...extraNodeArgs, ...otherArgs];
+          commandDisplay = `cmd.exe /d /s /c npx tsx ${scriptPath} ${[...extraNodeArgs, ...otherArgs].join(' ')}`;
+        } else {
+          spawnCommand = 'npx';
+          spawnArgs = ['tsx', scriptPath, ...extraNodeArgs, ...otherArgs];
+          commandDisplay = `${spawnCommand} tsx ${scriptPath} ${[...extraNodeArgs, ...otherArgs].join(' ')}`;
+        }
       } else {
         spawnCommand = 'node';
         spawnArgs = [scriptPath, ...extraNodeArgs, ...otherArgs];
@@ -152,9 +158,15 @@ function runPhasePromise(phase, rawArgs) {
     } else {
       // Playwright test runner
       const project = phase.project || 'chromium-desktop';
-      spawnCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-      spawnArgs = ['playwright', 'test', phase.testDir, '--project', project, ...passthrough];
-      commandDisplay = `${spawnCommand} ${spawnArgs.join(' ')}`;
+      if (process.platform === 'win32') {
+        spawnCommand = 'cmd.exe';
+        spawnArgs = ['/d', '/s', '/c', 'npx', 'playwright', 'test', phase.testDir, '--project', project, ...passthrough];
+        commandDisplay = `cmd.exe /d /s /c npx playwright test ${phase.testDir} --project ${project} ${passthrough.join(' ')}`;
+      } else {
+        spawnCommand = 'npx';
+        spawnArgs = ['playwright', 'test', phase.testDir, '--project', project, ...passthrough];
+        commandDisplay = `${spawnCommand} ${spawnArgs.join(' ')}`;
+      }
       workingDirectory = process.cwd();
     }
 
