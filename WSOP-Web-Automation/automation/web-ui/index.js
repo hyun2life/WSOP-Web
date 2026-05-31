@@ -254,6 +254,17 @@ document.addEventListener('DOMContentLoaded', () => {
     crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3');
     pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'all');
 
+    // Phase 3는 무조건 standings-only가 필요하므로 UI를 강제 설정하고 비활성화합니다.
+    const soChk = document.getElementById('opt-standingsonly-check');
+    if (soChk) {
+      if (phase.id === 'phase3') {
+        soChk.checked = true;
+        soChk.disabled = true;
+      } else {
+        soChk.disabled = false;
+      }
+    }
+
     btnRun.disabled = !phase.implemented || isRunning;
 
     if (!phase.implemented || phase.id === 'all') {
