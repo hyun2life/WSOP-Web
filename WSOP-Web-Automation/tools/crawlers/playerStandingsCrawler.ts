@@ -431,8 +431,8 @@ function findResultRowInBodyText(bodyText, player, targetRank, targetEarnings) {
 
     const beforeMoney = nearbyText.slice(0, Math.max(0, index - Math.max(0, index - 180)));
     const rankMatch = beforeMoney.match(/(?:^|\s)(\d{1,6})\s+[^$€£₩\u20a9₱\u20b1]{2,180}$/);
-    const parsedRank = rankMatch ? Number(rankMatch[1].replace(/,/g, "")) : targetRank;
-    if (targetRank && parsedRank && parsedRank !== targetRank) continue;
+    const parsedRank = rankMatch ? Number(rankMatch[1].replace(/,/g, "")) : null;
+    if (targetRank && parsedRank !== targetRank) continue;
 
     return {
       no: parsedRank || targetRank,
@@ -445,6 +445,13 @@ function findResultRowInBodyText(bodyText, player, targetRank, targetEarnings) {
   }
 
   return null;
+}
+
+function shouldAttemptResultTextFallback(targetRank, range, pageIndex, totalPages) {
+  if (!targetRank) return true;
+  if (range && range.min <= targetRank && targetRank <= range.max) return true;
+  if (range && range.min > targetRank) return true;
+  return pageIndex === totalPages;
 }
 
 function resultRowMatchesTarget(row, player) {
@@ -2323,12 +2330,15 @@ function evaluateResultFromCachedPages(cachedPages, player, event, urlKey) {
   }
 
   if (!foundRow) {
-    for (const cachedPage of cachedPages) {
+    const totalCachedPages = cachedPages.length;
+    for (let cachedIndex = 0; cachedIndex < totalCachedPages; cachedIndex += 1) {
+      const cachedPage = cachedPages[cachedIndex];
+      const range = rankRangeForRows(cachedPage.rows || []);
+      if (!shouldAttemptResultTextFallback(targetRank, range, cachedIndex + 1, totalCachedPages)) continue;
+
       const lastBody = cachedPage.bodyText || "";
       foundRow = findResultRowInBodyText(lastBody, player, targetRank, targetEarnings);
-      if (foundRow) {
-        break;
-      }
+      if (foundRow) break;
     }
   }
 
@@ -2417,7 +2427,7 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
     const candidates = targetRank ? rows.filter((row) => row.no === targetRank) : rows;
     let pageFoundRow = candidates.find((row) => resultRowMatchesTarget(row, player)) || null;
 
-    if (!pageFoundRow) {
+    if (!pageFoundRow && shouldAttemptResultTextFallback(targetRank, range, pageIndex, pageInspectionLimit)) {
       lastBody = bodyText;
       pageFoundRow = findResultRowInBodyText(lastBody, player, targetRank, targetEarnings);
     }
@@ -2560,7 +2570,7 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
       const candidates = targetRank ? rows.filter((row) => row.no === targetRank) : rows;
       let pageFoundRow = candidates.find((row) => resultRowMatchesTarget(row, player)) || null;
 
-      if (!pageFoundRow) {
+      if (!pageFoundRow && shouldAttemptResultTextFallback(targetRank, range, pageIndex, pageInspectionLimit)) {
         lastBody = bodyText;
         pageFoundRow = findResultRowInBodyText(lastBody, player, targetRank, targetEarnings);
       }
