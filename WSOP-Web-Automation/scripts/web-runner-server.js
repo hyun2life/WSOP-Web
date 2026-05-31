@@ -253,7 +253,7 @@ const server = http.createServer((req, res) => {
           const reason = signal ? `interrupted by ${signal}` : `exit code ${code}`;
           sendToSse('log', { text: `\n[SERVER] Process finished: ${reason}\n` });
 
-          const finalStatus = code === 0 ? 'success' : 'failed';
+          const finalStatus = resolveFinalStatus(activePhaseId, code);
           sendToSse('status', { status: finalStatus, code });
           lastRunFinishedAt = new Date().toISOString();
           lastRunExitCode = code ?? 1;
@@ -312,6 +312,12 @@ const server = http.createServer((req, res) => {
         if (!suite || !mode) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Missing suite or mode parameters' }));
+          return;
+        }
+
+        if (suite === 'all') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'ALL does not map to a single phase report. Select a specific phase.' }));
           return;
         }
 
@@ -457,6 +463,106 @@ function getLatestReportPath(suite, mode) {
   }
 
   return candidates[0].path;
+}
+
+function resolveFinalStatus(phaseId, code) {
+  if (code !== 0) {
+    return 'failed';
+  }
+
+  if (!phaseId || phaseId === 'all') {
+    return 'success';
+  }
+
+  const suite = getReportSuiteByPhaseId(phaseId);
+  if (suite && hasWarningInLatestReport(suite, lastRunStartedAt)) {
+    return 'warning';
+  }
+
+  return 'success';
+}
+
+function getReportSuiteByPhaseId(phaseId) {
+  if (!phaseId || !fs.existsSync(PHASES_JSON_PATH)) {
+    return null;
+  }
+
+  try {
+    const config = JSON.parse(fs.readFileSync(PHASES_JSON_PATH, 'utf8'));
+    const phase = (config.phases || []).find((item) => String(item.id || '').toLowerCase() === String(phaseId).toLowerCase());
+    return phase?.reportSuite || null;
+  } catch {
+    return null;
+  }
+}
+
+function hasWarningInLatestReport(suite, runStartedAtIso) {
+  const jsonPath = getLatestReportJsonPath(suite);
+  if (!jsonPath || !fs.existsSync(jsonPath)) {
+    return false;
+  }
+
+  const mtimeMs = fs.statSync(jsonPath).mtimeMs;
+  if (runStartedAtIso && mtimeMs < Date.parse(runStartedAtIso)) {
+    // Ignore stale report files from previous runs.
+    return false;
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    const summaryStatus = String(parsed?.summary?.status || '').toLowerCase();
+    if (summaryStatus === 'warn' || summaryStatus === 'warning') {
+      return true;
+    }
+    if (Number(parsed?.summary?.warningSteps || 0) > 0) {
+      return true;
+    }
+    if (Number(parsed?.warningSteps || 0) > 0) {
+      return true;
+    }
+    if (Array.isArray(parsed?.warnings) && parsed.warnings.length > 0) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+function getLatestReportJsonPath(suite) {
+  const normalized = String(suite || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized === 'crawler') {
+    const dir = path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
+    return findLatestMatchingFile(dir, /^wsop-player-crawler-live-\d{8}-\d{6}(?:-\d{3})?-report\.json$/);
+  }
+
+  const dir = path.join(PROJECT_ROOT, 'automation', 'output');
+  const pattern = new RegExp(`^wsop-public-${normalized}-\\d{8}-\\d{6}(?:-\\d{3})?-report\\.json$`);
+  return findLatestMatchingFile(dir, pattern);
+}
+
+function findLatestMatchingFile(dirPath, pattern) {
+  if (!fs.existsSync(dirPath)) {
+    return null;
+  }
+
+  const candidates = fs.readdirSync(dirPath, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && pattern.test(entry.name))
+    .map((entry) => {
+      const fullPath = path.join(dirPath, entry.name);
+      return {
+        path: fullPath,
+        mtime: fs.statSync(fullPath).mtimeMs,
+      };
+    })
+    .sort((a, b) => b.mtime - a.mtime);
+
+  return candidates.length > 0 ? candidates[0].path : null;
 }
 
 server.listen(PORT, HOST, () => {

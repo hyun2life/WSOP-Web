@@ -241,6 +241,12 @@ body {
   border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
+.phase-badge.warning {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
 @keyframes badge-pulse {
   0% { opacity: 0.8; }
   50% { opacity: 1; filter: brightness(1.2); }
@@ -269,6 +275,10 @@ body {
 
 .phase-card.failed {
   border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+.phase-card.warning {
+  border-color: rgba(245, 158, 11, 0.25) !important;
 }
 
 .phase-name {
@@ -772,6 +782,11 @@ body {
 .status-indicator.failed .status-dot {
   background-color: var(--accent-red);
   box-shadow: 0 0 8px var(--accent-red);
+}
+
+.status-indicator.warning .status-dot {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.85);
 }
 
 @keyframes pulse-dot {

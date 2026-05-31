@@ -421,14 +421,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const card = document.querySelector(`.phase-card[data-id="${phaseId}"]`);
     if (!card) return;
 
-    card.classList.remove('running', 'success', 'failed');
-    if (status === 'running' || status === 'success' || status === 'failed') {
+    card.classList.remove('running', 'success', 'failed', 'warning');
+    if (status === 'running' || status === 'success' || status === 'failed' || status === 'warning') {
       card.classList.add(status);
     }
 
     const badge = card.querySelector('.phase-badge');
     if (badge) {
-      badge.classList.remove('ready', 'planned', 'running', 'success', 'failed');
+      badge.classList.remove('ready', 'planned', 'running', 'success', 'failed', 'warning');
       
       let badgeClass = status;
       let badgeText = '준비됨';
@@ -445,6 +445,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (status === 'failed') {
         badgeClass = 'failed';
         badgeText = '실패';
+      } else if (status === 'warning') {
+        badgeClass = 'warning';
+        badgeText = 'Warning';
       } else if (status === 'planned') {
         badgeClass = 'planned';
         badgeText = '예정';
@@ -506,6 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       if (status === 'success') label = 'Success';
       if (status === 'failed') label = 'Failed';
+      if (status === 'warning') label = 'Warning';
       isRunning = false;
       btnRun.classList.remove('hidden');
       btnKill.classList.add('hidden');
@@ -585,11 +589,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function triggerOpenReport(reportMode) {
     if (!selectedPhase) return;
+    const suite = selectedPhase.reportSuite || selectedPhase.id;
 
     fetch('/api/open-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ suite: selectedPhase.reportSuite, mode: reportMode }),
+      body: JSON.stringify({ suite, mode: reportMode }),
     })
       .then((res) => {
         if (!res.ok) throw new Error('Report API request failed');

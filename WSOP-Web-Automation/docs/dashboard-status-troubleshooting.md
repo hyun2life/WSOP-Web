@@ -23,3 +23,8 @@
   2. `[SERVER] Process finished: exit code ...`
   3. `[SERVER] Opening latest ... (mtime: ...)`
   4. `[SERVER_WARN] Report file is older than the latest run start time ...` 여부
+
+## Report Open 동작 기준
+- 모든 Phase는 각자의 `reportSuite` 기준으로 **해당 Phase 최신 리포트만** 엶
+- 예: `phase1 -> smoke`, `phase2 -> functional`, `phase3 -> player-presentation`
+- `ALL`은 단일 리포트 대상이 없으므로 리포트 버튼을 비활성화
