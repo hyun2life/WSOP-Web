@@ -48,6 +48,51 @@ function getPastHtmlReports(prefix, isKo = false) {
   }
 }
 
+function getSuiteReportRunIds(prefix) {
+  if (!fs.existsSync(OUTPUT_DIR)) return [];
+
+  const files = fs.readdirSync(OUTPUT_DIR);
+  const runIds = [];
+  const seen = new Set();
+  const pattern = new RegExp(`^${escapeRegExp(prefix)}-(\\d{8}-\\d{6}(?:-\\d{3})?)-report\\.json$`);
+
+  for (const file of files) {
+    const match = file.match(pattern);
+    if (!match) continue;
+    const runId = match[1];
+    if (seen.has(runId)) continue;
+    seen.add(runId);
+    runIds.push(runId);
+  }
+
+  runIds.sort((a, b) => b.localeCompare(a));
+  return runIds;
+}
+
+function refreshSuiteHtmlHistory(prefix) {
+  const runIds = getSuiteReportRunIds(prefix);
+  if (runIds.length === 0) return;
+
+  const pastEnglishReports = getPastHtmlReports(prefix, false);
+  const pastKoreanReports = getPastHtmlReports(prefix, true);
+
+  for (const runId of runIds) {
+    const jsonPath = path.join(OUTPUT_DIR, `${prefix}-${runId}-report.json`);
+    if (!fs.existsSync(jsonPath)) continue;
+
+    try {
+      const report = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      const htmlPath = path.join(OUTPUT_DIR, `${prefix}-${runId}-report.html`);
+      const koHtmlPath = path.join(OUTPUT_DIR, `${prefix}-${runId}-report-ko.html`);
+
+      fs.writeFileSync(htmlPath, renderDashboard(report, false, pastEnglishReports), 'utf8');
+      fs.writeFileSync(koHtmlPath, renderDashboard(report, true, pastKoreanReports), 'utf8');
+    } catch (err) {
+      console.warn(`WSOP ${REPORT_SUITE} report history refresh skipped for run ${runId}: ${err.message}`);
+    }
+  }
+}
+
 class WsopSmokeHtmlReporter {
   constructor() {
     this.startedAt = new Date();
@@ -125,6 +170,7 @@ class WsopSmokeHtmlReporter {
     fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
     fs.writeFileSync(htmlPath, renderDashboard(report, false, pastEnglishReports), 'utf8');
     fs.writeFileSync(koHtmlPath, renderDashboard(report, true, pastKoreanReports), 'utf8');
+    refreshSuiteHtmlHistory(REPORT_PREFIX);
 
     console.log(`WSOP ${REPORT_SUITE} report: ${htmlPath}`);
     console.log(`WSOP ${REPORT_SUITE} Korean report: ${koHtmlPath}`);
@@ -1586,6 +1632,10 @@ function normalizeReportSuite(value) {
   }
 
   return value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function sanitizeFileName(value) {

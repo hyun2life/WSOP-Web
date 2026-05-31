@@ -557,6 +557,8 @@ CI는 `release-gate-result.json`의 `ci.shouldFailBuild`가 `true`이거나 `ci.
 
 - Web Dashboard의 `KO / EN / PW Report` 버튼은 선택한 페이즈의 `reportSuite` 기준으로 전체 이력(타임스탬프 리포트)을 불러옵니다.
 - 목록에서 어제/오늘 포함 원하는 시점의 리포트를 직접 선택해서 열 수 있습니다.
+- 각 HTML 리포트 상단의 `이전 리포트 기록` 드롭다운도 최신 실행 시점 기준으로 전체 이력이 갱신됩니다.
+- 따라서 과거 리포트를 열어도 최신 리포트를 같은 드롭다운에서 선택해 이동할 수 있습니다.
 - 페이즈 매핑은 고정입니다. (`phase1 -> smoke`, `phase2 -> functional`, `phase3 -> player-presentation`, ...)
 - 따라서 다른 페이즈 리포트가 섞여 열리지 않습니다.
 - `ALL`은 실행 전용이며, 단일 통합 리포트를 직접 여는 버튼은 제공하지 않습니다.
