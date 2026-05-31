@@ -193,7 +193,7 @@ const server = http.createServer((req, res) => {
         activeProcess = spawn('node', args, {
           cwd: PROJECT_ROOT,
           env: spawnEnv,
-          shell: true
+          shell: false
         });
         activePhaseId = phaseId;
 
