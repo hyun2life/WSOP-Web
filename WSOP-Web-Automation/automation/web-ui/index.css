@@ -959,3 +959,79 @@ body {
   font-size: 0.74rem;
   font-weight: 800;
 }
+
+/* ==========================================================================
+   Modern Tooltip Helper Styles
+   ========================================================================== */
+.help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background-color: var(--border-color);
+  color: var(--text-dimmed);
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 6px;
+  cursor: help;
+  position: relative;
+  transition: all 0.2s;
+  vertical-align: middle;
+}
+
+.help-icon:hover {
+  background-color: var(--accent-purple);
+  color: #ffffff;
+}
+
+/* Tooltip popup box using CSS */
+.help-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 135%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  background-color: #171b22;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+  width: 220px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-transform: none;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.help-icon::before {
+  content: "";
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  border-width: 6px;
+  border-style: solid;
+  border-color: #171b22 transparent transparent transparent;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.help-icon:hover::after,
+.help-icon:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
