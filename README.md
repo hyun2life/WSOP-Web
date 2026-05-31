@@ -3,7 +3,7 @@
 WSOP 공개 웹사이트 검증, 크롤링, 리포트 생성을 한 작업 공간에서 관리하는 통합 프로젝트입니다.
 
 > [!TIP]
-> **[테스트 상세 가이드라인 (TEST-GUIDE.md)](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/TEST-GUIDE.md)**에서 전체 테스트 단계별(Phase 1 ~ Phase 9) 목적, 상세 시나리오, 검증 항목 및 실행 방식을 한글로 자세히 제공합니다.
+> **[테스트 상세 가이드라인 (TEST-GUIDE.md)](./TEST-GUIDE.md)**에서 전체 테스트 단계별(Phase 1 ~ Phase 9) 목적, 상세 시나리오, 검증 항목 및 실행 방식을 한글로 자세히 제공합니다.
 
 ## 프로젝트 목적
 

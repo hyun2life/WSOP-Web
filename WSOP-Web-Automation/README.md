@@ -3,7 +3,7 @@
 `wsop.com` 공개 웹사이트의 smoke, functional flow, player presentation UI, search/filter/sort depth 자동화 프로젝트입니다.
 
 > [!TIP]
-> **[테스트 상세 가이드라인 (TEST-GUIDE.md)](file:///c:/Users/USER1/Desktop/Study/WSOP-Web/TEST-GUIDE.md)**에서 각 테스트 단계(Phase 1 ~ Phase 9)와 크롤러의 구체적인 시나리오, 검증 항목, 명령어들을 통합 가이드로 제공합니다.
+> **[테스트 상세 가이드라인 (TEST-GUIDE.md)](../TEST-GUIDE.md)**에서 각 테스트 단계(Phase 1 ~ Phase 9)와 크롤러의 구체적인 시나리오, 검증 항목, 명령어들을 통합 가이드로 제공합니다.
 
 목표는 단계별로 다릅니다. Phase 1은 배포 후 주요 공개 페이지가 정상적으로 열리는지 빠르게 확인하고, Phase 2는 사용자의 핵심 탐색 흐름을 검증하며, Phase 3은 플레이어가 공개 웹 화면에서 올바르게 식별되고 표현되는지 확인합니다.
 
@@ -19,6 +19,11 @@
 - 별도 한글/영문 최종 smoke 리포트 생성
 - Phase 3 Player Presentation & Identity UI 검증
 - Phase 4 Search / Filter / Sort Depth 검증
+- Phase 5 Result Detail Integrity 검증
+- Phase 6 Data/API Integrity 검증
+- Phase 7 Performance/Stability 검증
+- Phase 8 Visual Regression 검증
+- Phase 9 Regression Runner 및 Release Gate 산출물 생성
 - 실패 시 screenshot, trace, video 저장
 
 ## 폴더 구조
@@ -97,6 +102,21 @@ npm run test:player-presentation
 npm run test:phase3
 npm run test:search-filter-sort
 npm run test:phase4
+npm run test:result-detail
+npm run test:phase5
+npm run test:data-integrity
+npm run test:phase6
+npm run test:performance-stability
+npm run test:phase7
+npm run test:visual-regression
+npm run test:phase8
+npm run test:phase9
+npm run test:regression:quick
+npm run test:regression:standard
+npm run test:regression:extended
+npm run test:release
+npm run test:release:with-visual
+npm run test:release:with-crawl
 ```
 
 ## 리포트
@@ -138,6 +158,29 @@ automation/output/wsop-public-search-filter-sort-*-report-ko.html
 automation/output/wsop-public-search-filter-sort-*-report.html
 automation/output/wsop-public-search-filter-sort-*-report.json
 automation/output/wsop-public-search-filter-sort-*-playwright-report/index.html
+automation/output/wsop-public-result-detail-*-report-ko.html
+automation/output/wsop-public-result-detail-*-report.html
+automation/output/wsop-public-result-detail-*-report.json
+automation/output/wsop-public-result-detail-*-playwright-report/index.html
+automation/output/wsop-public-data-integrity-*-report-ko.html
+automation/output/wsop-public-data-integrity-*-report.html
+automation/output/wsop-public-data-integrity-*-report.json
+automation/output/wsop-public-data-integrity-*-playwright-report/index.html
+automation/output/wsop-public-performance-stability-*-report-ko.html
+automation/output/wsop-public-performance-stability-*-report.html
+automation/output/wsop-public-performance-stability-*-report.json
+automation/output/wsop-public-performance-stability-*-playwright-report/index.html
+automation/output/wsop-public-visual-regression-*-report-ko.html
+automation/output/wsop-public-visual-regression-*-report.html
+automation/output/wsop-public-visual-regression-*-report.json
+automation/output/wsop-public-visual-regression-*-playwright-report/index.html
+automation/output/wsop-public-regression-*-report-ko.html
+automation/output/wsop-public-regression-*-report.html
+automation/output/wsop-public-regression-*-report.json
+artifacts/full-regression/latest/regression-summary.md
+artifacts/full-regression/latest/regression-summary.html
+artifacts/full-regression/latest/regression-summary-ko.html
+artifacts/full-regression/latest/release-gate-result.json
 automation/output/wsop-public-*-attachments/
 test-results/
 ```
@@ -345,11 +388,15 @@ phase1  smoke                  tests/smoke
 phase2  functional             tests/functional
 phase3  player-presentation    tests/player-presentation
 phase4  search-filter-sort     tests/search-filter-sort
-phase5  result-detail          tests/result-detail           planned
-phase6  data-integrity         tests/data-integrity          planned
-phase7  performance-stability  tests/performance-stability   planned
-phase8  visual-regression      tests/visual-regression       planned
-phase9  regression             tests/regression              planned
+phase5  result-detail          tests/result-detail-integrity  implemented
+phase6  data-integrity         tests/data-integrity           implemented
+phase7  performance-stability  tests/performance-stability    implemented
+phase8  visual-regression      tests/visual-regression        implemented
+phase9  regression             tests/regression               implemented
+crawler crawler                ../WSOP-Player-Standings-Crawler implemented
+phase10 notification           tests/notification             planned
+phase11 api-db-integration     tests/api-db-integration       planned
+phase12 lighthouse             tests/lighthouse               planned
 ```
 
 공통 실행기:
@@ -360,6 +407,11 @@ npm run test:phase1
 npm run test:phase2
 npm run test:phase3
 npm run test:phase4
+npm run test:phase5
+npm run test:phase6
+npm run test:phase7
+npm run test:phase8
+npm run test:phase9
 ```
 
 또는 상위 통합 GUI 실행기(`..\Run.bat`)를 통해 각 Phase를 선택해 실행할 수 있습니다.
@@ -377,7 +429,11 @@ automation/output/wsop-public-smoke-YYYYMMDD-HHMMSS-...
 automation/output/wsop-public-functional-YYYYMMDD-HHMMSS-...
 automation/output/wsop-public-player-presentation-YYYYMMDD-HHMMSS-...
 automation/output/wsop-public-search-filter-sort-YYYYMMDD-HHMMSS-...
+automation/output/wsop-public-result-detail-YYYYMMDD-HHMMSS-...
 automation/output/wsop-public-data-integrity-YYYYMMDD-HHMMSS-...
+automation/output/wsop-public-performance-stability-YYYYMMDD-HHMMSS-...
+automation/output/wsop-public-visual-regression-YYYYMMDD-HHMMSS-...
+automation/output/wsop-public-regression-YYYYMMDD-HHMMSS-...
 ```
 
 유지보수 원칙:
@@ -452,7 +508,7 @@ Run.bat
 
 ## 검증 범위에서 제외한 것
 
-이번 자동화는 1차 smoke test입니다. 아래 항목은 범위에 포함하지 않습니다.
+이 자동화는 공개 웹 기반 품질 검증(Phase 1~9) 중심입니다. 아래 항목은 현재 범위에 포함하지 않습니다.
 
 - 토너먼트 필터 정확성
 - 플레이어 데이터 정합성
