@@ -432,8 +432,11 @@ function findResultRowInBodyText(bodyText, player, targetRank, targetEarnings) {
 
     const beforeMoney = nearbyText.slice(0, Math.max(0, index - Math.max(0, index - 180)));
     const rankMatch = beforeMoney.match(/(?:^|\s)(\d{1,6})\s+[^$€£₩\u20a9₱\u20b1]{2,180}$/);
-    const parsedRank = rankMatch ? Number(rankMatch[1].replace(/,/g, "")) : targetRank;
-    if (targetRank && parsedRank && parsedRank !== targetRank) continue;
+    const parsedRank = rankMatch ? Number(rankMatch[1].replace(/,/g, "")) : null;
+    // targetRank가 있는 검증에서는 rank를 명시적으로 읽어내지 못한 fallback 조각을 신뢰하지 않는다.
+    // (과거에는 parsedRank를 targetRank로 대체해 오탐을 만들 수 있었다.)
+    if (targetRank && parsedRank === null) continue;
+    if (targetRank && parsedRank !== targetRank) continue;
 
     return {
       no: parsedRank || targetRank,
@@ -4680,6 +4683,15 @@ function runSelfTest() {
   const vndFallbackRow = findResultRowInBodyText("Final Result No Player Country Earnings 7 Punnat Punsri Thailand ₫1,564,687,416", { name: "Punnat Punsri", standingsSources: [] }, 7, 1564687416);
   if (!vndFallbackRow || vndFallbackRow.no !== 7 || vndFallbackRow.earnings !== 1564687416) {
     throw new Error("Final result text fallback should read the Vietnamese Dong earnings or match it numeric-only");
+  }
+  const ranklessNearbyFallbackRow = findResultRowInBodyText(
+    "Final Result No Player Country Earnings Alpha Row Daniel Rezaei Austria $307 Beta Row Other Player Germany $1,000",
+    { name: "Daniel Rezaei", standingsSources: [] },
+    589,
+    254
+  );
+  if (ranklessNearbyFallbackRow) {
+    throw new Error("Final result text fallback should not invent a target rank when nearby text has no rank token");
   }
   const resultEarningsMismatchChecks = {
     hasFinalResultRows: true,
