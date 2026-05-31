@@ -1488,7 +1488,8 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
   let stalledClicks = 0;
 
   while (expansion.loadMoreClicks < maxLoadMore) {
-    if (expected && events.length >= expected) {
+    const uniqueCount = deduplicateComparisonEvents(events).uniqueEvents.length;
+    if (expected && uniqueCount >= (expected + 5)) {
       expansion.reachedExpectedCashes = true;
       expansion.stoppedReason = "expected-cashes-reached";
       break;
@@ -1529,7 +1530,8 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
   if (expansion.stoppedReason === "not-started") {
     expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : (expected && events.length < expected ? "load-more-not-found" : "complete");
   }
-  if (expected && events.length >= expected) expansion.reachedExpectedCashes = true;
+  const finalUniqueCount = deduplicateComparisonEvents(events).uniqueEvents.length;
+  if (expected && finalUniqueCount >= expected) expansion.reachedExpectedCashes = true;
   expansion.finalEventCount = events.length;
   return { events, expansion };
 }
@@ -1546,7 +1548,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   };
   let stalledClicks = 0;
 
-  while (expected && events.length < expected && expansion.loadMoreClicks < maxLoadMore) {
+  while (expected && deduplicateComparisonEvents(events).uniqueEvents.length < (expected + 5) && expansion.loadMoreClicks < maxLoadMore) {
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
       if (expected && events.length < expected && stalledClicks < 3) {
@@ -1579,7 +1581,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
     await page.waitForTimeout(500);
   }
 
-  if (expected && events.length >= expected) {
+  if (expected && deduplicateComparisonEvents(events).uniqueEvents.length >= expected) {
     expansion.reachedExpectedRows = true;
     expansion.stoppedReason = "expected-rows-reached";
   } else if (expected && expansion.stoppedReason === "not-started") {
@@ -1711,7 +1713,12 @@ async function extractFinalResultRows(page) {
     for (const table of Array.from(document.querySelectorAll("table"))) {
       if (!isVisibleElement(table)) continue;
       const headerText = normalize(table.querySelector("thead")?.textContent || table.textContent || "");
-      if (!/\bNo\b/i.test(headerText) || !/\bPlayer\b/i.test(headerText) || !/\bEarnings\b/i.test(headerText)) continue;
+      
+      const hasRank = /no|rank|pos|place/i.test(headerText);
+      const hasPlayer = /player|name/i.test(headerText);
+      const hasEarnings = /earnings|prize|payout|cash|\$/i.test(headerText);
+
+      if (!hasRank || !hasPlayer || !hasEarnings) continue;
 
       for (const row of Array.from(table.querySelectorAll("tr"))) {
         if (!isVisibleElement(row)) continue;
@@ -2392,6 +2399,7 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
   for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
     await page.waitForTimeout(1000);
     const url = page.url();
+    await page.waitForSelector("table tr", { timeout: 6000 }).catch(() => {});
 
     const rows = await extractFinalResultRows(page);
     const title = await page.title().catch(() => "");
