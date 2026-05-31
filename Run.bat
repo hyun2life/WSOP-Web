@@ -37,7 +37,7 @@ if %errorlevel% equ 0 (
 
 rem 2. Start the server in a hidden window
 echo [INFO] Starting WSOP Web Dashboard server...
-powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "cd WSOP-Web-Automation; node scripts\web-runner-server.js > automation\output\web-runner-server.out.log 2> automation\output\web-runner-server.err.log"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'node' -ArgumentList 'scripts\web-runner-server.js' -WorkingDirectory (Resolve-Path 'WSOP-Web-Automation') -WindowStyle Hidden -RedirectStandardOutput '%SERVER_OUT_LOG%' -RedirectStandardError '%SERVER_ERR_LOG%'"
 
 rem 3. Wait for server to initialize
 for /l %%i in (1,1,10) do (
@@ -60,5 +60,12 @@ start http://localhost:3000
 exit /b 0
 
 :IsDashboardPortOpen
-powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>nul
-exit /b %errorlevel%
+set "DASHBOARD_PID="
+for /f "tokens=5" %%P in ('netstat -ano -p tcp ^| findstr /R /C:":3000 .*LISTENING"') do (
+  set "DASHBOARD_PID=%%P"
+  goto DASHBOARD_PORT_FOUND
+)
+exit /b 1
+
+:DASHBOARD_PORT_FOUND
+exit /b 0
