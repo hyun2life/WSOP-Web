@@ -258,9 +258,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const soChk = document.getElementById('opt-standingsonly-check');
     if (soChk) {
       if (phase.id === 'phase3') {
+        // Preserve user choice and temporarily force standings-only for phase3
+        if (!soChk.disabled) {
+          soChk.dataset.prevChecked = soChk.checked ? 'true' : 'false';
+        }
         soChk.checked = true;
         soChk.disabled = true;
       } else {
+        // Restore previous user choice when leaving phase3
+        if (soChk.disabled && soChk.dataset.prevChecked) {
+          soChk.checked = soChk.dataset.prevChecked === 'true';
+        }
+        delete soChk.dataset.prevChecked;
         soChk.disabled = false;
       }
     }
