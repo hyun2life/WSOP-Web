@@ -25,7 +25,7 @@ export async function findResultPaginationControls(page: Page): Promise<Locator[
 export async function searchPlayerAcrossResultPages(
   page: Page,
   player: { displayName: string },
-  maxActions = 2,
+  maxActions = 4,
 ): Promise<{ row: ResultDetailPlayerRow | null; actions: number; limited: boolean }> {
   const normalizedPlayer = normalizePlayerName(player.displayName);
 
@@ -46,6 +46,11 @@ export async function searchPlayerAcrossResultPages(
       return { row: null, actions: action - 1, limited: true };
     }
 
+    const getTableContent = async () => {
+      return page.locator('table').first().innerText().catch(() => '');
+    };
+    const oldTableContent = await getTableContent();
+
     const target = await pickBestPaginationControl(roundControls);
     const clicked = await safeClick(target);
     if (!clicked) {
@@ -55,6 +60,17 @@ export async function searchPlayerAcrossResultPages(
         pageUrl: page.url(),
       });
       return { row: null, actions: action, limited: true };
+    }
+
+    // Wait for the table DOM content to actually change (up to 5s)
+    if (oldTableContent) {
+      for (let i = 0; i < 25; i += 1) {
+        await page.waitForTimeout(200);
+        const currentContent = await getTableContent();
+        if (currentContent !== oldTableContent) {
+          break;
+        }
+      }
     }
 
     await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => undefined);

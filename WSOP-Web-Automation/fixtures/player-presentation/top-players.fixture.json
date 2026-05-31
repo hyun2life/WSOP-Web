@@ -12,7 +12,8 @@
     "searchKeyword": "Phil Hellmuth",
     "profileUrl": "/players/phil-hellmuth/",
     "expectedCountry": "United States",
-    "identityType": ["top-bracelets", "hof-known"]
+    "identityType": ["top-bracelets", "hof-known"],
+    "knownExceptionKey": "phil-hellmuth"
   },
   {
     "displayName": "Phil Ivey",

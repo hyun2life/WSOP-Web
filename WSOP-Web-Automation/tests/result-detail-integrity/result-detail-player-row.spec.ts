@@ -45,7 +45,7 @@ test.describe('Phase 5 - result detail player row integrity', () => {
         const knownException = resolveException(player, knownExceptions);
         let found = findPlayerRowInResultDetail(detailRows, player, sample, knownException);
         if (!found) {
-          const searched = await searchPlayerAcrossResultPages(page, player, 2);
+          const searched = await searchPlayerAcrossResultPages(page, player, 4);
           if (!searched.row && searched.limited) {
             addWarning('phase5-player-row-pagination-limited', 'Row integrity check could not complete due to limited/unstable pagination on result detail.', {
               displayName: player.displayName,

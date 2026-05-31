@@ -57,7 +57,7 @@ test.describe('Phase 5 - result detail pagination / load more', () => {
         return;
       }
 
-      const searched = await searchPlayerAcrossResultPages(page, player, 2);
+      const searched = await searchPlayerAcrossResultPages(page, player, 4);
       if (searched.row) {
         assertResultDetailPlayerRow(searched.row, player, knownException);
         return;
@@ -67,7 +67,7 @@ test.describe('Phase 5 - result detail pagination / load more', () => {
         addWarning('phase5-result-pagination-limited', 'Player row was not found within limited pagination actions.', {
           displayName: player.displayName,
           resultHref: sample.resultHref,
-          maxActions: 2,
+          maxActions: 4,
         });
         return;
       }

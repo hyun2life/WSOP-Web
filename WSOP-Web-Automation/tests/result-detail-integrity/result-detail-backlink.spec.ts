@@ -44,7 +44,7 @@ test.describe('Phase 5 - result detail player backlink', () => {
       const rows = await collectResultDetailPlayerRows(page);
       let found = findPlayerRowInResultDetail(rows, player, sample, knownException);
       if (!found) {
-        const searched = await searchPlayerAcrossResultPages(page, player, 2);
+        const searched = await searchPlayerAcrossResultPages(page, player, 4);
         if (!searched.row && searched.limited) {
           addWarning('phase5-backlink-pagination-limited', 'Backlink check could not complete due to limited/unstable pagination on result detail.', {
             displayName: player.displayName,
