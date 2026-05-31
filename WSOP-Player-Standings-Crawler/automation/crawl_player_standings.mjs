@@ -3371,7 +3371,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     <div class="header-content">
       <div class="header-title">
         <div class="eyebrow">${isKo ? "WSOP 플레이어 standings 크롤러" : "WSOP PLAYER STANDINGS CRAWLER"}</div>
-        <h1>${escapeHtml(t.title)}</h1>
+        <h1>${escapeHtml(t.title)}${report.mode === 'standings-only' ? `<span class="status-badge warn" style="margin-left: 12px; font-size: 14px; padding: 6px 14px; vertical-align: middle; font-family: 'Inter', sans-serif;">${isKo ? "순위 수집 전용" : "Standings Only"}</span>` : ""}</h1>
         <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>${summary.interruptedReason ? ` (${escapeHtml(summary.interruptedReason)})` : ""} | ${escapeHtml(t.source)}: <a href="${escapeHtml(report.playersUrl || "")}">${escapeHtml(report.playersUrl || "")}</a></p>
       </div>
       <div class="header-actions" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
@@ -4081,90 +4081,98 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   </div>
                 \` : ""}
 
-                <!-- Tab Headers -->
-                <div class="sub-tabs-container">
-                  <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(player.name)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
-                  <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(player.name)}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
-                  <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
-                  <div class="tab-active-bar"></div>
-                </div>
-
-                <!-- Sub-tab Content: Summary Metrics -->
-                <div class="sub-tab-content" data-tab="summary">
-                  <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Summary Metrics Check</h4>
-                  <table style="width:100%;">
-                    <thead>
-                      <tr><th>Stat</th><th>\${labels.profileStat}</th><th>\${labels.calculatedValue}</th><th>\${labels.statusText}</th></tr>
-                    </thead>
-                    <tbody>
-                      \${(player.comparisons || []).map(item => \`
-                        <tr>
-                          <td><strong>\${escapeHtml(formatLabel(item.label))}</strong></td>
-                          <td>\${escapeHtml(formatValue(item.label, item.top))}</td>
-                          <td>\${escapeHtml(formatValue(item.label, item.calculated))}</td>
-                          <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
-                        </tr>
-                      \`).join("")}
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Sub-tab Content: Profile Tab Integrity -->
-                <div class="sub-tab-content" data-tab="tabs">
-                  <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Profile Tabs Integrity</h4>
-                  <table style="width:100%;">
-                    <thead>
-                      <tr><th>\${labels.tabHeader}</th><th>\${labels.selectedTabLabel}</th><th>\${labels.profileStat}</th><th>\${labels.visibleRows}</th><th>\${labels.statusText}</th></tr>
-                    </thead>
-                    <tbody>
-                      \${(player.tabChecks || []).map(item => \`
-                        <tr>
-                          <td><strong>\${escapeHtml(formatLabel(item.label))}\${isKo ? " 탭" : ""}</strong></td>
-                          <td><code>\${escapeHtml(item.selectedTab || "-")}</code></td>
-                          <td>\${escapeHtml(formatValue(item.label, item.expected))}</td>
-                          <td>\${escapeHtml(formatValue(item.label, item.actual))}</td>
-                          <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
-                        </tr>
-                      \`).join("")}
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Sub-tab Content: Events results list -->
-                <div class="sub-tab-content" data-tab="events">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
-                    <h4 style="margin:0; font-family:'Outfit',sans-serif;">Cashed Events Results Matching</h4>
-                    <div class="search-box" style="min-width:200px; flex:0 1 250px;">
-                      <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
-                      <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(player.name)}', this.value)">
-                    </div>
+                ${report.mode === 'standings-only' ? `
+                  <div style="padding: 25px 20px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.015); border-radius: 8px; border: 1px dashed var(--border); font-size: 13px; margin-top: 10px;">
+                    ${isKo 
+                      ? "⚡ <strong>Standings Only 수집</strong>: 이 선수는 순위 목록에서 수집되었으며, 상세 프로필 분석 및 Result 검증 단계를 거치지 않았습니다." 
+                      : "⚡ <strong>Standings Only Mode</strong>: This player was collected directly from the standings list. Detailed profile analysis and Results verification were skipped."}
+                  </div>
+                ` : `
+                  <!-- Tab Headers -->
+                  <div class="sub-tabs-container">
+                    <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(player.name)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
+                    <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(player.name)}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
+                    <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
+                    <div class="tab-active-bar"></div>
                   </div>
 
-                  <div class="table-container">
-                    <table>
+                  <!-- Sub-tab Content: Summary Metrics -->
+                  <div class="sub-tab-content" data-tab="summary">
+                    <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Summary Metrics Check</h4>
+                    <table style="width:100%;">
                       <thead>
-                        <tr>
-                          <th>\${labels.seriesEvent}</th>
-                          <th>\${labels.dateText}</th>
-                          <th>\${labels.rankText}</th>
-                          <th>\${labels.earningsText}</th>
-                          <th>\${labels.resultUrlText}</th>
-                          <th>\${labels.resultCheckText}</th>
-                          <th>\${labels.finalFindingText}</th>
-                        </tr>
+                        <tr><th>Stat</th><th>\${labels.profileStat}</th><th>\${labels.calculatedValue}</th><th>\${labels.statusText}</th></tr>
                       </thead>
-                      <tbody class="events-tbody">
-                        <!-- Filled dynamically -->
+                      <tbody>
+                        \${(player.comparisons || []).map(item => \`
+                          <tr>
+                            <td><strong>\${escapeHtml(formatLabel(item.label))}</strong></td>
+                            <td>\${escapeHtml(formatValue(item.label, item.top))}</td>
+                            <td>\${escapeHtml(formatValue(item.label, item.calculated))}</td>
+                            <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
+                          </tr>
+                        \`).join("")}
                       </tbody>
                     </table>
                   </div>
 
-                  <div class="pagination-bar">
-                    <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', -1)">◀ Prev</button>
-                    <span class="events-page-info">1 / 1 (0)</span>
-                    <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', 1)">Next ▶</button>
+                  <!-- Sub-tab Content: Profile Tab Integrity -->
+                  <div class="sub-tab-content" data-tab="tabs">
+                    <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Profile Tabs Integrity</h4>
+                    <table style="width:100%;">
+                      <thead>
+                        <tr><th>\${labels.tabHeader}</th><th>\${labels.selectedTabLabel}</th><th>\${labels.profileStat}</th><th>\${labels.visibleRows}</th><th>\${labels.statusText}</th></tr>
+                      </thead>
+                      <tbody>
+                        \${(player.tabChecks || []).map(item => \`
+                          <tr>
+                            <td><strong>\${escapeHtml(formatLabel(item.label))}\${isKo ? " 탭" : ""}</strong></td>
+                            <td><code>\${escapeHtml(item.selectedTab || "-")}</code></td>
+                            <td>\${escapeHtml(formatValue(item.label, item.expected))}</td>
+                            <td>\${escapeHtml(formatValue(item.label, item.actual))}</td>
+                            <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
+                          </tr>
+                        \`).join("")}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
+
+                  <!-- Sub-tab Content: Events results list -->
+                  <div class="sub-tab-content" data-tab="events">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                      <h4 style="margin:0; font-family:'Outfit',sans-serif;">Cashed Events Results Matching</h4>
+                      <div class="search-box" style="min-width:200px; flex:0 1 250px;">
+                        <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+                        <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(player.name)}', this.value)">
+                      </div>
+                    </div>
+
+                    <div class="table-container">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>\${labels.seriesEvent}</th>
+                            <th>\${labels.dateText}</th>
+                            <th>\${labels.rankText}</th>
+                            <th>\${labels.earningsText}</th>
+                            <th>\${labels.resultUrlText}</th>
+                            <th>\${labels.resultCheckText}</th>
+                            <th>\${labels.finalFindingText}</th>
+                          </tr>
+                        </thead>
+                        <tbody class="events-tbody">
+                          <!-- Filled dynamically -->
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div class="pagination-bar">
+                      <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', -1)">◀ Prev</button>
+                      <span class="events-page-info">1 / 1 (0)</span>
+                      <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', 1)">Next ▶</button>
+                    </div>
+                  </div>
+                `}
 
               </div>
             </div>

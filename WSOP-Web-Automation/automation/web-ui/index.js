@@ -53,6 +53,21 @@ document.addEventListener('DOMContentLoaded', () => {
     customEnvUrlContainer.classList.toggle('hidden', envSelect.value !== 'Custom');
   });
 
+  const brandSelect = document.getElementById('opt-brand-select');
+  const customBrandContainer = document.getElementById('custom-brand-container');
+  const customBrandInput = document.getElementById('custom-brand-input');
+
+  if (brandSelect && customBrandContainer) {
+    brandSelect.addEventListener('change', () => {
+      const isCustom = brandSelect.value === 'Custom';
+      customBrandContainer.classList.toggle('hidden', !isCustom);
+      const brandChk = document.getElementById('opt-brand-check');
+      if (customBrandInput) {
+        customBrandInput.disabled = !isCustom || !brandChk.checked;
+      }
+    });
+  }
+
   initSse();
   loadPhases();
 
@@ -294,6 +309,13 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.values(optGroup).forEach((item) => {
       item.chk.addEventListener('change', () => {
         item.input.disabled = !item.chk.checked;
+        if (item.arg === 'brand') {
+          const customInput = document.getElementById('custom-brand-input');
+          const brandSel = document.getElementById('opt-brand-select');
+          if (customInput) {
+            customInput.disabled = !item.chk.checked || brandSel.value !== 'Custom';
+          }
+        }
       });
     });
   }
@@ -500,7 +522,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3') {
       Object.values(crawlerOpts).forEach((opt) => {
-        if (opt.chk.checked) customArgs[opt.arg] = opt.input.value.trim();
+        if (opt.chk.checked) {
+          let val = opt.input.value.trim();
+          if (opt.arg === 'brand' && val === 'Custom') {
+            const customInput = document.getElementById('custom-brand-input');
+            val = customInput ? customInput.value.trim() : '';
+          }
+          customArgs[opt.arg] = val;
+        }
       });
     }
     if (selectedPhase.id !== 'crawler' && selectedPhase.id !== 'all') {
