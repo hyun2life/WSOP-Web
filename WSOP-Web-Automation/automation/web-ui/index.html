@@ -257,6 +257,24 @@
     </main>
   </div>
 
+  <div id="report-picker-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="report-picker-title">
+    <div class="modal-backdrop" id="report-picker-backdrop"></div>
+    <div class="modal-panel">
+      <h3 id="report-picker-title">Select Report</h3>
+      <p id="report-picker-subtitle" class="modal-subtitle">Choose a report to open.</p>
+      <div class="modal-field">
+        <label for="report-picker-select" class="form-label">Report List</label>
+        <div class="custom-select-wrapper">
+          <select id="report-picker-select" class="form-select"></select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-report-open-selected" class="btn btn-report">Open Selected</button>
+        <button id="btn-report-picker-cancel" class="btn btn-console">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="index.js"></script>
 </body>
 

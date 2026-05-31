@@ -850,6 +850,62 @@ body {
 }
 
 /* ==========================================================================
+   Report Picker Modal
+   ========================================================================== */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(680px, 100%);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  padding: 18px;
+}
+
+.modal-panel h3 {
+  margin: 0 0 6px 0;
+  font-size: 1.05rem;
+}
+
+.modal-subtitle {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  margin-bottom: 12px;
+}
+
+.modal-field {
+  margin-bottom: 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#report-picker-select {
+  max-height: 360px;
+}
+
+/* ==========================================================================
    Phase Grouping & Accordion Styles
    ========================================================================== */
 .phase-group {

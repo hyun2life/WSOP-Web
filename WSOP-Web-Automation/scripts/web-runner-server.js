@@ -303,12 +303,46 @@ const server = http.createServer((req, res) => {
   }
 
   // 6. POST /api/open-report
+  if (method === 'GET' && url.startsWith('/api/report-list')) {
+    try {
+      const requestUrl = new URL(url, `http://${req.headers.host || 'localhost'}`);
+      const suite = requestUrl.searchParams.get('suite');
+      const mode = requestUrl.searchParams.get('mode');
+
+      if (!suite || !mode) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing suite or mode parameters' }));
+        return;
+      }
+
+      if (suite === 'all') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'ALL does not map to a single phase report. Select a specific phase.' }));
+        return;
+      }
+
+      const reports = listReportCandidates(suite, mode).map((item) => ({
+        path: item.path,
+        displayName: item.displayName,
+        modifiedAt: new Date(item.mtime).toISOString(),
+      }));
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ suite, mode, reports }));
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // 7. POST /api/open-report
   if (method === 'POST' && url === '/api/open-report') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       try {
-        const { suite, mode } = JSON.parse(body);
+        const { suite, mode, reportPath } = JSON.parse(body);
         if (!suite || !mode) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Missing suite or mode parameters' }));
@@ -322,9 +356,10 @@ const server = http.createServer((req, res) => {
         }
 
         try {
-          const reportPath = getLatestReportPath(suite, mode);
-          const reportMtimeIso = new Date(fs.statSync(reportPath).mtimeMs).toISOString();
-          sendToSse('log', { text: `[SERVER] Opening latest ${mode} report for ${suite}: ${reportPath} (mtime: ${reportMtimeIso})\n` });
+          const reportPathToOpen = resolveReportPathToOpen(suite, mode, reportPath);
+          const reportMtimeIso = new Date(fs.statSync(reportPathToOpen).mtimeMs).toISOString();
+          const selectedType = reportPath ? 'selected' : 'latest';
+          sendToSse('log', { text: `[SERVER] Opening ${selectedType} ${mode} report for ${suite}: ${reportPathToOpen} (mtime: ${reportMtimeIso})\n` });
           if (lastRunStartedAt && Date.parse(reportMtimeIso) < Date.parse(lastRunStartedAt)) {
             sendToSse('log', {
               text: `[SERVER_WARN] Report file is older than the latest run start time. report=${reportMtimeIso}, runStart=${lastRunStartedAt}\n`
@@ -332,10 +367,10 @@ const server = http.createServer((req, res) => {
           }
 
           if (process.platform === 'win32') {
-            execSync(`start "" "${reportPath}"`, { stdio: 'ignore' });
+            execSync(`start "" "${reportPathToOpen}"`, { stdio: 'ignore' });
           } else {
             const openCmd = process.platform === 'darwin' ? 'open' : 'xdg-open';
-            execSync(`${openCmd} "${reportPath}"`, { stdio: 'ignore' });
+            execSync(`${openCmd} "${reportPathToOpen}"`, { stdio: 'ignore' });
           }
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -353,7 +388,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 7. POST /api/shutdown
+  // 8. POST /api/shutdown
   if (method === 'POST' && url === '/api/shutdown') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Server is shutting down...' }));
@@ -373,7 +408,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 8. GET /api/status
+  // 9. GET /api/status
   if (method === 'GET' && url === '/api/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -407,16 +442,29 @@ function serveFile(filePath, contentType, res) {
   stream.pipe(res);
 }
 
-function getLatestReportPath(suite, mode) {
-  const normalized = suite.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+function resolveReportPathToOpen(suite, mode, requestedReportPath) {
+  const candidates = listReportCandidates(suite, mode);
+  if (candidates.length === 0) {
+    throw new Error(`No ${mode} report found for ${suite}`);
+  }
 
-  if (normalized === 'regression') {
-    const htmlName = mode === 'en' ? 'regression-summary.html' : 'regression-summary-ko.html';
-    const htmlPath = path.join(PROJECT_ROOT, 'artifacts', 'full-regression', 'latest', htmlName);
-    if (fs.existsSync(htmlPath)) {
-      return htmlPath;
-    }
-    throw new Error(`No regression summary HTML found at: ${htmlPath}`);
+  if (!requestedReportPath) {
+    return candidates[0].path;
+  }
+
+  const normalizedRequested = path.normalize(String(requestedReportPath));
+  const selected = candidates.find((item) => isSamePath(item.path, normalizedRequested));
+  if (!selected) {
+    throw new Error('Selected report is not available for this suite/mode.');
+  }
+
+  return selected.path;
+}
+
+function listReportCandidates(suite, mode) {
+  const normalized = String(suite || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!normalized) {
+    throw new Error('Invalid suite');
   }
 
   let outputDir;
@@ -440,29 +488,36 @@ function getLatestReportPath(suite, mode) {
     en: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-report\\.html$`),
     playwright: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-playwright-report$`),
   };
+  const pattern = patterns[mode];
+  if (!pattern) {
+    throw new Error(`Unsupported mode: ${mode}`);
+  }
 
-  const pattern = patterns[mode] || patterns.ko;
-
-  const candidates = fs.readdirSync(outputDir, { withFileTypes: true })
-    .filter(entry => pattern.test(entry.name))
-    .map(entry => {
+  const reports = fs.readdirSync(outputDir, { withFileTypes: true })
+    .filter((entry) => pattern.test(entry.name))
+    .map((entry) => {
       const target = path.join(outputDir, entry.name);
       const reportPath = entry.isDirectory() ? path.join(target, 'index.html') : target;
       if (!fs.existsSync(reportPath)) return null;
-
       return {
         path: reportPath,
+        displayName: entry.name + (entry.isDirectory() ? '/index.html' : ''),
         mtime: fs.statSync(reportPath).mtimeMs,
       };
     })
     .filter(Boolean)
     .sort((a, b) => b.mtime - a.mtime);
 
-  if (candidates.length === 0) {
-    throw new Error(`No ${mode} report found for ${suite} in ${outputDir}`);
-  }
+  return reports;
+}
 
-  return candidates[0].path;
+function isSamePath(left, right) {
+  const a = path.normalize(String(left || ''));
+  const b = path.normalize(String(right || ''));
+  if (process.platform === 'win32') {
+    return a.toLowerCase() === b.toLowerCase();
+  }
+  return a === b;
 }
 
 function resolveFinalStatus(phaseId, code) {

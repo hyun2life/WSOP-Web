@@ -29,6 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCopyLog = document.getElementById('btn-copy-log');
   const consoleOutput = document.getElementById('console-output');
   const statusIndicator = document.getElementById('status-indicator');
+  const reportPickerModal = document.getElementById('report-picker-modal');
+  const reportPickerBackdrop = document.getElementById('report-picker-backdrop');
+  const reportPickerSelect = document.getElementById('report-picker-select');
+  const reportPickerSubtitle = document.getElementById('report-picker-subtitle');
+  const btnReportOpenSelected = document.getElementById('btn-report-open-selected');
+  const btnReportPickerCancel = document.getElementById('btn-report-picker-cancel');
+
+  let pendingReportSelection = null;
 
   const crawlerOpts = {
     limit: { chk: document.getElementById('opt-limit-check'), input: document.getElementById('opt-limit-input'), arg: 'limit' },
@@ -587,28 +595,118 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 
-  function triggerOpenReport(reportMode) {
+  async function triggerOpenReport(reportMode) {
     if (!selectedPhase) return;
     const suite = selectedPhase.reportSuite || selectedPhase.id;
 
-    fetch('/api/open-report', {
+    try {
+      const listRes = await fetch(`/api/report-list?suite=${encodeURIComponent(suite)}&mode=${encodeURIComponent(reportMode)}`);
+      if (!listRes.ok) throw new Error('Report list API request failed');
+      const data = await listRes.json();
+      const reports = Array.isArray(data.reports) ? data.reports : [];
+
+      if (reports.length === 0) {
+        appendSystemLog(`No ${reportMode} reports found for ${suite}.`, 'text-error');
+        return;
+      }
+
+      showReportPicker({ suite, mode: reportMode, reports });
+    } catch (err) {
+      appendSystemLog(`Report list request failed: ${err.message}`, 'text-error');
+    }
+  }
+
+  async function openReport(suite, mode, reportPath) {
+    const payload = { suite, mode };
+    if (reportPath) {
+      payload.reportPath = reportPath;
+    }
+
+    const res = await fetch('/api/open-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ suite, mode: reportMode }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('Report API request failed');
-        return res.json();
-      })
-      .catch((err) => {
-        appendSystemLog(`리포트 열기 실패: ${err.message}`, 'text-error');
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error('Report API request failed');
+    }
+  }
+
+  function showReportPicker({ suite, mode, reports }) {
+    if (!reportPickerModal || !reportPickerSelect) {
+      openReport(suite, mode, reports[0].path).catch((err) => {
+        appendSystemLog(`Report open failed: ${err.message}`, 'text-error');
       });
+      return;
+    }
+
+    pendingReportSelection = { suite, mode, reports };
+    reportPickerSelect.innerHTML = '';
+
+    reports.forEach((report, index) => {
+      const option = document.createElement('option');
+      option.value = report.path;
+      const ts = formatReportTimestamp(report.modifiedAt);
+      option.textContent = `${String(index + 1).padStart(2, '0')}. ${report.displayName}${ts ? ` (${ts})` : ''}`;
+      reportPickerSelect.appendChild(option);
+    });
+
+    const modeLabel = mode === 'ko' ? 'KO' : mode === 'en' ? 'EN' : 'PW';
+    if (reportPickerSubtitle) {
+      reportPickerSubtitle.textContent = `${suite} / ${modeLabel} report list (${reports.length})`;
+    }
+
+    reportPickerModal.classList.remove('hidden');
+    reportPickerSelect.focus();
+  }
+
+  function closeReportPicker() {
+    if (!reportPickerModal) return;
+    reportPickerModal.classList.add('hidden');
+    pendingReportSelection = null;
+  }
+
+  function formatReportTimestamp(isoString) {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return '';
+
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const ss = String(date.getSeconds()).padStart(2, '0');
+    return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
   }
 
   btnReportKo.addEventListener('click', () => triggerOpenReport('ko'));
   btnReportEn.addEventListener('click', () => triggerOpenReport('en'));
   btnReportPw.addEventListener('click', () => triggerOpenReport('playwright'));
 
+  if (btnReportPickerCancel) {
+    btnReportPickerCancel.addEventListener('click', closeReportPicker);
+  }
+
+  if (reportPickerBackdrop) {
+    reportPickerBackdrop.addEventListener('click', closeReportPicker);
+  }
+
+  if (btnReportOpenSelected) {
+    btnReportOpenSelected.addEventListener('click', async () => {
+      if (!pendingReportSelection || !reportPickerSelect) return;
+
+      const selectedPath = reportPickerSelect.value;
+      if (!selectedPath) return;
+
+      try {
+        await openReport(pendingReportSelection.suite, pendingReportSelection.mode, selectedPath);
+        closeReportPicker();
+      } catch (err) {
+        appendSystemLog(`Report open failed: ${err.message}`, 'text-error');
+      }
+    });
+  }
   btnClearLog.addEventListener('click', () => {
     consoleOutput.innerHTML = '';
     appendSystemLog('Console 화면을 비웠습니다.', 'text-muted');
@@ -663,3 +761,4 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#39;');
   }
 });
+
