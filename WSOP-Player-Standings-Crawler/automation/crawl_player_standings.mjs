@@ -2512,7 +2512,16 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
   try {
     // 백오프 재시도를 페이지 로드에 반영
     await retryWithBackoff(async () => {
-      await page.goto(event.resultUrl, { waitUntil: "domcontentloaded", timeout });
+      try {
+        await page.goto(event.resultUrl, { waitUntil: "domcontentloaded", timeout });
+      } catch (gotoError) {
+        const tableCount = await page.locator("table").count().catch(() => 0);
+        if (tableCount > 0) {
+          console.log(`    [경고] page.goto 타임아웃이 발생했으나 테이블 돔이 감지되어 크롤링을 속행합니다: ${event.resultUrl}`);
+        } else {
+          throw gotoError;
+        }
+      }
       await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
@@ -2649,7 +2658,16 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
   const page = await context.newPage();
   try {
     await retryWithBackoff(async () => {
-      await page.goto(player.url, { waitUntil: "domcontentloaded", timeout });
+      try {
+        await page.goto(player.url, { waitUntil: "domcontentloaded", timeout });
+      } catch (gotoError) {
+        const hasContainer = await page.locator("body").count().catch(() => 0);
+        if (hasContainer > 0) {
+          console.log(`    [경고] 플레이어 프로필 page.goto 타임아웃이 발생했으나 바디 영역이 감지되어 크롤링을 속행합니다: ${player.url}`);
+        } else {
+          throw gotoError;
+        }
+      }
       await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
@@ -2726,7 +2744,16 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
   const page = await context.newPage();
   const warnings = [];
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+    } catch (gotoError) {
+      const hasContainer = await page.locator("body").count().catch(() => 0);
+      if (hasContainer > 0) {
+        console.log(`    [경고] crawlPlayer page.goto 타임아웃이 발생했으나 바디 영역이 감지되어 크롤링을 속행합니다: ${url}`);
+      } else {
+        throw gotoError;
+      }
+    }
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
     await waitForAccessLogin(page, authWaitMs);
 
