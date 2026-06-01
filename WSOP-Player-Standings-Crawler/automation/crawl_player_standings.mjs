@@ -4244,6 +4244,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           <option value="all">${isKo ? "모든 카테고리" : "All Categories"}</option>
           <!-- Categories filled dynamically -->
         </select>
+        <select class="select-dropdown" id="brand-filter" onchange="filterByBrand(this.value)">
+          <option value="all">${isKo ? "모든 브랜드" : "All Brands"}</option>
+          <!-- Brands filled dynamically -->
+        </select>
         <select class="select-dropdown" id="sort-select" onchange="sortPlayers(this.value)">
           <option value="name-asc">${isKo ? "이름순 (A-Z)" : "Name (A-Z)"}</option>
           <option value="name-desc">${isKo ? "이름 역순 (Z-A)" : "Name (Z-A)"}</option>
@@ -4292,6 +4296,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       searchQuery: '',
       statusFilter: 'all',
       categoryFilter: 'all',
+      brandFilter: 'all',
       sortBy: 'name-asc'
     };
 
@@ -4413,6 +4418,26 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       return escapeHtml(text).replace(regex, '<mark class="highlight">$1</mark>');
     }
 
+    function getPlayerBrands(player) {
+      const brands = (player.standingsSources || [])
+        .map(src => String(src.brand || 'All').trim())
+        .filter(Boolean);
+      return [...new Set(brands.length ? brands : ['All'])];
+    }
+
+    function playerMatchesBrand(player, brand) {
+      return brand === 'all' || getPlayerBrands(player).includes(brand);
+    }
+
+    function rowMatchesBrand(rowBrand, brand) {
+      if (brand === 'all') return true;
+      return String(rowBrand || '')
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean)
+        .includes(brand);
+    }
+
     // Dynamic sorting & filtering logic
     function getFilteredAndSortedPlayers() {
       return state.players
@@ -4425,7 +4450,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             matchesCategory = (player.standingsSources || []).some(src => src.category === state.categoryFilter);
           }
 
-          return matchesSearch && matchesStatus && matchesCategory;
+          return matchesSearch && matchesStatus && matchesCategory && playerMatchesBrand(player, state.brandFilter);
         })
         .sort((a, b) => {
           if (state.sortBy === 'name-asc') return a.name.localeCompare(b.name);
@@ -4463,9 +4488,26 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         catSelect.appendChild(opt);
       });
 
+      const brandSelect = document.getElementById('brand-filter');
+      const brands = [...new Set(state.players.flatMap(getPlayerBrands))].sort((a, b) => a.localeCompare(b));
+      brands.forEach(brand => {
+        const opt = document.createElement('option');
+        opt.value = brand;
+        opt.textContent = brand;
+        brandSelect.appendChild(opt);
+      });
+
+      renderInspectorLists();
+    }
+
+    function renderInspectorLists() {
+      const filteredPlayers = getFilteredAndSortedPlayers();
+
       // 2. Defects Grouped Accordion
       const defectsContainer = document.getElementById('defects-grouped-container');
-      const defectsList = state.players.flatMap(p => (p.defects || []).map(d => ({ ...d, player: p.name })));
+      const defectsList = filteredPlayers.flatMap(p => (p.defects || [])
+        .map(d => ({ ...d, player: p.name }))
+        .filter(d => rowMatchesBrand(d.brand, state.brandFilter)));
 
       if (defectsList.length) {
         // Group by type
@@ -4523,7 +4565,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       // 3. Warnings Grouped Accordion
       const warningsContainer = document.getElementById('warnings-grouped-container');
       const warningsList = [];
-      state.players.forEach(p => {
+      filteredPlayers.forEach(p => {
         (p.warnings || []).forEach(w => {
           warningsList.push({ type: "Crawler warning", player: p.name, item: "warning", url: p.url, detail: w });
         });
@@ -4727,6 +4769,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       const statusText = formatStatus(player.status);
       const isExpanded = activeSubTabs[player.name] ? 'open' : '';
       const totalEvents = player.events?.length ?? 0;
+      const playerBrandsText = getPlayerBrands(player).join(', ');
 
       return \`
         <div class="player-card" data-status="\${player.status}" data-name="\${escapeHtml(player.name)}">
@@ -4737,6 +4780,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                 <span>🔗 <a href="\${escapeHtml(player.url)}" onclick="event.stopPropagation();" target="_blank">\${escapeHtml(player.url)}</a></span>
                 <span>🏆 Cashed Events: <strong>\${totalEvents}</strong></span>
                 <span>Cashes (Profile): <strong>\${player.summary?.cashes ?? "-"}</strong></span>
+                <span>Brands: <strong>\${escapeHtml(playerBrandsText)}</strong></span>
                 <span>Load More: <strong>\${player.expansion?.loadMoreClicks ?? 0}</strong></span>
               </div>
             </div>
@@ -4891,6 +4935,11 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       });
     }
 
+    function renderFilteredViews() {
+      renderInspectorLists();
+      renderPlayerList();
+    }
+
     // Filter control callback triggers
     function filterByStatus(status) {
       state.statusFilter = status;
@@ -4901,7 +4950,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         else btn.classList.remove('active');
       });
 
-      renderPlayerList();
+      renderFilteredViews();
 
       // Auto-scroll to directory if KPI was clicked
       document.getElementById('player-directory').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -4909,19 +4958,24 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
     function filterByCategory(category) {
       state.categoryFilter = category;
-      renderPlayerList();
+      renderFilteredViews();
+    }
+
+    function filterByBrand(brand) {
+      state.brandFilter = brand;
+      renderFilteredViews();
     }
 
     function sortPlayers(sortBy) {
       state.sortBy = sortBy;
-      renderPlayerList();
+      renderFilteredViews();
     }
 
     // Search text field input listener
     const searchInput = document.getElementById('search-input');
     searchInput.addEventListener('input', (e) => {
       state.searchQuery = e.target.value;
-      renderPlayerList();
+      renderFilteredViews();
     });
 
     // Inspector Click to Scroll & Expand player card
@@ -4931,6 +4985,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       state.searchQuery = '';
       state.statusFilter = 'all';
       state.categoryFilter = 'all';
+      state.brandFilter = 'all';
 
       // Update Filter buttons & selectors
       document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -4938,8 +4993,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         else btn.classList.remove('active');
       });
       document.getElementById('category-filter').value = 'all';
+      document.getElementById('brand-filter').value = 'all';
 
-      renderPlayerList();
+      renderFilteredViews();
 
       // Find player card element
       setTimeout(() => {
@@ -5627,9 +5683,10 @@ function runSelfTest() {
     status: "pass",
     detail: "Self-test tab check."
   }));
-  const sampleReport = { playersUrl: DEFAULT_PLAYERS_URL, players: [{ name: "Sample", url: "https://example.test/player", summary, events, expansion: {}, tabChecks, calculated, comparisons, defects: [], warnings: [], status: "pass" }] };
+  const sampleReport = { playersUrl: DEFAULT_PLAYERS_URL, players: [{ name: "Sample", url: "https://example.test/player", summary, events, expansion: {}, tabChecks, calculated, comparisons, defects: [], warnings: [], status: "pass", standingsSources: [{ category: "All Time Money List", brand: "WSOP" }] }] };
   const html = renderHtml(sampleReport);
   if (!html.includes("WSOP Player Standings Dashboard")) throw new Error("HTML render failed");
+  if (!html.includes('id="brand-filter"') || !html.includes("filterByBrand")) throw new Error("HTML brand filter render failed");
   const koreanHtml = renderKoreanHtml(sampleReport);
   if (!koreanHtml.includes("WSOP 선수 순위 크롤러 대시보드")) throw new Error("Korean HTML render failed");
   const partialReport = buildCrawlerReport({

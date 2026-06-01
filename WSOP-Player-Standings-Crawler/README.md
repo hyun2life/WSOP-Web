@@ -586,3 +586,11 @@ Notes:
 - Snapshot rows without a direct Result URL are not silently passed. They are reported as `Result skipped` review notes.
 - Profile-only skip warnings are removed from the result-only report, but profile mismatches from the snapshot are preserved.
 - This keeps coverage intact while avoiding repeated profile and brand collection work.
+
+## Report brand filtering
+
+Generated HTML reports include a Brand Filter dropdown in the player directory controls.
+
+- The filter is populated from each player's `standingsSources[].brand` values.
+- It applies to the defect inspector, warning/skipped inspector, and player detail cards together.
+- Profile-only reports use the same filter so profile validation results can be reviewed brand by brand.
