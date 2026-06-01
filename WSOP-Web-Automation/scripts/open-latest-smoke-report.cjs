@@ -41,9 +41,15 @@ if (suite === 'crawler') {
 }
 
 const patterns = {
-  ko: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-report-ko\\.html$`),
-  en: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-report\\.html$`),
-  playwright: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-playwright-report$`),
+  ko: suite === 'crawler'
+    ? /^wsop-player-crawler-(?:live|stage)-\d{8}-\d{6}(?:-\d{3})?-report-ko\.html$/
+    : new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-report-ko\\.html$`),
+  en: suite === 'crawler'
+    ? /^wsop-player-crawler-(?:live|stage)-\d{8}-\d{6}(?:-\d{3})?-report\.html$/
+    : new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-report\\.html$`),
+  playwright: suite === 'crawler'
+    ? /^wsop-player-crawler-(?:live|stage)-\d{8}-\d{6}(?:-\d{3})?-playwright-report$/
+    : new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?-playwright-report$`),
 };
 
 const pattern = patterns[mode] || patterns.ko;

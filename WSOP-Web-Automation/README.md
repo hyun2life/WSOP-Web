@@ -639,3 +639,7 @@ RUN_BRAND_COMPARE_LATEST.bat "LIVE_DATA_JSON" "STAGE_DATA_JSON"
 - `standings-only` collects standings target URLs only and skips player profile/result validation.
 - `profile-only` collects standings targets, then validates profile summary/tabs/events while skipping Result detail pages.
 - When Brand Filter is enabled with `profile-only`, the crawler reviews the first-page target set from the three brand-filtered standings categories: `All-Time Earnings - Men`, `All-Time Earnings - Women`, and `All Player Stats`.
+
+## Stage/Live crawler output tag
+
+Dashboard 또는 배치 실행에서 `BASE_URL`/`baseUrl`이 stage 도메인을 가리키면 크롤러 산출물 파일명은 `wsop-player-crawler-stage-YYYYMMDD-HHMMSS-*` 형식으로 생성됩니다. 기본 Live 실행은 기존처럼 `wsop-player-crawler-live-YYYYMMDD-HHMMSS-*` 형식을 유지합니다.

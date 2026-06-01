@@ -527,10 +527,13 @@ function listReportCandidates(suite, mode) {
   }
 
   const escapeRegExp = (val) => val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const prefixPattern = normalized === 'crawler'
+    ? 'wsop-player-crawler-(?:live|stage)'
+    : escapeRegExp(prefix);
   const patterns = {
-    ko: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report-ko\\.html$`),
-    en: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report\\.html$`),
-    playwright: new RegExp(`^${escapeRegExp(prefix)}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-playwright-report$`),
+    ko: new RegExp(`^${prefixPattern}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report-ko\\.html$`),
+    en: new RegExp(`^${prefixPattern}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report\\.html$`),
+    playwright: new RegExp(`^${prefixPattern}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-playwright-report$`),
   };
   const pattern = patterns[mode];
   if (!pattern) {
@@ -637,7 +640,7 @@ function getLatestReportJsonPath(suite) {
 
   if (normalized === 'crawler') {
     const dir = path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
-    return findLatestMatchingFile(dir, /^wsop-player-crawler-live-\d{8}-\d{6}(?:-\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report\.json$/);
+    return findLatestMatchingFile(dir, /^wsop-player-crawler-(?:live|stage)-\d{8}-\d{6}(?:-\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report\.json$/);
   }
 
   const dir = path.join(PROJECT_ROOT, 'automation', 'output');

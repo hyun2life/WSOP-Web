@@ -602,3 +602,7 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 - Use `--standings-only` when only standings target collection is needed.
 - Use `--profile-only` when standings targets should be collected and player profile summary/tab/event checks should run, but Result detail pages should be skipped.
 - With `--brand`, profile-only collection is intended to review the first-page target set from the brand-filtered categories: `All-Time Earnings - Men`, `All-Time Earnings - Women`, and `All Player Stats`.
+
+## Stage/Live output tag
+
+`RUN_WSOP_PLAYER_CRAWLER_LIVE.bat`는 `BASE_URL`이 stage 도메인을 포함하면 `OutputTag`를 `wsop-player-crawler-stage`로 설정합니다. 기본 Live 실행은 `wsop-player-crawler-live`를 사용합니다.

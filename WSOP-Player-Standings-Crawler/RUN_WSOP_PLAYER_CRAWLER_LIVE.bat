@@ -6,8 +6,6 @@ cd /d "%~dp0"
 if exist "%ProgramFiles%\nodejs\node.exe" set "PATH=%ProgramFiles%\nodejs;%PATH%"
 if not exist "automation\output" mkdir "automation\output"
 for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "RUN_ID=%%I"
-set "REPORT=automation\output\wsop-player-crawler-live-%RUN_ID%-report.html"
-set "KOREAN_REPORT=automation\output\wsop-player-crawler-live-%RUN_ID%-report-ko.html"
 
 rem Live QA controls. Lower these values only for quick smoke tests.
 rem PLAYER_LIMIT: players per standings category.
@@ -27,17 +25,6 @@ if "%AUTH_WAIT_MS%"=="" set "AUTH_WAIT_MS=300000"
 rem WSOP_NO_PAUSE: true to skip pausing at the end (for automation runners)
 if "%WSOP_NO_PAUSE%"=="" set "WSOP_NO_PAUSE=false"
 
-echo ============================================
-echo WSOP LIVE Player Standings Crawler (Improved)
-echo ============================================
-echo.
-echo Target:
-echo   https://www.wsop.com/player-standings/
-echo.
-echo First run may install Node.js, npm packages, and Playwright Chromium.
-echo A browser will open. Keep it open until the report is generated.
-echo.
-
 set "CRAWLER_SCRIPT=automation\run_player_standings_crawler.ps1"
 if not "%BASE_URL%"=="" (
   set "PLAYERS_URL=%BASE_URL%/player-standings/"
@@ -45,6 +32,23 @@ if not "%BASE_URL%"=="" (
   set "PLAYERS_URL=https://www.wsop.com/player-standings/"
 )
 set "OUTPUT_TAG=wsop-player-crawler-live"
+echo "%PLAYERS_URL%" | findstr /I "stage" >nul
+if "%ERRORLEVEL%"=="0" set "OUTPUT_TAG=wsop-player-crawler-stage"
+set "REPORT=automation\output\%OUTPUT_TAG%-%RUN_ID%-report.html"
+set "KOREAN_REPORT=automation\output\%OUTPUT_TAG%-%RUN_ID%-report-ko.html"
+
+echo ============================================
+echo WSOP Player Standings Crawler (Improved)
+echo ============================================
+echo.
+echo Target:
+echo   %PLAYERS_URL%
+echo Output tag:
+echo   %OUTPUT_TAG%
+echo.
+echo First run may install Node.js, npm packages, and Playwright Chromium.
+echo A browser will open. Keep it open until the report is generated.
+echo.
 
 if "%HEADED%"=="" set "HEADED=true"
 if "%HEADED%"=="true" (set "HEADED_FLAG=-Headed") else (set "HEADED_FLAG=")
@@ -64,10 +68,10 @@ set EXIT_CODE=%ERRORLEVEL%
 
 echo.
 if exist "%KOREAN_REPORT%" (
-  echo Opening generated Korean live crawler report.
+  echo Opening generated Korean crawler report.
   start "" "%KOREAN_REPORT%"
 ) else if exist "%REPORT%" (
-  echo Opening generated live crawler report.
+  echo Opening generated crawler report.
   start "" "%REPORT%"
 ) else (
   start "" "automation\output"
@@ -75,9 +79,9 @@ if exist "%KOREAN_REPORT%" (
 
 echo.
 if "%EXIT_CODE%"=="0" (
-  echo Live crawl completed.
+  echo Crawl completed.
 ) else (
-  echo Live crawl found failures or could not complete. Review the report and message above.
+  echo Crawl found failures or could not complete. Review the report and message above.
 )
 
 echo.
