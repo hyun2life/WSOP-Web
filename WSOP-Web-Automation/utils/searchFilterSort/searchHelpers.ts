@@ -190,24 +190,24 @@ export async function expectPlayerSearchResult(
 
   const expected = searchCase.expectedPlayer ?? searchCase.expectedPlayerContains ?? searchCase.keyword.trim();
   try {
-    const links = await collectPlayerResultLinks(page, expected);
     const expectedNormalized = normalizeText(expected);
-    const matchingLinks = links.filter((link) => link.normalizedText.includes(expectedNormalized));
-    const profileTargetCount = matchingLinks.filter((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/')).length;
-    const clickableRowCount = matchingLinks.filter((link) => link.source === 'row').length;
-    const linkCount = profileTargetCount || clickableRowCount;
     const minimum = searchCase.minExpectedResults ?? 1;
+    let targetLinks: PlayerResultLink[] = [];
 
-    expect(
-      linkCount,
-      `${searchCase.caseName}: expected at least ${minimum} matching /players/ link(s) for keyword="${searchCase.keyword}" expectedPlayer="${expected}"`,
-    ).toBeGreaterThanOrEqual(minimum);
-
-    const targetLinks = matchingLinks.length > 0 ? matchingLinks : links;
-    expect(
-      targetLinks.some((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/') || link.source === 'row'),
-      `${searchCase.caseName}: expected a profile href containing "${searchCase.expectedProfileUrlContains ?? '/players/'}" or a clickable player result row`,
-    ).toBeTruthy();
+    await expect.poll(async () => {
+      const links = await collectPlayerResultLinks(page, expected);
+      const matchingLinks = links.filter((link) => link.normalizedText.includes(expectedNormalized));
+      const profileTargetCount = matchingLinks.filter((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/')).length;
+      const clickableRowCount = matchingLinks.filter((link) => link.source === 'row').length;
+      const linkCount = profileTargetCount || clickableRowCount;
+      
+      targetLinks = matchingLinks.length > 0 ? matchingLinks : links;
+      
+      return linkCount >= minimum && targetLinks.some((link) => link.href.includes(searchCase.expectedProfileUrlContains ?? '/players/') || link.source === 'row');
+    }, {
+      message: `${searchCase.caseName}: expected at least ${minimum} matching player link(s) for "${expected}"`,
+      timeout: 10_000,
+    }).toBeTruthy();
 
     return targetLinks;
   } catch (error) {
@@ -353,14 +353,15 @@ async function collectMatchingResultRows(page: Page, keywordOrPlayerName?: strin
 }
 
 async function expectNoResultState(page: Page, searchCase: PlayerSearchCase) {
-  const bodyText = await page.locator('body').innerText().catch(() => '');
-  const noResultMessageVisible = /no results?|no players?|not found|0 results?/i.test(bodyText);
-  const matchingLinks = await collectPlayerResultLinks(page, searchCase.keyword.trim());
-
-  expect(
-    noResultMessageVisible || matchingLinks.length === 0,
-    `${searchCase.caseName}: no-result search should show an empty/no-result state or avoid player links for keyword="${searchCase.keyword}"`,
-  ).toBeTruthy();
+  await expect.poll(async () => {
+    const bodyText = await page.locator('body').innerText().catch(() => '');
+    const noResultMessageVisible = /no results?|no players?|not found|0 results?/i.test(bodyText);
+    const matchingLinks = await collectPlayerResultLinks(page, searchCase.keyword.trim());
+    return noResultMessageVisible || matchingLinks.length === 0;
+  }, {
+    message: `${searchCase.caseName}: no-result search should show empty/no-result state or avoid player links for "${searchCase.keyword}"`,
+    timeout: 10_000,
+  }).toBeTruthy();
 }
 
 async function clickSearchButtonIfVisible(page: Page) {

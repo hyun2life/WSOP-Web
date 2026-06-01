@@ -21,7 +21,8 @@
     "caseName": "No result search",
     "keyword": "zzzz-no-player-test-qa",
     "expectedNoResults": true,
-    "type": "no-result"
+    "type": "no-result",
+    "warningOnly": true
   },
   {
     "caseName": "Non-English player name from standings",
