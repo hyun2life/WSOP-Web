@@ -1181,7 +1181,12 @@ async function selectBrandFilter(page, brand) {
     const matched = options.find((option) => {
       const labelKey = compactBrandLabel(option.label);
       const valueKey = compactBrandLabel(option.value);
-      return aliasKeys.includes(labelKey) || aliasKeys.includes(valueKey);
+      return aliasKeys.some(aliasKey => 
+        labelKey.includes(aliasKey) || 
+        aliasKey.includes(labelKey) || 
+        valueKey.includes(aliasKey) || 
+        aliasKey.includes(valueKey)
+      );
     });
 
     if (matched) {
@@ -1192,10 +1197,39 @@ async function selectBrandFilter(page, brand) {
     }
   }
 
-  const dropdownTrigger = page.locator("button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  const dropdownTrigger = page.locator("button.select-box, button.select-container, button:has-text('All Brands'), div.select-container, [class*=select-box i], button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
   if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
     await dropdownTrigger.click().catch(() => {});
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
+
+    const matchedOptionText = await page.evaluate((keys) => {
+      const normalize = (val) => String(val || "").toUpperCase().replace(/[^A-Z0-9]+/g, "");
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      const items = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+        .filter(visible)
+        .map(el => ({ text: (el.textContent || "").trim(), compact: normalize(el.textContent) }))
+        .filter(item => item.text.length > 0 && item.text.length < 80);
+
+      const found = items.find(item => 
+        keys.some(aliasKey => 
+          item.compact.includes(aliasKey) || aliasKey.includes(item.compact)
+        )
+      );
+      return found ? found.text : null;
+    }, aliasKeys).catch(() => null);
+
+    if (matchedOptionText) {
+      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(matchedOptionText)}$`, "i") }).first();
+      if ((await optionItem.count()) > 0) {
+        await optionItem.click().catch(() => {});
+        return true;
+      }
+    }
 
     for (const alias of aliases) {
       const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(alias)}$`, "i") }).first();
@@ -1242,10 +1276,13 @@ async function collectBrandOptionsFromCurrentPage(page) {
     return uniqueBrandOptionLabels(brandishSelect.options);
   }
 
-  const trigger = page.locator("button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  let trigger = page.locator("button.select-box, button.select-container, button").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  if (await trigger.count() === 0) {
+    trigger = page.locator("div.select-box, div.select-container, [class*=select-box i], a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  }
   if ((await trigger.count()) > 0 && (await trigger.isVisible().catch(() => false))) {
     await trigger.click().catch(() => {});
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(1000);
 
     const dropdownOptions = await page.evaluate(() => {
       const visible = (el) => {
@@ -1254,13 +1291,27 @@ async function collectBrandOptionsFromCurrentPage(page) {
         return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
       };
 
-      return Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+      const listboxOptions = Array.from(document.querySelectorAll('ul.option-list li, [role="listbox"] [role="option"], .select-container ul li'))
+        .filter(visible)
+        .map((el) => (el.textContent || "").trim())
+        .filter(Boolean);
+
+      if (listboxOptions.length > 0) {
+        return { source: 'listbox', options: listboxOptions };
+      }
+
+      const fallback = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
         .filter(visible)
         .map((el) => (el.textContent || "").trim())
         .filter((text) => text && text.length <= 80);
-    }).catch(() => []);
 
-    return uniqueBrandOptionLabels(dropdownOptions.filter((text) => /brand|wsop|ggpoker|wpt|pgt|poker|masters|million|circuit|paradise|europe|asia|online|irish/i.test(text)));
+      return { source: 'fallback', options: fallback };
+    }).catch(() => ({ source: 'error', options: [] }));
+
+    if (dropdownOptions.source === 'listbox') {
+      return uniqueBrandOptionLabels(dropdownOptions.options);
+    }
+    return uniqueBrandOptionLabels(dropdownOptions.options.filter((text) => /brand|wsop|ggpoker|wpt|pgt|poker|masters|million|circuit|paradise|europe|asia|online|irish/i.test(text)));
   }
 
   return [];
@@ -3079,6 +3130,25 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     const rawSummaryEvents = splitEventsByExpectedCashes(events, summary).comparisonEvents;
     const { checks: tabChecks, tabEventsByKey } = await collectProfileTabChecks(page, summary, maxLoadMore, disabledResultMode, skippedUnavailableResultEvents);
     const calculated = calculateSummaryFromEvents(rawSummaryEvents, summary, events);
+    // Summary는 ALL 탭 수집값으로, 각 탭은 자기 탭 수집값으로 독립 계산한다.
+
+    // ALL 탭 기반 지표별 계산 수량과 개별 지표 탭 수집 수량 교차 정합성 검증 (Cross-Tab Validation)
+    if (tabEventsByKey && Object.keys(tabEventsByKey).length > 0) {
+      const keys = ["titles", "bracelets", "rings", "finalTables"];
+      for (const key of keys) {
+        const tabEvents = tabEventsByKey[key] || [];
+        const allTabMatching = events.filter(e => eventContributesToProfileTab(e, key));
+        
+        const dedupedTab = deduplicateComparisonEvents(tabEvents).uniqueEvents.length;
+        const dedupedAll = deduplicateComparisonEvents(allTabMatching).uniqueEvents.length;
+        
+        if (dedupedTab !== dedupedAll) {
+          const detail = `${key.toUpperCase()} 탭의 고유 데이터 수(${dedupedTab})와 ALL 탭에서 분류 계산한 수(${dedupedAll})가 일치하지 않습니다. (사이트 데이터 누락/불일치 의심)`;
+          warnings.push(detail);
+          console.warn(`    [경고] 교차 탭 정합성 불일치 (${name} - ${key}): tab=${dedupedTab}, all=${dedupedAll}`);
+        }
+      }
+    }
     // Summary는 ALL 탭 수집값으로, 각 탭은 자기 탭 수집값으로 독립 계산한다.
 
     if (!events.length) warnings.push("수집된 이벤트 행이 존재하지 않습니다.");
