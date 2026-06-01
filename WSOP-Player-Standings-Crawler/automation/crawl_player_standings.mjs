@@ -1076,6 +1076,15 @@ function categoryUrlFor(playersUrl, category) {
   }
 }
 
+function parseItmCount(bodyText) {
+  if (!bodyText) return null;
+  const match = bodyText.match(/itm\b[^\d]*(\d[\d,]*)/i);
+  if (match) {
+    return Number(match[1].replace(/,/g, ""));
+  }
+  return null;
+}
+
 function normalizeBrandOptionLabel(value) {
   return normalizeText(value)
     .replace(/\s+/g, " ")
@@ -2549,10 +2558,14 @@ function resultPageInspectionLimit(resultPageLimit) {
 
 // 설정된 limit은 속도 힌트일 뿐 정합성 경계가 아니다.
 // 깊은 순위는 target rank를 덮을 수 있도록 검사 예산을 자동 확장한다.
-function effectiveResultPageInspectionLimit(resultPageLimit, targetRank) {
+function effectiveResultPageInspectionLimit(resultPageLimit, targetRank, itmCount = null) {
+  let effectiveRank = targetRank;
+  if (itmCount && targetRank && targetRank > itmCount) {
+    effectiveRank = itmCount;
+  }
   const configuredLimit = resultPageInspectionLimit(resultPageLimit);
-  if (configuredLimit === Number.MAX_SAFE_INTEGER || !targetRank) return configuredLimit;
-  const targetPage = resultPageNumberForRangeStart(targetRank);
+  if (configuredLimit === Number.MAX_SAFE_INTEGER || !effectiveRank) return configuredLimit;
+  const targetPage = resultPageNumberForRangeStart(effectiveRank);
   return Math.max(configuredLimit, targetPage + RESULT_SEARCH_LOOKBEHIND_PAGES + 10);
 }
 
@@ -2584,8 +2597,12 @@ function shouldUseDirectResultRankJump(targetRank, resultPageLimit) {
 
 // 본격 Result 탐색 전에 target rank 근처로 이동한다.
 // 먼저 직접 페이지 번호 클릭을 시도하고, 숨은 페이지는 pagination 창을 넘겨 도달한다.
-async function navigateToResultSearchStartPage(page, targetRank, resultPageLimit) {
-  const searchStartPageNumber = shouldUseDirectResultRankJump(targetRank, resultPageLimit) ? resultSearchStartPageForRank(targetRank) : null;
+async function navigateToResultSearchStartPage(page, targetRank, resultPageLimit, itmCount = null) {
+  let effectiveRank = targetRank;
+  if (itmCount && targetRank && targetRank > itmCount) {
+    effectiveRank = itmCount;
+  }
+  const searchStartPageNumber = shouldUseDirectResultRankJump(effectiveRank, resultPageLimit) ? resultSearchStartPageForRank(effectiveRank) : null;
   let resultPageNumber = 1;
   let directPageClicked = false;
 
@@ -2723,7 +2740,6 @@ function evaluateResultFromCachedPages(cachedPages, player, event, urlKey) {
 async function extractResultPageData(page, player, event, resultPageLimit, timeout = 30000) {
   const targetRank = event.rank;
   const targetEarnings = event.earnings;
-  const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank);
   const inspectEveryPage = shouldInspectEveryResultPage(resultPageLimit);
   const visitedPageContentSignatures = new Set();
   const searchedPages = [];
@@ -2737,9 +2753,18 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
   let resetFromOvershotFirstPage = false;
   const pendingResultPageNumbers = [];
   const gapRecoveryPageNumbers = new Set();
-  const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit);
+
+  // 1페이지(진입 페이지)에서 ITM 수량 파싱
+  const initialBodyText = normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
+  const itmCount = parseItmCount(initialBodyText);
+  if (itmCount) {
+    console.log(`    [디버그] Result ITM 수량 감지: ${itmCount}명 (Target Rank: ${targetRank}위)`);
+  }
+
+  const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit, itmCount);
   resultPageNumber = searchStart.resultPageNumber;
   directPageClicked = searchStart.directPageClicked;
+  const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank, itmCount);
 
   for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
     await page.waitForTimeout(1000);
@@ -2875,7 +2900,6 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
     const cachedPages = [];
     const targetRank = event.rank;
     const targetEarnings = event.earnings;
-    const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank);
     const inspectEveryPage = shouldInspectEveryResultPage(resultPageLimit);
     const visitedPageContentSignatures = new Set();
     const searchedPages = [];
@@ -2888,9 +2912,18 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
     let resetFromOvershotFirstPage = false;
     const pendingResultPageNumbers = [];
     const gapRecoveryPageNumbers = new Set();
-    const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit);
+
+    // 1페이지(진입 페이지)에서 ITM 수량 파싱
+    const initialBodyText = normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
+    const itmCount = parseItmCount(initialBodyText);
+    if (itmCount) {
+      console.log(`    [디버그] Result ITM 수량 감지: ${itmCount}명 (Target Rank: ${targetRank}위)`);
+    }
+
+    const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit, itmCount);
     resultPageNumber = searchStart.resultPageNumber;
     directPageClicked = searchStart.directPageClicked;
+    const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank, itmCount);
 
     for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
       await page.waitForTimeout(1000);
