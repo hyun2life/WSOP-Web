@@ -181,6 +181,33 @@ function safeFilePart(value, fallback = "manual-player") {
   return safe || fallback;
 }
 
+function splitBrandArgument(value) {
+  const text = normalizeText(value);
+  if (!text) return [];
+
+  const parts = [];
+  let current = "";
+  let depth = 0;
+
+  for (const char of text) {
+    if (char === "(" || char === "[" || char === "{") depth += 1;
+    if (char === ")" || char === "]" || char === "}") depth = Math.max(0, depth - 1);
+
+    if ((char === "," || char === "|") && depth === 0) {
+      const item = current.trim();
+      if (item) parts.push(item);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const tail = current.trim();
+  if (tail) parts.push(tail);
+  return parts;
+}
+
 function playerSlugForOutput(playerUrls) {
   if (!playerUrls?.length) return "wsop-player-crawler";
   if (playerUrls.length > 1) return "manual-players";
@@ -212,8 +239,7 @@ function applyManualPlayerOutputDefaults(args) {
 function applyBrandOutputDefaults(args) {
   if (args.selfTest || !args.brand) return;
 
-  const brandSuffix = args.brand
-    .split(",")
+  const brandSuffix = splitBrandArgument(args.brand)
     .map((b) => safeFilePart(b.trim(), "brand"))
     .filter(Boolean)
     .join("-");
@@ -1076,6 +1102,15 @@ function categoryUrlFor(playersUrl, category) {
   }
 }
 
+function parseItmCount(bodyText) {
+  if (!bodyText) return null;
+  const match = bodyText.match(/itm\b[^\d]*(\d[\d,]*)/i);
+  if (match) {
+    return Number(match[1].replace(/,/g, ""));
+  }
+  return null;
+}
+
 function normalizeBrandOptionLabel(value) {
   return normalizeText(value)
     .replace(/\s+/g, " ")
@@ -1158,6 +1193,16 @@ function brandSelectionAliases(brand) {
     aliases.add("PGT (Poker Go Tour)");
     aliases.add("Poker Go Tour");
   }
+  if (compact === "BSOP" || compact === "BSOPBRAZILIANSERIESOFPOKER") {
+    aliases.add("BSOP");
+    aliases.add("BSOP (Brazilian Series of Poker)");
+    aliases.add("Brazilian Series of Poker");
+  }
+  if (compact === "APT" || compact === "APTASIANPOKERTOUR") {
+    aliases.add("APT");
+    aliases.add("APT (Asian Poker Tour)");
+    aliases.add("Asian Poker Tour");
+  }
 
   return Array.from(aliases).filter(Boolean);
 }
@@ -1197,7 +1242,17 @@ async function selectBrandFilter(page, brand) {
     }
   }
 
-  const dropdownTrigger = page.locator("button.select-box, button.select-container, button:has-text('All Brands'), div.select-container, [class*=select-box i], button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  const triggerPatterns = [
+    "All Brands", "Brand", "Brands", "Select Brand", "Select Brands", "WSOP", "GGPoker", "WPT", "PGT", "BSOP", "APT", "Triton", "Irish Poker",
+    ...aliases
+  ];
+  const triggerRegex = new RegExp(triggerPatterns.map(escapeRegExp).join("|"), "i");
+
+  let dropdownTrigger = page.locator("button.select-box, button.select-container, button").filter({ hasText: triggerRegex }).first();
+  if ((await dropdownTrigger.count()) === 0 || !(await dropdownTrigger.isVisible().catch(() => false))) {
+    dropdownTrigger = page.locator("div.select-box, div.select-container, [class*=select-box i], a, div, span").filter({ hasText: triggerRegex }).first();
+  }
+
   if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
     await dropdownTrigger.click().catch(() => {});
     await page.waitForTimeout(500);
@@ -1224,7 +1279,7 @@ async function selectBrandFilter(page, brand) {
     }, aliasKeys).catch(() => null);
 
     if (matchedOptionText) {
-      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(matchedOptionText)}$`, "i") }).first();
+      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(matchedOptionText)}\\s*$`, "i") }).first();
       if ((await optionItem.count()) > 0) {
         await optionItem.click().catch(() => {});
         return true;
@@ -1232,7 +1287,7 @@ async function selectBrandFilter(page, brand) {
     }
 
     for (const alias of aliases) {
-      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(alias)}$`, "i") }).first();
+      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(alias)}\\s*$`, "i") }).first();
       if ((await optionItems.count()) > 0 && (await optionItems.isVisible().catch(() => true))) {
         await optionItems.click().catch(() => {});
         return true;
@@ -1348,7 +1403,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
 
   const byUrl = new Map();
   let selectedAnyCategory = false;
-  const brands = brand ? brand.split(',').map(b => b.trim()).filter(Boolean) : [null];
+  const brands = brand ? splitBrandArgument(brand) : [null];
 
   for (const currentBrand of brands) {
     await retryWithBackoff(async () => {
@@ -2549,10 +2604,14 @@ function resultPageInspectionLimit(resultPageLimit) {
 
 // 설정된 limit은 속도 힌트일 뿐 정합성 경계가 아니다.
 // 깊은 순위는 target rank를 덮을 수 있도록 검사 예산을 자동 확장한다.
-function effectiveResultPageInspectionLimit(resultPageLimit, targetRank) {
+function effectiveResultPageInspectionLimit(resultPageLimit, targetRank, itmCount = null) {
+  let effectiveRank = targetRank;
+  if (itmCount && targetRank && targetRank > itmCount) {
+    effectiveRank = itmCount;
+  }
   const configuredLimit = resultPageInspectionLimit(resultPageLimit);
-  if (configuredLimit === Number.MAX_SAFE_INTEGER || !targetRank) return configuredLimit;
-  const targetPage = resultPageNumberForRangeStart(targetRank);
+  if (configuredLimit === Number.MAX_SAFE_INTEGER || !effectiveRank) return configuredLimit;
+  const targetPage = resultPageNumberForRangeStart(effectiveRank);
   return Math.max(configuredLimit, targetPage + RESULT_SEARCH_LOOKBEHIND_PAGES + 10);
 }
 
@@ -2584,8 +2643,12 @@ function shouldUseDirectResultRankJump(targetRank, resultPageLimit) {
 
 // 본격 Result 탐색 전에 target rank 근처로 이동한다.
 // 먼저 직접 페이지 번호 클릭을 시도하고, 숨은 페이지는 pagination 창을 넘겨 도달한다.
-async function navigateToResultSearchStartPage(page, targetRank, resultPageLimit) {
-  const searchStartPageNumber = shouldUseDirectResultRankJump(targetRank, resultPageLimit) ? resultSearchStartPageForRank(targetRank) : null;
+async function navigateToResultSearchStartPage(page, targetRank, resultPageLimit, itmCount = null) {
+  let effectiveRank = targetRank;
+  if (itmCount && targetRank && targetRank > itmCount) {
+    effectiveRank = itmCount;
+  }
+  const searchStartPageNumber = shouldUseDirectResultRankJump(effectiveRank, resultPageLimit) ? resultSearchStartPageForRank(effectiveRank) : null;
   let resultPageNumber = 1;
   let directPageClicked = false;
 
@@ -2723,7 +2786,6 @@ function evaluateResultFromCachedPages(cachedPages, player, event, urlKey) {
 async function extractResultPageData(page, player, event, resultPageLimit, timeout = 30000) {
   const targetRank = event.rank;
   const targetEarnings = event.earnings;
-  const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank);
   const inspectEveryPage = shouldInspectEveryResultPage(resultPageLimit);
   const visitedPageContentSignatures = new Set();
   const searchedPages = [];
@@ -2737,9 +2799,18 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
   let resetFromOvershotFirstPage = false;
   const pendingResultPageNumbers = [];
   const gapRecoveryPageNumbers = new Set();
-  const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit);
+
+  // 1페이지(진입 페이지)에서 ITM 수량 파싱
+  const initialBodyText = normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
+  const itmCount = parseItmCount(initialBodyText);
+  if (itmCount) {
+    console.log(`    [디버그] Result ITM 수량 감지: ${itmCount}명 (Target Rank: ${targetRank}위)`);
+  }
+
+  const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit, itmCount);
   resultPageNumber = searchStart.resultPageNumber;
   directPageClicked = searchStart.directPageClicked;
+  const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank, itmCount);
 
   for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
     await page.waitForTimeout(1000);
@@ -2875,7 +2946,6 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
     const cachedPages = [];
     const targetRank = event.rank;
     const targetEarnings = event.earnings;
-    const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank);
     const inspectEveryPage = shouldInspectEveryResultPage(resultPageLimit);
     const visitedPageContentSignatures = new Set();
     const searchedPages = [];
@@ -2888,9 +2958,18 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
     let resetFromOvershotFirstPage = false;
     const pendingResultPageNumbers = [];
     const gapRecoveryPageNumbers = new Set();
-    const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit);
+
+    // 1페이지(진입 페이지)에서 ITM 수량 파싱
+    const initialBodyText = normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
+    const itmCount = parseItmCount(initialBodyText);
+    if (itmCount) {
+      console.log(`    [디버그] Result ITM 수량 감지: ${itmCount}명 (Target Rank: ${targetRank}위)`);
+    }
+
+    const searchStart = await navigateToResultSearchStartPage(page, targetRank, resultPageLimit, itmCount);
     resultPageNumber = searchStart.resultPageNumber;
     directPageClicked = searchStart.directPageClicked;
+    const pageInspectionLimit = effectiveResultPageInspectionLimit(resultPageLimit, targetRank, itmCount);
 
     for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
       await page.waitForTimeout(1000);

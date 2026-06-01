@@ -181,6 +181,33 @@ function safeFilePart(value, fallback = "manual-player") {
   return safe || fallback;
 }
 
+function splitBrandArgument(value) {
+  const text = normalizeText(value);
+  if (!text) return [];
+
+  const parts = [];
+  let current = "";
+  let depth = 0;
+
+  for (const char of text) {
+    if (char === "(" || char === "[" || char === "{") depth += 1;
+    if (char === ")" || char === "]" || char === "}") depth = Math.max(0, depth - 1);
+
+    if ((char === "," || char === "|") && depth === 0) {
+      const item = current.trim();
+      if (item) parts.push(item);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const tail = current.trim();
+  if (tail) parts.push(tail);
+  return parts;
+}
+
 function playerSlugForOutput(playerUrls) {
   if (!playerUrls?.length) return "wsop-player-crawler";
   if (playerUrls.length > 1) return "manual-players";
@@ -212,8 +239,7 @@ function applyManualPlayerOutputDefaults(args) {
 function applyBrandOutputDefaults(args) {
   if (args.selfTest || !args.brand) return;
 
-  const brandSuffix = args.brand
-    .split(",")
+  const brandSuffix = splitBrandArgument(args.brand)
     .map((b) => safeFilePart(b.trim(), "brand"))
     .filter(Boolean)
     .join("-");
@@ -1167,6 +1193,16 @@ function brandSelectionAliases(brand) {
     aliases.add("PGT (Poker Go Tour)");
     aliases.add("Poker Go Tour");
   }
+  if (compact === "BSOP" || compact === "BSOPBRAZILIANSERIESOFPOKER") {
+    aliases.add("BSOP");
+    aliases.add("BSOP (Brazilian Series of Poker)");
+    aliases.add("Brazilian Series of Poker");
+  }
+  if (compact === "APT" || compact === "APTASIANPOKERTOUR") {
+    aliases.add("APT");
+    aliases.add("APT (Asian Poker Tour)");
+    aliases.add("Asian Poker Tour");
+  }
 
   return Array.from(aliases).filter(Boolean);
 }
@@ -1206,7 +1242,17 @@ async function selectBrandFilter(page, brand) {
     }
   }
 
-  const dropdownTrigger = page.locator("button.select-box, button.select-container, button:has-text('All Brands'), div.select-container, [class*=select-box i], button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  const triggerPatterns = [
+    "All Brands", "Brand", "Brands", "Select Brand", "Select Brands", "WSOP", "GGPoker", "WPT", "PGT", "BSOP", "APT", "Triton", "Irish Poker",
+    ...aliases
+  ];
+  const triggerRegex = new RegExp(triggerPatterns.map(escapeRegExp).join("|"), "i");
+
+  let dropdownTrigger = page.locator("button.select-box, button.select-container, button").filter({ hasText: triggerRegex }).first();
+  if ((await dropdownTrigger.count()) === 0 || !(await dropdownTrigger.isVisible().catch(() => false))) {
+    dropdownTrigger = page.locator("div.select-box, div.select-container, [class*=select-box i], a, div, span").filter({ hasText: triggerRegex }).first();
+  }
+
   if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
     await dropdownTrigger.click().catch(() => {});
     await page.waitForTimeout(500);
@@ -1357,7 +1403,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
 
   const byUrl = new Map();
   let selectedAnyCategory = false;
-  const brands = brand ? brand.split(',').map(b => b.trim()).filter(Boolean) : [null];
+  const brands = brand ? splitBrandArgument(brand) : [null];
 
   for (const currentBrand of brands) {
     await retryWithBackoff(async () => {

@@ -724,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
               selectedBrands.push(chk.value);
             }
           });
-          customArgs[opt.arg] = selectedBrands.join(',');
+          customArgs[opt.arg] = selectedBrands.join('|');
         } else if (opt.arg === 'standings-only' || opt.arg === 'profile-only') {
           customArgs[opt.arg] = true;
         } else if (opt.input) {

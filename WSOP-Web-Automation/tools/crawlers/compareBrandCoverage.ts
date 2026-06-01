@@ -90,6 +90,33 @@ function normalizeText(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function splitBrandArgument(value: unknown): string[] {
+  const text = normalizeText(value);
+  if (!text) return [];
+
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+
+  for (const char of text) {
+    if (char === "(" || char === "[" || char === "{") depth += 1;
+    if (char === ")" || char === "]" || char === "}") depth = Math.max(0, depth - 1);
+
+    if ((char === "," || char === "|") && depth === 0) {
+      const item = current.trim();
+      if (item) parts.push(item);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const tail = current.trim();
+  if (tail) parts.push(tail);
+  return parts;
+}
+
 function canonicalBrand(raw: string): string {
   const text = normalizeText(raw);
   const upper = text.toUpperCase();
@@ -141,7 +168,9 @@ function collectBrandBuckets(data: CrawlerData, defaultBrand: string): Map<strin
     }
 
     if (rawBrands.size === 0 && runBrandFilter) {
-      rawBrands.add(runBrandFilter);
+      for (const brand of splitBrandArgument(runBrandFilter)) {
+        rawBrands.add(brand);
+      }
     }
     if (rawBrands.size === 0) {
       rawBrands.add(defaultBrand);
