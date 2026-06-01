@@ -1,23 +1,136 @@
 [
   {
-    "displayName": "Doyle Brunson",
-    "searchKeyword": "Doyle Brunson",
-    "profileUrl": "/players/doyle-brunson/"
+    "displayName": "Nick Schulman",
+    "searchKeyword": "Nick Schulman",
+    "profileUrl": "/players/nicholas-joe-schulman/",
+    "knownExceptionKey": "nick-schulman"
   },
   {
-    "displayName": "Johnny Chan",
-    "searchKeyword": "Johnny Chan",
-    "profileUrl": "/players/johnny-chan/"
+    "displayName": "Michael Mizrachi",
+    "searchKeyword": "Michael Mizrachi",
+    "profileUrl": "/players/michael-mizrachi/",
+    "knownExceptionKey": "michael-mizrachi"
   },
   {
-    "displayName": "Phil Hellmuth",
-    "searchKeyword": "Phil Hellmuth",
-    "profileUrl": "/players/phil-hellmuth/"
+    "displayName": "Patrik Antonius",
+    "searchKeyword": "Patrik Antonius",
+    "profileUrl": "/players/patrik-antonius/"
+  },
+  {
+    "displayName": "Brian Rast",
+    "searchKeyword": "Brian Rast",
+    "profileUrl": "/players/brian-rast/"
+  },
+  {
+    "displayName": "Layne Flack",
+    "searchKeyword": "Layne Flack",
+    "profileUrl": "/players/layne-flack/"
+  },
+  {
+    "displayName": "Eli Elezra",
+    "searchKeyword": "Eli Elezra",
+    "profileUrl": "/players/eli-elezra/"
+  },
+  {
+    "displayName": "Huck Seed",
+    "searchKeyword": "Huck Seed",
+    "profileUrl": "/players/huck-seed/"
+  },
+  {
+    "displayName": "David Oppenheim",
+    "searchKeyword": "David Oppenheim",
+    "profileUrl": "/players/david-oppenheim/"
+  },
+  {
+    "displayName": "Chris Moneymaker",
+    "searchKeyword": "Chris Moneymaker",
+    "profileUrl": "/players/christopher-moneymaker/"
+  },
+  {
+    "displayName": "John Hennigan",
+    "searchKeyword": "John Hennigan",
+    "profileUrl": "/players/john-hennigan/"
+  },
+  {
+    "displayName": "Mori Eskandani",
+    "searchKeyword": "Mori Eskandani",
+    "profileUrl": "/players/mori-eskandani/",
+    "knownExceptionKey": "non-player"
+  },
+  {
+    "displayName": "David Ulliott",
+    "searchKeyword": "David Ulliott",
+    "profileUrl": "/players/david-ulliott/"
   },
   {
     "displayName": "Phil Ivey",
     "searchKeyword": "Phil Ivey",
-    "profileUrl": "/players/phil-ivey/"
+    "profileUrl": "/players/phil-ivey/",
+    "knownExceptionKey": "phil-ivey"
+  },
+  {
+    "displayName": "Carlos Mortensen",
+    "searchKeyword": "Carlos Mortensen",
+    "profileUrl": "/players/carlos-mortensen/"
+  },
+  {
+    "displayName": "Todd Brunson",
+    "searchKeyword": "Todd Brunson",
+    "profileUrl": "/players/todd-brunson/"
+  },
+  {
+    "displayName": "John Juanda",
+    "searchKeyword": "John Juanda",
+    "profileUrl": "/players/johnson-juanda/"
+  },
+  {
+    "displayName": "Jen Harman",
+    "searchKeyword": "Jen Harman",
+    "profileUrl": "/players/jen-harman/"
+  },
+  {
+    "displayName": "Daniel Negreanu",
+    "searchKeyword": "Daniel Negreanu",
+    "profileUrl": "/players/daniel-negreanu/",
+    "knownExceptionKey": "daniel-negreanu"
+  },
+  {
+    "displayName": "Jack McClelland",
+    "searchKeyword": "Jack McClelland",
+    "profileUrl": "/players/jack-mcclelland/",
+    "knownExceptionKey": "non-player"
+  },
+  {
+    "displayName": "Tom McEvoy",
+    "searchKeyword": "Tom McEvoy",
+    "profileUrl": "/players/tom-mcevoy/"
+  },
+  {
+    "displayName": "Scotty Nguyen",
+    "searchKeyword": "Scotty Nguyen",
+    "profileUrl": "/players/scotty-nguyen/"
+  },
+  {
+    "displayName": "Brian \"Sailor\" Roberts",
+    "searchKeyword": "Brian \"Sailor\" Roberts",
+    "profileUrl": "/players/bryan-roberts/"
+  },
+  {
+    "displayName": "Eric Drache",
+    "searchKeyword": "Eric Drache",
+    "profileUrl": "/players/eric-drache/",
+    "knownExceptionKey": "non-player"
+  },
+  {
+    "displayName": "Linda Johnson",
+    "searchKeyword": "Linda Johnson",
+    "profileUrl": "/players/linda-johnson/",
+    "knownExceptionKey": "non-player"
+  },
+  {
+    "displayName": "Barry Greenstein",
+    "searchKeyword": "Barry Greenstein",
+    "profileUrl": "/players/barry-greenstein/"
   },
   {
     "displayName": "Erik Seidel",
@@ -25,9 +138,126 @@
     "profileUrl": "/players/erik-seidel/"
   },
   {
-    "displayName": "Daniel Negreanu",
-    "searchKeyword": "Daniel Negreanu",
-    "profileUrl": "/players/daniel-negreanu/",
-    "knownExceptionKey": "daniel-negreanu"
+    "displayName": "Dan Harrington",
+    "searchKeyword": "Dan Harrington",
+    "profileUrl": "/players/dan-harrington/"
+  },
+  {
+    "displayName": "Mike Sexton",
+    "searchKeyword": "Mike Sexton",
+    "profileUrl": "/players/mike-sexton/"
+  },
+  {
+    "displayName": "Henry Orenstein",
+    "searchKeyword": "Henry Orenstein",
+    "profileUrl": "/players/henry-orenstein/",
+    "knownExceptionKey": "non-player"
+  },
+  {
+    "displayName": "Duane \"Dewey\" Tomko",
+    "searchKeyword": "Duane \"Dewey\" Tomko",
+    "profileUrl": "/players/dewey-tomko/"
+  },
+  {
+    "displayName": "Barbara Enright",
+    "searchKeyword": "Barbara Enright",
+    "profileUrl": "/players/barbara-enright/"
+  },
+  {
+    "displayName": "Phil Hellmuth",
+    "searchKeyword": "Phil Hellmuth",
+    "profileUrl": "/players/phil-hellmuth/",
+    "knownExceptionKey": "phil-hellmuth"
+  },
+  {
+    "displayName": "TJ Cloutier",
+    "searchKeyword": "TJ Cloutier",
+    "profileUrl": "/players/tj-cloutier/"
+  },
+  {
+    "displayName": "Billy Baxter",
+    "searchKeyword": "Billy Baxter",
+    "profileUrl": "/players/billy-baxter/"
+  },
+  {
+    "displayName": "Crandall Addington",
+    "searchKeyword": "Crandall Addington",
+    "profileUrl": "/players/crandall-addington/"
+  },
+  {
+    "displayName": "Berry Johnston",
+    "searchKeyword": "Berry Johnston",
+    "profileUrl": "/players/berry-johnston/"
+  },
+  {
+    "displayName": "Bobby Baldwin",
+    "searchKeyword": "Bobby Baldwin",
+    "profileUrl": "/players/bobby-baldwin/"
+  },
+  {
+    "displayName": "Johnny Chan",
+    "searchKeyword": "Johnny Chan",
+    "profileUrl": "/players/johnny-chan/"
+  },
+  {
+    "displayName": "Lyle Berman",
+    "searchKeyword": "Lyle Berman",
+    "profileUrl": "/players/lyle-berman/"
+  },
+  {
+    "displayName": "Stu \"The Kid\" Ungar",
+    "searchKeyword": "Stu \"The Kid\" Ungar",
+    "profileUrl": "/players/stu-ungar/"
+  },
+  {
+    "displayName": "Roger Moore",
+    "searchKeyword": "Roger Moore",
+    "profileUrl": "/players/roger-moore/"
+  },
+  {
+    "displayName": "Jack Keller",
+    "searchKeyword": "Jack Keller",
+    "profileUrl": "/players/jack-keller/"
+  },
+  {
+    "displayName": "Thomas Austin \"Amarillo Slim\" Preston",
+    "searchKeyword": "Thomas Austin \"Amarillo Slim\" Preston",
+    "profileUrl": "/players/amarillo-slim-preston/"
+  },
+  {
+    "displayName": "David \"Chip\" Reese",
+    "searchKeyword": "David \"Chip\" Reese",
+    "profileUrl": "/players/david-reese/"
+  },
+  {
+    "displayName": "Benny Binion",
+    "searchKeyword": "Benny Binion",
+    "profileUrl": "/players/benny-binion/",
+    "knownExceptionKey": "non-player"
+  },
+  {
+    "displayName": "Fred \"Sarge\" Ferris",
+    "searchKeyword": "Fred \"Sarge\" Ferris",
+    "profileUrl": "/players/sarge-ferris/"
+  },
+  {
+    "displayName": "Jack \"Treetop\" Straus",
+    "searchKeyword": "Jack \"Treetop\" Straus",
+    "profileUrl": "/players/jack-straus/"
+  },
+  {
+    "displayName": "Doyle Brunson",
+    "searchKeyword": "Doyle Brunson",
+    "profileUrl": "/players/doyle-brunson/"
+  },
+  {
+    "displayName": "Joe Bernstein",
+    "searchKeyword": "Joe Bernstein",
+    "profileUrl": "/players/joe-bernstein/"
+  },
+  {
+    "displayName": "Johnny Moss",
+    "searchKeyword": "Johnny Moss",
+    "profileUrl": "/players/johnny-moss/"
   }
 ]

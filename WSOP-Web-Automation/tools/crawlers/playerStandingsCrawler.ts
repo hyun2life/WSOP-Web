@@ -103,6 +103,7 @@ function parseArgs(argv) {
     selfTest: false,
     standingsOnly: false,
     concurrency: DEFAULT_CONCURRENCY,
+    brand: null,
     help: false
   };
 
@@ -143,6 +144,7 @@ function parseArgs(argv) {
     }
     else if (arg === "--self-test") args.selfTest = true;
     else if (arg === "--standings-only") args.standingsOnly = true;
+    else if (arg === "--brand") args.brand = argv[++i];
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -839,6 +841,7 @@ function formatStatus(status) {
 // 크롤러/탐색 미완료와 실제 페이지 데이터 불일치는 리포트에서 구분한다.
 function buildDefects(player) {
   const defects = [];
+  const playerBrands = Array.from(new Set((player.standingsSources || []).map(s => s.brand || "All"))).join(", ");
 
   for (const comparison of player.comparisons || []) {
     if (comparison.status !== "fail") continue;
@@ -849,6 +852,7 @@ function buildDefects(player) {
       detailParts.push(`ALL tab collection incomplete: rows=${player.expansion.finalEventCount ?? (player.events || []).length}, expectedCashes=${player.expansion.expectedCashes}, loadMoreClicks=${player.expansion.loadMoreClicks ?? 0}, stopped=${player.expansion.stoppedReason || "-"}`);
     }
     defects.push({
+      brand: playerBrands,
       type: "Profile summary mismatch",
       player: player.name,
       item: comparison.label,
@@ -862,6 +866,7 @@ function buildDefects(player) {
   for (const tabCheck of player.tabChecks || []) {
     if (tabCheck.status !== "fail") continue;
     defects.push({
+      brand: playerBrands,
       type: "Profile tab count mismatch",
       player: player.name,
       item: tabCheck.label,
@@ -877,6 +882,7 @@ function buildDefects(player) {
     if (!result) continue;
     if (result.status === "pass") continue;
     defects.push({
+      brand: playerBrands,
       type: resultSearchIncomplete(result) ? "Result search incomplete" : "Result page mismatch",
       player: player.name,
       item: event.eventName,
@@ -889,6 +895,7 @@ function buildDefects(player) {
 
   if (player.error) {
     defects.push({
+      brand: playerBrands,
       type: "Crawler error",
       player: player.name,
       item: "player crawl",
@@ -1037,37 +1044,53 @@ function categoryUrlFor(playersUrl, category) {
 }
 
 
-async function collectPlayerEntries(page, playersUrl, limit, authWaitMs) {
+async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand = null) {
   if (limit <= 0) return [];
-
-  await retryWithBackoff(async () => {
-    await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle").catch(() => {});
-    await waitForAccessLogin(page, authWaitMs);
-  }, 2, 2000);
 
   const byUrl = new Map();
   let selectedAnyCategory = false;
+  
+  const brands = brand ? brand.split(',').map(b => b.trim()).filter(Boolean) : [null];
 
-  for (const category of STANDINGS_CATEGORIES) {
-    const categoryUrl = categoryUrlFor(playersUrl, category);
-    let selected = false;
+  for (const currentBrand of brands) {
+    await retryWithBackoff(async () => {
+      await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await waitForAccessLogin(page, authWaitMs);
+    }, 2, 2000);
 
-    if (category.sectionSelector) {
-      // path 없이 sectionSelector만 있는 카테고리 (예: All Player Stats).
-      // 이미 메인 페이지에 있으므로 재이동 없이 해당 섹션에서 바로 추출한다.
-      // 메인 페이지가 아직 로드된 상태여야 하므로 현재 URL을 확인하고 필요 시 재방문한다.
-      try {
-        const currentUrl = page.url();
-        const isOnMainPage = /\/player-standings\/?$/i.test(new URL(currentUrl).pathname);
-        if (!isOnMainPage) {
+    for (const category of STANDINGS_CATEGORIES) {
+      // brand 필터링 조건이 있을 경우, 2026 Standings는 대상에서 제외
+      if (currentBrand && category.label === "2026 Standings") {
+        continue;
+      }
+
+      const categoryUrl = categoryUrlFor(playersUrl, category);
+      let selected = false;
+
+      if (category.sectionSelector) {
+        try {
+          const currentUrl = page.url();
+          const isOnMainPage = /\/player-standings\/?$/i.test(new URL(currentUrl).pathname);
+          if (!isOnMainPage) {
+            await retryWithBackoff(async () => {
+              await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+              await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+              await waitForAccessLogin(page, authWaitMs);
+            }, 2, 1500);
+          }
+          const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
+          selected = sectionExists;
+        } catch {
+          selected = false;
+        }
+      } else if (categoryUrl) {
+        try {
           await retryWithBackoff(async () => {
-            await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+            await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
             await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
             await waitForAccessLogin(page, authWaitMs);
           }, 2, 1500);
-        }
-        // 섹션이 DOM에 존재하는지 확인
         const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
         selected = sectionExists;
       } catch {
@@ -3383,6 +3406,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             <span>${isKo ? "확인한 선수" : "Players Checked"}: ${summary.completedPlayers}/${summary.totalPlayers}</span>
             <span>${isKo ? "생성 시간" : "Generated"}: ${escapeHtml(new Date().toLocaleString())}</span>
             <span>${isKo ? "수집 카테고리" : "Categories"}: ${summary.checkedStandingsCategories}</span>
+            <span>${isKo ? "브랜드 필터" : "Brand Filter"}: <strong>${escapeHtml(report.brandFilter || (isKo ? "전체" : "All"))}</strong></span>
           </div>
           <div class="bar" aria-label="정합성 비율">
             <div class="bar-pass" style="width:${(summary.passedPlayers / (summary.checkedPlayers || 1)) * 100}%"></div>
@@ -4370,14 +4394,14 @@ function writeJson(filePath, payload) {
 }
 
 function writeCsv(filePath, rows) {
-  const headers = ["type", "player", "item", "expected", "actual", "url", "detail"];
+  const headers = ["brand", "type", "player", "item", "expected", "actual", "url", "detail"];
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, [headers, ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(","))].map((line) => Array.isArray(line) ? line.join(",") : line).join("\n") + "\n", "utf8");
 }
 
 // 모든 선수 크롤링이 끝나거나 실행이 중단된 뒤 최종 리포트 객체를 만든다.
 // 디버깅과 재개 판단을 위해 pending player 정보를 보존한다.
-function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "" }) {
+function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null }) {
   const completedPlayers = [];
   const pendingPlayers = [];
 
@@ -4403,6 +4427,7 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
     finishedAt,
     playersUrl,
     standingsCategories: STANDINGS_CATEGORIES.map((category) => category.label),
+    brandFilter,
     totalPlayers: playerEntries.length,
     completedPlayers: completedPlayers.length,
     pendingPlayers,
@@ -4429,7 +4454,7 @@ function standingOnlyPlayerFromEntry(entry) {
   };
 }
 
-function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries }) {
+function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null }) {
   const players = playerEntries.map(standingOnlyPlayerFromEntry);
   const report = buildCrawlerReport({
     startedAt,
@@ -4437,7 +4462,8 @@ function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEnt
     playersUrl,
     playerEntries,
     players,
-    runStatus: "complete"
+    runStatus: "complete",
+    brandFilter
   });
 
   report.mode = "standings-only";
@@ -5071,7 +5097,7 @@ async function main() {
     }));
     if (!playerEntries.length) {
       const listPage = await context.newPage();
-      playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs);
+      playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs, args.brand);
       await listPage.close().catch(() => {});
     }
 
@@ -5082,7 +5108,8 @@ async function main() {
         startedAt,
         finishedAt: new Date().toISOString(),
         playersUrl: args.playersUrl,
-        playerEntries
+        playerEntries,
+        brandFilter: args.brand
       });
       const koreanHtml = writeReportArtifacts(args, report);
 
@@ -5110,7 +5137,8 @@ async function main() {
         playerEntries,
         players,
         runStatus,
-        interruptedReason
+        interruptedReason,
+        brandFilter: args.brand
       });
       const koreanHtml = writeReportArtifacts(args, report);
       return { report, koreanHtml };

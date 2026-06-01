@@ -836,6 +836,7 @@ function formatStatus(status) {
 // 크롤러/탐색 미완료와 실제 페이지 데이터 불일치는 리포트에서 구분한다.
 function buildDefects(player) {
   const defects = [];
+  const playerBrands = Array.from(new Set((player.standingsSources || []).map(s => s.brand || "All"))).join(", ");
 
   for (const comparison of player.comparisons || []) {
     if (comparison.status !== "fail") continue;
@@ -846,6 +847,7 @@ function buildDefects(player) {
       detailParts.push(`ALL tab collection incomplete: rows=${player.expansion.finalEventCount ?? (player.events || []).length}, expectedCashes=${player.expansion.expectedCashes}, loadMoreClicks=${player.expansion.loadMoreClicks ?? 0}, stopped=${player.expansion.stoppedReason || "-"}`);
     }
     defects.push({
+      brand: playerBrands,
       type: "Profile summary mismatch",
       player: player.name,
       item: comparison.label,
@@ -859,6 +861,7 @@ function buildDefects(player) {
   for (const tabCheck of player.tabChecks || []) {
     if (tabCheck.status !== "fail") continue;
     defects.push({
+      brand: playerBrands,
       type: "Profile tab count mismatch",
       player: player.name,
       item: tabCheck.label,
@@ -874,6 +877,7 @@ function buildDefects(player) {
     if (!result) continue;
     if (result.status === "pass") continue;
     defects.push({
+      brand: playerBrands,
       type: resultSearchIncomplete(result) ? "Result search incomplete" : "Result page mismatch",
       player: player.name,
       item: event.eventName,
@@ -886,6 +890,7 @@ function buildDefects(player) {
 
   if (player.error) {
     defects.push({
+      brand: playerBrands,
       type: "Crawler error",
       player: player.name,
       item: "player crawl",
@@ -1037,116 +1042,117 @@ function categoryUrlFor(playersUrl, category) {
 async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand = null) {
   if (limit <= 0) return [];
 
-  await retryWithBackoff(async () => {
-    await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle").catch(() => {});
-    await waitForAccessLogin(page, authWaitMs);
-  }, 2, 2000);
-
   const byUrl = new Map();
   let selectedAnyCategory = false;
+  
+  const brands = brand ? brand.split(',').map(b => b.trim()).filter(Boolean) : [null];
 
-  for (const category of STANDINGS_CATEGORIES) {
-    // brand 필터링 조건이 있을 경우, 2026 Standings는 대상에서 제외
-    if (brand && category.label === "2026 Standings") {
-      continue;
-    }
+  for (const currentBrand of brands) {
+    await retryWithBackoff(async () => {
+      await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await waitForAccessLogin(page, authWaitMs);
+    }, 2, 2000);
 
-    const categoryUrl = categoryUrlFor(playersUrl, category);
-    let selected = false;
+    for (const category of STANDINGS_CATEGORIES) {
+      // brand 필터링 조건이 있을 경우, 2026 Standings는 대상에서 제외
+      if (currentBrand && category.label === "2026 Standings") {
+        continue;
+      }
 
-    if (category.sectionSelector) {
-      // path 없이 sectionSelector만 있는 카테고리 (예: All Player Stats).
-      // 이미 메인 페이지에 있으므로 재이동 없이 해당 섹션에서 바로 추출한다.
-      // 메인 페이지가 아직 로드된 상태여야 하므로 현재 URL을 확인하고 필요 시 재방문한다.
-      try {
-        const currentUrl = page.url();
-        const isOnMainPage = /\/player-standings\/?$/i.test(new URL(currentUrl).pathname);
-        if (!isOnMainPage) {
+      const categoryUrl = categoryUrlFor(playersUrl, category);
+      let selected = false;
+
+      if (category.sectionSelector) {
+        try {
+          const currentUrl = page.url();
+          const isOnMainPage = /\/player-standings\/?$/i.test(new URL(currentUrl).pathname);
+          if (!isOnMainPage) {
+            await retryWithBackoff(async () => {
+              await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+              await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+              await waitForAccessLogin(page, authWaitMs);
+            }, 2, 1500);
+          }
+          const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
+          selected = sectionExists;
+        } catch {
+          selected = false;
+        }
+      } else if (categoryUrl) {
+        try {
           await retryWithBackoff(async () => {
-            await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+            await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
             await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
             await waitForAccessLogin(page, authWaitMs);
           }, 2, 1500);
+          selected = true;
+        } catch {
+          selected = false;
         }
-        // 섹션이 DOM에 존재하는지 확인
-        const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
-        selected = sectionExists;
-      } catch {
-        selected = false;
-      }
-    } else if (categoryUrl) {
-      try {
-        await retryWithBackoff(async () => {
-          await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
-          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-          await waitForAccessLogin(page, authWaitMs);
-        }, 2, 1500);
-        selected = true;
-      } catch {
-        selected = false;
-      }
-    } else {
-      selected = await clickExactTextControl(page, category.label);
-    }
-    if (!selected) continue;
-
-    // 브랜드 필터가 지정된 경우 필터 적용
-    if (brand) {
-      console.log(`  [크롤러] 브랜드 필터 적용 중: "${brand}"`);
-      const selectLocator = page.locator('select').first();
-      const hasSelect = (await selectLocator.count()) > 0 && (await selectLocator.isVisible().catch(() => false));
-      
-      if (hasSelect) {
-        await selectLocator.selectOption({ label: brand }).catch(() => {});
       } else {
-        const dropdownTrigger = page.locator('button, a, div, span').filter({ hasText: /All Brands|Brand|WSOP/i }).first();
-        if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
-          await dropdownTrigger.click().catch(() => {});
-          await page.waitForTimeout(300);
-          
-          const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${brand}$`, 'i') }).first();
-          if ((await optionItems.count()) > 0) {
-            await optionItems.click().catch(() => {});
+        selected = await clickExactTextControl(page, category.label);
+      }
+      if (!selected) continue;
+
+      // 브랜드 필터가 지정된 경우 필터 적용
+      if (currentBrand) {
+        console.log(`  [크롤러] 브랜드 필터 적용 중: "${currentBrand}"`);
+        const selectLocator = page.locator('select').first();
+        const hasSelect = (await selectLocator.count()) > 0 && (await selectLocator.isVisible().catch(() => false));
+        
+        if (hasSelect) {
+          await selectLocator.selectOption({ label: currentBrand }).catch(() => {});
+        } else {
+          const dropdownTrigger = page.locator('button, a, div, span').filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+          if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+            await dropdownTrigger.click().catch(() => {});
+            await page.waitForTimeout(300);
+            
+            const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${currentBrand}$`, 'i') }).first();
+            if ((await optionItems.count()) > 0) {
+              await optionItems.click().catch(() => {});
+            }
           }
         }
-      }
-      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(1000);
-    }
-
-    let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
-
-    // 브랜드 필터 지정 시 2페이지까지 수집 지원
-    if (brand && rows.length < limit) {
-      const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
-      const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
-      
-      if (hasNext) {
-        console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
-        await nextButton.click().catch(() => {});
         await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
         await page.waitForTimeout(1000);
+      }
+
+      let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
+
+      // 브랜드 필터 지정 시 2페이지까지 수집 지원
+      if (currentBrand && rows.length < limit) {
+        const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
+        const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
         
-        const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
-        rows = rows.concat(page2Rows);
+        if (hasNext) {
+          console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
+          await nextButton.click().catch(() => {});
+          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+          await page.waitForTimeout(1000);
+          
+          const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
+          rows = rows.concat(page2Rows);
+        }
       }
-    }
 
-    if (!rows.length) continue;
-    selectedAnyCategory = true;
+      if (!rows.length) continue;
+      selectedAnyCategory = true;
 
-    for (const row of rows) {
-      if (!byUrl.has(row.url)) {
-        byUrl.set(row.url, { url: row.url, standingsSources: [] });
+      for (const row of rows) {
+        if (!byUrl.has(row.url)) {
+          byUrl.set(row.url, { url: row.url, standingsSources: [] });
+        }
+        byUrl.get(row.url).standingsSources.push({
+          category: category.label,
+          rank: row.rank,
+          name: row.name,
+          rowText: row.rowText,
+          sourceUrl: page.url(),
+          brand: currentBrand || "All"
+        });
       }
-      byUrl.get(row.url).standingsSources.push({
-        category: category.label,
-        rank: row.rank,
-        name: row.name,
-        rowText: row.rowText,
-        sourceUrl: page.url()
-      });
     }
   }
 
@@ -1155,7 +1161,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
     for (const row of rows) {
       byUrl.set(row.url, {
         url: row.url,
-        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, selected: false }]
+        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, selected: false, brand: "All" }]
       });
     }
   }
@@ -2961,8 +2967,11 @@ function flattenReviewNotes(report) {
   const notes = [];
 
   for (const player of report.players || []) {
+    const playerBrands = Array.from(new Set((player.standingsSources || []).map(s => s.brand || "All"))).join(", ");
+
     for (const warning of player.warnings || []) {
       notes.push({
+        brand: playerBrands,
         type: "Crawler warning",
         player: player.name,
         item: "warning",
@@ -2975,6 +2984,7 @@ function flattenReviewNotes(report) {
       if (!event.resultSkipped) continue;
       if (!/(result|ranklimit|resultlimit|비활|결과|검증)/i.test(event.resultSkipped)) continue;
       notes.push({
+        brand: playerBrands,
         type: "Result skipped",
         player: player.name,
         item: event.eventName,
@@ -3456,6 +3466,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="panel-body">
           <div class="summary-line">
             <span>${isKo ? "대상 사이트" : "Source"}: <a href="${escapeHtml(report.playersUrl || "")}" target="_blank" onclick="event.stopPropagation();">${escapeHtml(report.playersUrl || "")}</a></span>
+            <span>${isKo ? "브랜드 필터" : "Brand Filter"}: <strong>${escapeHtml(report.brandFilter || (isKo ? "전체" : "All"))}</strong></span>
             <span>${isKo ? "확인한 선수" : "Players Checked"}: ${summary.completedPlayers}/${summary.totalPlayers}</span>
             <span>${isKo ? "생성 시간" : "Generated"}: ${escapeHtml(new Date().toLocaleString())}</span>
             <span>${isKo ? "수집 카테고리" : "Categories"}: ${summary.checkedStandingsCategories}</span>
@@ -4454,14 +4465,14 @@ function writeJson(filePath, payload) {
 }
 
 function writeCsv(filePath, rows) {
-  const headers = ["type", "player", "item", "expected", "actual", "url", "detail"];
+  const headers = ["brand", "type", "player", "item", "expected", "actual", "url", "detail"];
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, [headers, ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(","))].map((line) => Array.isArray(line) ? line.join(",") : line).join("\n") + "\n", "utf8");
 }
 
 // 모든 선수 크롤링이 끝나거나 실행이 중단된 뒤 최종 리포트 객체를 만든다.
 // 디버깅과 재개 판단을 위해 pending player 정보를 보존한다.
-function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "" }) {
+function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null }) {
   const completedPlayers = [];
   const pendingPlayers = [];
 
@@ -4486,6 +4497,7 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
     startedAt,
     finishedAt,
     playersUrl,
+    brandFilter,
     standingsCategories: STANDINGS_CATEGORIES.map((category) => category.label),
     totalPlayers: playerEntries.length,
     completedPlayers: completedPlayers.length,
@@ -4513,7 +4525,7 @@ function standingOnlyPlayerFromEntry(entry) {
   };
 }
 
-function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries }) {
+function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null }) {
   const players = playerEntries.map(standingOnlyPlayerFromEntry);
   const report = buildCrawlerReport({
     startedAt,
@@ -4521,7 +4533,8 @@ function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEnt
     playersUrl,
     playerEntries,
     players,
-    runStatus: "complete"
+    runStatus: "complete",
+    brandFilter
   });
 
   report.mode = "standings-only";
@@ -5008,7 +5021,8 @@ async function main() {
         startedAt,
         finishedAt: new Date().toISOString(),
         playersUrl: args.playersUrl,
-        playerEntries
+        playerEntries,
+        brandFilter: args.brand
       });
       const koreanHtml = writeReportArtifacts(args, report);
 
@@ -5036,7 +5050,8 @@ async function main() {
         playerEntries,
         players,
         runStatus,
-        interruptedReason
+        interruptedReason,
+        brandFilter: args.brand
       });
       const koreanHtml = writeReportArtifacts(args, report);
       return { report, koreanHtml };

@@ -146,25 +146,23 @@
                       <span class="checkmark"></span>
                       Brand Filter <span class="help-icon" data-tooltip="수집 시 특정 브랜드의 대회 결과만 필터링하여 수집하도록 지정합니다. 브랜드 통합 데이터 검수나 고속 수집 시 유용합니다.">?</span>
                     </label>
-                    <div class="custom-select-wrapper" style="width: 100%; max-width: 140px;">
-                      <select id="opt-brand-select" disabled class="form-select" style="padding: 4px 8px; font-size: 0.8rem; height: 30px; border-radius: 4px; background-position: right 8px center;">
-                        <option value="WSOP">WSOP</option>
-                        <option value="GGPoker">GGPoker</option>
-                        <option value="WPT">WPT</option>
-                        <option value="PGT (Poker Go Tour)">PGT (Poker Go Tour)</option>
-                        <option value="Irish Poker Open">Irish Poker Open</option>
-                        <option value="WSOP PARADISE">WSOP PARADISE</option>
-                        <option value="WSOP EUROPE">WSOP EUROPE</option>
-                        <option value="WSOP ASIA">WSOP ASIA</option>
-                        <option value="WSOP ONLINE">WSOP ONLINE</option>
-                        <option value="WSOP CIRCUIT">WSOP CIRCUIT</option>
-                        <option value="GGMASTERS">GGMASTERS</option>
-                        <option value="GGMILLION$">GGMILLION$</option>
-                        <option value="WPT PRIME">WPT PRIME</option>
-                        <option value="PGT">PGT (Old)</option>
-                        <option value="Irish Poker Tour">Irish Poker Tour (Old)</option>
-                        <option value="Custom">Custom...</option>
-                      </select>
+                    <div class="brand-checkboxes-container" id="opt-brand-list-container" style="width: 100%; max-height: 120px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: var(--button-radius); margin-top: 5px; background: var(--bg-input); display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WSOP" disabled><span class="checkmark"></span>WSOP</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="GGPoker" disabled><span class="checkmark"></span>GGPoker</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WPT" disabled><span class="checkmark"></span>WPT</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="PGT (Poker Go Tour)" disabled><span class="checkmark"></span>PGT (Poker Go Tour)</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="Irish Poker Open" disabled><span class="checkmark"></span>Irish Poker Open</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WSOP PARADISE" disabled><span class="checkmark"></span>WSOP PARADISE</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WSOP EUROPE" disabled><span class="checkmark"></span>WSOP EUROPE</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WSOP ASIA" disabled><span class="checkmark"></span>WSOP ASIA</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WSOP ONLINE" disabled><span class="checkmark"></span>WSOP ONLINE</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WSOP CIRCUIT" disabled><span class="checkmark"></span>WSOP CIRCUIT</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="GGMASTERS" disabled><span class="checkmark"></span>GGMASTERS</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="GGMILLION$" disabled><span class="checkmark"></span>GGMILLION$</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WPT PRIME" disabled><span class="checkmark"></span>WPT PRIME</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="PGT" disabled><span class="checkmark"></span>PGT (Old)</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="Irish Poker Tour" disabled><span class="checkmark"></span>Irish Poker Tour (Old)</label></div>
+                      <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="Custom" id="opt-brand-custom-chk" disabled><span class="checkmark"></span>Custom...</label></div>
                     </div>
                     <div id="custom-brand-container" class="hidden" style="width: 100%; margin-top: 5px;">
                       <input type="text" id="custom-brand-input" placeholder="브랜드명 직접 입력 (예: Triton)" disabled class="form-input" style="width: 100%; font-size: 0.8rem; padding: 6px 10px; border-radius: 4px; height: 30px; text-align: left;">

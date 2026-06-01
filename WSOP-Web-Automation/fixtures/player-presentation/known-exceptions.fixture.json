@@ -19,5 +19,13 @@
   "phil-hellmuth": {
     "reason": "Phil Hellmuth may have unstable search results or autocomplete responses from WSOP API. Treat autocomplete missing as warning.",
     "warningOnly": true
+  },
+  "non-player": {
+    "reason": "Non-player contributors (e.g., founders, directors, media personalities) do not have active poker player profile pages or stats. Treat profile missing and search mismatch as warning.",
+    "warningOnly": true
+  },
+  "nick-schulman": {
+    "reason": "Nick Schulman is listed as 'Nick Schulman' in HOF but his active profile uses 'Nicholas Schulman'. Allow nickname variation search and name check warning.",
+    "warningOnly": true
   }
 }

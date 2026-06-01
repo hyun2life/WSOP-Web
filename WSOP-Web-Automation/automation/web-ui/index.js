@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     auth: { chk: document.getElementById('opt-auth-check'), input: document.getElementById('opt-auth-input'), arg: 'auth-wait-ms' },
     concurrency: { chk: document.getElementById('opt-concurrency-check'), input: document.getElementById('opt-concurrency-input'), arg: 'concurrency' },
     reslimit: { chk: document.getElementById('opt-reslimit-check'), input: document.getElementById('opt-reslimit-input'), arg: 'result-limit' },
-    brand: { chk: document.getElementById('opt-brand-check'), input: document.getElementById('opt-brand-select'), arg: 'brand' },
+    brand: { chk: document.getElementById('opt-brand-check'), arg: 'brand' },
     standingsOnly: { chk: document.getElementById('opt-standingsonly-check'), input: document.getElementById('opt-standingsonly-input'), arg: 'standings-only' },
   };
 
@@ -61,17 +61,17 @@ document.addEventListener('DOMContentLoaded', () => {
     customEnvUrlContainer.classList.toggle('hidden', envSelect.value !== 'Custom');
   });
 
-  const brandSelect = document.getElementById('opt-brand-select');
+  const customBrandChk = document.getElementById('opt-brand-custom-chk');
   const customBrandContainer = document.getElementById('custom-brand-container');
   const customBrandInput = document.getElementById('custom-brand-input');
 
-  if (brandSelect && customBrandContainer) {
-    brandSelect.addEventListener('change', () => {
-      const isCustom = brandSelect.value === 'Custom';
-      customBrandContainer.classList.toggle('hidden', !isCustom);
+  if (customBrandChk && customBrandContainer) {
+    customBrandChk.addEventListener('change', () => {
       const brandChk = document.getElementById('opt-brand-check');
+      const showCustom = brandChk.checked && customBrandChk.checked;
+      customBrandContainer.classList.toggle('hidden', !showCustom);
       if (customBrandInput) {
-        customBrandInput.disabled = !isCustom || !brandChk.checked;
+        customBrandInput.disabled = !showCustom;
       }
     });
   }
@@ -336,13 +336,21 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupCheckboxToggles(optGroup) {
     Object.values(optGroup).forEach((item) => {
       item.chk.addEventListener('change', () => {
-        item.input.disabled = !item.chk.checked;
         if (item.arg === 'brand') {
+          const brandChks = document.querySelectorAll('input[name="opt-brand"]');
+          brandChks.forEach((chk) => {
+            chk.disabled = !item.chk.checked;
+          });
+          const customChk = document.getElementById('opt-brand-custom-chk');
           const customInput = document.getElementById('custom-brand-input');
-          const brandSel = document.getElementById('opt-brand-select');
-          if (customInput) {
-            customInput.disabled = !item.chk.checked || brandSel.value !== 'Custom';
+          const customContainer = document.getElementById('custom-brand-container');
+          if (customInput && customContainer && customChk) {
+            const showCustomInput = item.chk.checked && customChk.checked;
+            customInput.disabled = !showCustomInput;
+            customContainer.classList.toggle('hidden', !showCustomInput);
           }
+        } else {
+          item.input.disabled = !item.chk.checked;
         }
       });
     });
@@ -555,10 +563,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3') {
       Object.values(crawlerOpts).forEach((opt) => {
         if (opt.chk.checked) {
-          let val = opt.input.value.trim();
-          if (opt.arg === 'brand' && val === 'Custom') {
-            const customInput = document.getElementById('custom-brand-input');
-            val = customInput ? customInput.value.trim() : '';
+          let val = '';
+          if (opt.arg === 'brand') {
+            const selectedBrands = [];
+            const brandChks = document.querySelectorAll('input[name="opt-brand"]:checked');
+            brandChks.forEach((chk) => {
+              if (chk.value === 'Custom') {
+                const customInput = document.getElementById('custom-brand-input');
+                if (customInput && customInput.value.trim()) {
+                  selectedBrands.push(customInput.value.trim());
+                }
+              } else {
+                selectedBrands.push(chk.value);
+              }
+            });
+            val = selectedBrands.join(',');
+          } else {
+            val = opt.input.value.trim();
           }
           customArgs[opt.arg] = val;
         }
