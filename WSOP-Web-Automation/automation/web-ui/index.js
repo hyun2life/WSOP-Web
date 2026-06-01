@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reslimit: { chk: document.getElementById('opt-reslimit-check'), input: document.getElementById('opt-reslimit-input'), arg: 'result-limit' },
     brand: { chk: document.getElementById('opt-brand-check'), arg: 'brand' },
     standingsOnly: { chk: document.getElementById('opt-standingsonly-check'), input: document.getElementById('opt-standingsonly-input'), arg: 'standings-only' },
+    profileOnly: { chk: document.getElementById('opt-profileonly-check'), input: document.getElementById('opt-profileonly-input'), arg: 'profile-only' },
   };
 
   const pwOpts = {
@@ -264,6 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Phase 3는 무조건 standings-only가 필요하므로 UI를 강제 설정하고 비활성화합니다.
     const soChk = document.getElementById('opt-standingsonly-check');
+    const poChk = document.getElementById('opt-profileonly-check');
     if (soChk) {
       if (phase.id === 'phase3') {
         // Preserve user choice and temporarily force standings-only for phase3
@@ -279,6 +281,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         delete soChk.dataset.prevChecked;
         soChk.disabled = false;
+      }
+    }
+    if (poChk) {
+      if (phase.id === 'phase3') {
+        poChk.dataset.prevChecked = poChk.checked ? 'true' : 'false';
+        poChk.checked = false;
+        poChk.disabled = true;
+      } else {
+        if (poChk.disabled && poChk.dataset.prevChecked) {
+          poChk.checked = poChk.dataset.prevChecked === 'true';
+        }
+        delete poChk.dataset.prevChecked;
+        poChk.disabled = false;
       }
     }
 
@@ -563,6 +578,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3') {
       Object.values(crawlerOpts).forEach((opt) => {
         if (opt.chk.checked) {
+          if (selectedPhase.id === 'phase3' && opt.arg === 'profile-only') {
+            return;
+          }
           let val = '';
           if (opt.arg === 'brand') {
             const selectedBrands = [];
@@ -581,7 +599,11 @@ document.addEventListener('DOMContentLoaded', () => {
           } else {
             val = opt.input.value.trim();
           }
-          customArgs[opt.arg] = val;
+          if (opt.arg === 'standings-only') {
+            customArgs[opt.arg] = true;
+          } else {
+            customArgs[opt.arg] = val;
+          }
         }
       });
     }

@@ -162,9 +162,17 @@ const server = http.createServer((req, res) => {
           }
 
           Object.entries(customArgs).forEach(([key, val]) => {
-            if (val !== null && val !== undefined && val !== '') {
-              args.push(`--${key}`, String(val));
+            if (val === null || val === undefined || val === '') {
+              return;
             }
+
+            // Boolean-like options should be emitted as standalone flags.
+            if (val === true || String(val).toLowerCase() === 'true') {
+              args.push(`--${key}`);
+              return;
+            }
+
+            args.push(`--${key}`, String(val));
           });
         }
 

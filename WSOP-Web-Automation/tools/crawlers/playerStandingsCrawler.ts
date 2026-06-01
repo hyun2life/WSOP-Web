@@ -102,6 +102,7 @@ function parseArgs(argv) {
     outputPathOverrides: { out: false, html: false, defects: false },
     selfTest: false,
     standingsOnly: false,
+    profileOnly: false,
     concurrency: DEFAULT_CONCURRENCY,
     brand: null,
     help: false
@@ -144,11 +145,13 @@ function parseArgs(argv) {
     }
     else if (arg === "--self-test") args.selfTest = true;
     else if (arg === "--standings-only") args.standingsOnly = true;
+    else if (arg === "--profile-only") args.profileOnly = true;
     else if (arg === "--brand") args.brand = argv[++i];
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
   applyManualPlayerOutputDefaults(args);
+  applyBrandOutputDefaults(args);
   return args;
 }
 
@@ -201,6 +204,34 @@ function applyManualPlayerOutputDefaults(args) {
   }
 }
 
+function applyBrandOutputDefaults(args) {
+  if (args.selfTest || !args.brand) return;
+
+  const brandSuffix = args.brand
+    .split(",")
+    .map((b) => safeFilePart(b.trim(), "brand"))
+    .filter(Boolean)
+    .join("-");
+
+  if (!brandSuffix) return;
+
+  if (!args.outputPathOverrides.out) {
+    args.out = insertBrandSuffix(args.out, brandSuffix);
+  }
+  if (!args.outputPathOverrides.html) {
+    args.html = insertBrandSuffix(args.html, brandSuffix);
+  }
+  if (!args.outputPathOverrides.defects) {
+    args.defects = insertBrandSuffix(args.defects, brandSuffix);
+  }
+}
+
+function insertBrandSuffix(filePath, suffix) {
+  const ext = path.extname(filePath);
+  const base = filePath.slice(0, filePath.length - ext.length);
+  return `${base}-${suffix}${ext}`;
+}
+
 function printHelp() {
   console.log(`WSOP player standings crawler
 
@@ -228,6 +259,7 @@ Options:
   --defects <path>          Defect candidate CSV path.
                             Direct --player-url runs use timestamped output names unless these paths are set.
   --standings-only          Collect standings player targets only, then skip profile and Result crawling.
+  --profile-only            Crawl profile summary/tabs/events only, then skip Result page checks.
   --self-test               Run local data-model checks without opening a browser.
 `);
 }
@@ -2748,7 +2780,7 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
 
 // 선수 프로필 하나를 끝까지 크롤링한다.
 // 요약, ALL 탭, 지표 탭, Result 페이지, 경고, 결함, 최종 상태를 모두 만든다.
-async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, authWaitMs, maxLoadMore, resultPageLimit, disabledResultMode, standingsSources = []) {
+async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, authWaitMs, maxLoadMore, resultPageLimit, disabledResultMode, profileOnly = false, standingsSources = []) {
   const page = await context.newPage();
   const warnings = [];
   try {
@@ -2832,6 +2864,18 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       } else {
         event.resultSkipped = event.resultUnavailableReason || "Result 버튼/링크가 비활성화되어 검증을 건너뜀";
       }
+    }
+
+    if (profileOnly) {
+      for (const event of profileComparisonEvents) {
+        if (!event.resultPage) {
+          event.resultSkipped = event.resultSkipped || "Skipped (profile-only mode)";
+        }
+      }
+      warnings.push("Profile-only mode enabled: Result detail page checks were skipped.");
+      player.defects = buildDefects(player);
+      player.status = playerStatus(player);
+      return player;
     }
 
     const checkableResultEvents = profileComparisonEvents.filter((event) => !event.resultPage && (event.resultUrl || event.hasResultControl));
@@ -4401,7 +4445,7 @@ function writeCsv(filePath, rows) {
 
 // 모든 선수 크롤링이 끝나거나 실행이 중단된 뒤 최종 리포트 객체를 만든다.
 // 디버깅과 재개 판단을 위해 pending player 정보를 보존한다.
-function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null }) {
+function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null, mode = "crawler" }) {
   const completedPlayers = [];
   const pendingPlayers = [];
 
@@ -4420,7 +4464,7 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
   }
 
   const report = {
-    mode: "crawler",
+    mode,
     runStatus,
     interruptedReason,
     startedAt,
@@ -5138,7 +5182,8 @@ async function main() {
         players,
         runStatus,
         interruptedReason,
-        brandFilter: args.brand
+        brandFilter: args.brand,
+        mode: args.profileOnly ? "profile-only" : "crawler"
       });
       const koreanHtml = writeReportArtifacts(args, report);
       return { report, koreanHtml };
@@ -5168,6 +5213,7 @@ async function main() {
               args.maxLoadMore,
               args.resultPageLimit,
               args.disabledResultMode,
+              args.profileOnly,
               entry.standingsSources
             );
             if (result.error) throw new Error(result.error);

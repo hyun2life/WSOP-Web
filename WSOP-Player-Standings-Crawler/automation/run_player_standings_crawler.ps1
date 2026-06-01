@@ -19,6 +19,7 @@ param(
   [int]$Concurrency = 5,
   [string]$Brand = "",
   [switch]$StandingsOnly,
+  [switch]$ProfileOnly,
   [switch]$Headed,
   [switch]$Ui
 )
@@ -268,6 +269,9 @@ try {
   }
   if ($StandingsOnly) {
     $scriptArgs += "--standings-only"
+  }
+  if ($ProfileOnly) {
+    $scriptArgs += "--profile-only"
   }
   if ($Brand) {
     $scriptArgs += @("--brand", $Brand)

@@ -278,7 +278,8 @@ function setEnvVar(key, val, env) {
     'headed': 'HEADED',
     'ui': 'UI',
     'brand': 'BRAND',
-    'standings-only': 'STANDINGS_ONLY'
+    'standings-only': 'STANDINGS_ONLY',
+    'profile-only': 'PROFILE_ONLY'
   };
   const envKey = mapping[key.toLowerCase()];
   if (envKey) {

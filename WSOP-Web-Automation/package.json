@@ -28,6 +28,7 @@
     "test:data-integrity": "node scripts/run-phase.cjs phase6",
     "test:phase6": "node scripts/run-phase.cjs phase6",
     "crawl:standings": "npx tsx tools/crawlers/playerStandingsCrawler.ts",
+    "crawl:brand-compare": "npx tsx tools/crawlers/compareBrandCoverage.ts",
     "generate:phase6-fixtures": "npx tsx tools/crawlers/generatePhase6Fixtures.ts",
     "phase6:with-crawl": "npm run crawl:standings && npm run generate:phase6-fixtures && npm run test:phase6",
     "test:performance-stability": "node scripts/run-phase.cjs phase7",

@@ -52,9 +52,12 @@ if "%HEADED%"=="true" (set "HEADED_FLAG=-Headed") else (set "HEADED_FLAG=")
 if "%UI%"=="true" (set "UI_FLAG=-Ui") else (set "UI_FLAG=")
 
 if "%STANDINGS_ONLY%"=="true" (set "STANDINGS_ONLY_FLAG=-StandingsOnly") else (set "STANDINGS_ONLY_FLAG=")
-if not "%BRAND%"=="" (set "BRAND_PARAM=-Brand "%BRAND%"") else (set "BRAND_PARAM=")
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %BRAND_PARAM% -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
+if "%PROFILE_ONLY%"=="true" (set "PROFILE_ONLY_FLAG=-ProfileOnly") else (set "PROFILE_ONLY_FLAG=")
+if not "%BRAND%"=="" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% -Brand "%BRAND%" -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
+) else (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
+)
 set EXIT_CODE=%ERRORLEVEL%
 
 echo.
