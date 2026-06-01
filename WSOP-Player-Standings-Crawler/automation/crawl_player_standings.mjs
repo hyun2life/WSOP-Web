@@ -1233,7 +1233,7 @@ async function selectBrandFilter(page, brand) {
     }, aliasKeys).catch(() => null);
 
     if (matchedOptionText) {
-      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(matchedOptionText)}$`, "i") }).first();
+      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(matchedOptionText)}\\s*$`, "i") }).first();
       if ((await optionItem.count()) > 0) {
         await optionItem.click().catch(() => {});
         return true;
@@ -1241,7 +1241,7 @@ async function selectBrandFilter(page, brand) {
     }
 
     for (const alias of aliases) {
-      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(alias)}$`, "i") }).first();
+      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(alias)}\\s*$`, "i") }).first();
       if ((await optionItems.count()) > 0 && (await optionItems.isVisible().catch(() => true))) {
         await optionItems.click().catch(() => {});
         return true;
