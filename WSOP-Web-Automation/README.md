@@ -623,3 +623,12 @@ RUN_BRAND_COMPARE_LATEST.bat "LIVE_DATA_JSON" "STAGE_DATA_JSON"
 ```
 
 산출물은 `WSOP-Web-Automation/automation/output/wsop-brand-coverage-compare-YYYYMMDD-HHMMSS.*`로 생성됩니다.
+
+## Result 5xx 처리 기준
+
+크롤러가 Result 상세 페이지를 열었을 때 페이지 본문 또는 HTTP 상태가 `502`, `503`, `504` 계열 서버 오류로 판단되면 실제 선수 row 불일치로 판정하지 않습니다.
+
+- `Result page unavailable` 경고로 분리합니다.
+- 해당 이벤트의 `resultPage.status`는 `warn`으로 저장됩니다.
+- 리포트의 검토/경고 목록에는 남기지만 `Result search incomplete` 또는 `Result page mismatch` 결함으로 집계하지 않습니다.
+- 이 케이스는 Stage/Live 서버가 Result 상세 페이지를 정상 응답한 뒤 재실행해서 검증해야 합니다.

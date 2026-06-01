@@ -531,6 +531,36 @@ function resultSearchIncomplete(result) {
   return (result?.missing || []).includes("targetRankCovered");
 }
 
+function isTransientResultPageFailure(bodyText, title = "", statusCode = null) {
+  const status = Number(statusCode);
+  if (Number.isFinite(status) && status >= 500) return true;
+  const text = normalizeText(`${title || ""} ${bodyText || ""}`).toLowerCase();
+  return /(?:502|503|504)\s+(?:bad gateway|service temporarily unavailable|gateway timeout)/i.test(text)
+    || text.includes("service temporarily unavailable")
+    || text.includes("bad gateway")
+    || text.includes("gateway timeout");
+}
+
+async function resultPageUnavailableWarning(page, event, statusCode = null) {
+  const title = await page.title().catch(() => "");
+  const bodyText = normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
+  if (!isTransientResultPageFailure(bodyText, title, statusCode)) return null;
+  const statusLabel = Number.isFinite(Number(statusCode)) ? `HTTP ${statusCode}` : "server unavailable";
+  const message = `Result page temporarily unavailable (${statusLabel}). Retrying later is required before judging row consistency.`;
+  return {
+    url: page.url() || event.resultUrl,
+    title,
+    status: "warn",
+    resultUnavailable: true,
+    resultUnavailableReason: message,
+    error: message,
+    checks: { resultPageAvailable: false },
+    missing: ["resultPageAvailable"],
+    searchedPages: [],
+    extractedTextSample: bodyText.slice(0, 1000)
+  };
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -939,7 +969,7 @@ function buildDefects(player) {
   for (const event of player.events || []) {
     const result = event.resultPage;
     if (!result) continue;
-    if (result.status === "pass") continue;
+    if (result.status === "pass" || result.status === "warn") continue;
     defects.push({
       brand: playerBrands,
       type: resultSearchIncomplete(result) ? "Result search incomplete" : "Result page mismatch",
@@ -2802,6 +2832,8 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
 
   // 1페이지(진입 페이지)에서 ITM 수량 파싱
   const initialBodyText = normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
+  const unavailableWarning = await resultPageUnavailableWarning(page, event);
+  if (unavailableWarning) return unavailableWarning;
   const itmCount = parseItmCount(initialBodyText);
   if (itmCount) {
     console.log(`    [디버그] Result ITM 수량 감지: ${itmCount}명 (Target Rank: ${targetRank}위)`);
@@ -2925,11 +2957,13 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
   }
 
   const page = await context.newPage();
+  let resultPageStatusCode = null;
   try {
     // 백오프 재시도를 페이지 로드에 반영
     await retryWithBackoff(async () => {
       try {
-        await page.goto(event.resultUrl, { waitUntil: "domcontentloaded", timeout });
+        const response = await page.goto(event.resultUrl, { waitUntil: "domcontentloaded", timeout });
+        resultPageStatusCode = response?.status?.() ?? null;
       } catch (gotoError) {
         const tableCount = await page.locator("table").count().catch(() => 0);
         if (tableCount > 0) {
@@ -2941,6 +2975,9 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
       await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
+
+    const unavailableWarning = await resultPageUnavailableWarning(page, event, resultPageStatusCode);
+    if (unavailableWarning) return unavailableWarning;
 
     // 크롤링하면서 데이터를 누적하여 캐시 데이터 수집
     const cachedPages = [];
@@ -3378,6 +3415,16 @@ function flattenReviewNotes(report) {
     }
 
     for (const event of player.events || []) {
+      if (event.resultPage?.status === "warn") {
+        notes.push({
+          brand: playerBrands,
+          type: "Result page unavailable",
+          player: player.name,
+          item: event.eventName,
+          url: event.resultPage.url || event.resultUrl || player.url,
+          detail: event.resultPage.resultUnavailableReason || event.resultPage.error || "Result page is temporarily unavailable."
+        });
+      }
       if (!event.resultSkipped) continue;
       if (!/(result|ranklimit|resultlimit|비활|결과|검증)/i.test(event.resultSkipped)) continue;
       notes.push({
@@ -3481,6 +3528,7 @@ function formatKoreanDefectType(type) {
     "Profile summary mismatch": "프로필 요약 불일치",
     "Profile tab count mismatch": "프로필 탭 개수 불일치",
     "Result page mismatch": "Result 페이지 불일치",
+    "Result page unavailable": "Result 페이지 일시 접근 불가",
     "Result search incomplete": "Result 탐색 미완료",
     "Crawler warning": "크롤러 경고",
     "Result skipped": "Result 검증 건너뜀",
@@ -4084,6 +4132,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         "Profile summary mismatch": "프로필 요약 불일치",
         "Profile tab count mismatch": "프로필 탭 개수 불일치",
         "Result page mismatch": "Result 페이지 불일치",
+        "Result page unavailable": "Result 페이지 일시 접근 불가",
         "Result search incomplete": "Result 탐색 미완료",
         "Crawler warning": "크롤러 경고",
         "Result skipped": "Result 검증 건너뜀",
@@ -4278,6 +4327,15 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           warningsList.push({ type: "Crawler warning", player: p.name, item: "warning", url: p.url, detail: w });
         });
         (p.events || []).forEach(ev => {
+          if (ev.resultPage?.status === "warn") {
+            warningsList.push({
+              type: "Result page unavailable",
+              player: p.name,
+              item: ev.eventName,
+              url: ev.resultPage.url || ev.resultUrl || p.url,
+              detail: ev.resultPage.resultUnavailableReason || ev.resultPage.error || "Result page is temporarily unavailable."
+            });
+          }
           if (ev.resultSkipped && /(result|ranklimit|resultlimit|비활|결과|검증)/i.test(ev.resultSkipped)) {
             warningsList.push({ type: "Result skipped", player: p.name, item: ev.eventName, url: ev.resultUrl || ev.disabledResultUrl || p.url, detail: ev.resultSkipped });
           }
@@ -5308,6 +5366,37 @@ function runSelfTest() {
   const reviewNotes = flattenReviewNotes({ players: [crawlerWarningOnlyPlayer] });
   if (reviewNotes.length !== 2 || !reviewNotes.some((note) => note.type === "Result skipped")) {
     throw new Error("Crawler warnings and skipped Results should be listed as review notes without becoming defects");
+  }
+  const resultUnavailablePlayer = {
+    name: "Unavailable Result",
+    url: "https://example.test/player",
+    standingsSources: [],
+    comparisons: [],
+    tabChecks: [],
+    events: [{
+      eventName: "503 Result",
+      resultUrl: "https://example.test/result",
+      resultPage: {
+        url: "https://example.test/result",
+        status: "warn",
+        resultUnavailable: true,
+        resultUnavailableReason: "Result page temporarily unavailable (HTTP 503).",
+        checks: { resultPageAvailable: false },
+        missing: ["resultPageAvailable"]
+      }
+    }],
+    warnings: [],
+    defects: []
+  };
+  resultUnavailablePlayer.status = playerStatus(resultUnavailablePlayer);
+  if (resultUnavailablePlayer.status !== "warn" || buildDefects(resultUnavailablePlayer).length) {
+    throw new Error("Transient unavailable Result pages should warn without becoming mismatch defects");
+  }
+  if (!flattenReviewNotes({ players: [resultUnavailablePlayer] }).some((note) => note.type === "Result page unavailable")) {
+    throw new Error("Transient unavailable Result pages should be listed as review notes");
+  }
+  if (!isTransientResultPageFailure("503 Service Temporarily Unavailable", "", null)) {
+    throw new Error("503 Result page body should be detected as transient unavailable");
   }
   const tabChecks = PROFILE_TAB_CHECKS.map((check) => ({
     key: check.key,
