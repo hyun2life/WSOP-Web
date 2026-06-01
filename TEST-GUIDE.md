@@ -6,7 +6,7 @@
 
 ## 1. 테스트 아키텍처 및 설계 방향
 
-WSOP Web 테스트 체계는 테스트의 성격과 실행 비용을 고려하여 **"UI 표현/기능 흐름 검증(Phase 1~5)"**과 **"데이터 및 수치 정합성 검증(Phase 6)"**, 그리고 **"원천 데이터 수집(Crawler)"**으로 역할을 명확히 격리 설계했습니다.
+WSOP Web 테스트 체계는 테스트의 성격 및 실행 비용을 고려하여 **"UI 표현/기능 흐름 검증(Phase 1~5)"**과 **"데이터 및 수치 정합성 검증(Phase 6)"**, 그리고 **"원천 데이터 수집(Crawler)"**으로 역할을 명확히 격리 설계했습니다.
 
 ```mermaid
 graph TD
@@ -44,7 +44,7 @@ graph TD
 | **Phase 7** | 성능 및 안정성 점검 | **완료** | 로딩 속도 측정, 메모리 및 커넥션 누수 확인, 지연 요청 감시 | Playwright HTML Report |
 | **Phase 8** | 화면 회귀 검증 | **완료** | 해상도별 스크린샷 픽셀 단위 비교, 반응형 깨짐 자동 감지 | Baseline 이미지 대조 / Playwright Report |
 | **Phase 9** | 전체 회귀 검증 | **완료** | 릴리즈 전 종합 스위트 자동 실행 및 릴리즈 게이트 판정 | `wsop-regression-summary-{timestamp}.json` |
-| **Crawler** | 플레이어 스탠딩 크롤러 | **완료** | 스탠딩 TOP 플레이어 데이터 및 상세 대회 입상 실적 수집 | `crawler-report-{timestamp}-ko.html` |
+| **Crawler** | 플레이어 스탠딩 크롤러 | **완료** | 스탠딩 TOP 플레이어 데이터 및 상세 대회 입상 실적 수집 | `wsop-player-crawler-live-{timestamp}-report-ko.html`<br>`wsop-player-crawler-live-{timestamp}-{brand}-report-ko.html` |
 
 ---
 
@@ -111,7 +111,11 @@ graph TD
   1. 지정된 순위 범위(예: 카테고리별 TOP 200)에 해당하는 플레이어 리스트를 수집합니다.
   2. 각 플레이어별 프로필 페이지 및 세부 대회 상세 페이지(Result Details)에 연쇄 접근합니다.
   3. 수집한 텍스트 데이터에서 화폐 기호(₩, ₱, $ 등) 및 띄어쓰기를 보정하고 정교하게 수계산합니다.
-  4. 최종 결과를 `crawler-report-{timestamp}-ko.html` 형태의 HTML과 `crawler-data.json` 포맷으로 기록하여 타 페이즈(특히 Phase 6)에서 테스트 Fixture로 활용할 수 있도록 공유합니다.
+  4. 최종 결과를 `wsop-player-crawler-live-{timestamp}-report-ko.html` 형태의 HTML과 `crawler-data.json` 포맷으로 기록하여 타 페이즈(특히 Phase 6)에서 테스트 Fixture로 활용할 수 있도록 공유합니다.
+* **수집 모드 다각화**:
+  - **`--standings-only`**: 스탠딩 정보만 빠르게 수집하고 개별 플레이어 프로필/결과 검증은 생략합니다.
+  - **`--profile-only`**: 프로필 요약 및 프로필 탭 검증(1단계, 2단계)까지만 수행하고, 입상 상세 결과(Result) 확인 단계는 생략합니다. 이 모드로 실행 시 리포트에서 3번 결과 검증 탭 및 상세 매칭 테이블이 노출되지 않는 최적화된 레이아웃이 적용됩니다.
+  - **기본 모드**: 프로필 요약, 탭 무결성 및 상세 대회 결과(Result) 3단계 대조 검증을 모두 완전하게 수행합니다.
 
 ---
 
@@ -150,6 +154,7 @@ graph TD
 
 ### 1) 전체 테스트 대시보드 기동 (권장)
 최상위 폴더에서 `Run.bat`을 실행하면, 브라우저에 통합 관리용 GUI 대시보드(`localhost:3000`)가 구동됩니다. 대시보드를 통해 환경변수를 설정하고, 실행 로그를 실시간 모니터링하며, 최종 리포트를 원클릭으로 조회할 수 있습니다.
+- **브랜드 필터별 독립 리포트 지원**: 특정 브랜드(WSOP 등) 필터를 주어 수집된 리포트(`*-WSOP-report-ko.html` 등)가 대시보드 리포트 목록에 정상 스캔 및 표출됩니다.
 
 ### 2) CLI 개별 실행 명령어
 
@@ -202,6 +207,13 @@ npm run report:regression        # 회귀 테스트 실행 결과 Playwright Rep
 # 단독 크롤러 기동 (WSOP-Player-Standings-Crawler 폴더로 이동 후 실행)
 cd WSOP-Player-Standings-Crawler
 RUN_WSOP_PLAYER_CRAWLER_LIVE.bat
+
+# 크롤러 세부 모드 수동 기동 예시
+# 1) Profile-Only 모드로 특정 브랜드 필터 적용하여 5명 한도로 수집 실행
+npx tsx tools/crawlers/playerStandingsCrawler.ts --profile-only --brand WSOP --limit 5
+
+# 2) Standings-Only 모드로 특정 브랜드 필터 적용하여 10명 한도로 수집 실행
+npx tsx tools/crawlers/playerStandingsCrawler.ts --standings-only --brand WSOP --limit 10
 ```
 
-* **참고**: 모든 리포트는 `WSOP-Web/automation/output/` 폴더 아래에 생성되며, 한글 리포트가 완성되면 자동으로 실행 기록에 누적 저장됩니다.
+* **참고**: 모든 리포트는 `WSOP-Web/automation/output/` 및 각 하위 프로젝트 `automation/output/` 폴더 아래에 생성되며, 한글 리포트가 완성되면 자동으로 실행 기록에 누적 저장 및 대시보드 스캔 대상이 됩니다.

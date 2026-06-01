@@ -4643,18 +4643,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                       ? "⚡ <strong>Standings Only 수집</strong>: 이 선수는 순위 목록에서 수집되었으며, 상세 프로필 분석 및 Result 검증 단계를 거치지 않았습니다." 
                       : "⚡ <strong>Standings Only Mode</strong>: This player was collected directly from the standings list. Detailed profile analysis and Results verification were skipped."}
                   </div>
-                ` : report.mode === 'profile-only' ? `
-                  <div style="padding: 25px 20px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.015); border-radius: 8px; border: 1px dashed var(--border); font-size: 13px; margin-top: 10px;">
-                    ${isKo
-                      ? "<strong>Profile Only</strong>: 프로필 요약/탭/이벤트 수집까지만 수행했고 Result 상세 페이지 검증은 의도적으로 생략되었습니다."
-                      : "<strong>Profile Only Mode</strong>: Profile summary/tab/event checks were executed, and Result detail verification was intentionally skipped."}
-                  </div>
                 ` : `
                   <!-- Tab Headers -->
                   <div class="sub-tabs-container">
                     <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(player.name)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
                     <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(player.name)}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
-                    <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${report.mode === 'profile-only' ? (isKo ? "3. Result 검증(생략)" : "3. Result Verification (Skipped)") : (isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification")}</button>
+                    ${report.mode !== 'profile-only' ? `
+                      <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
+                    ` : ''}
                     <div class="tab-active-bar"></div>
                   </div>
 
@@ -4700,40 +4696,48 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   </div>
 
                   <!-- Sub-tab Content: Events results list -->
-                  <div class="sub-tab-content" data-tab="events">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
-                      <h4 style="margin:0; font-family:'Outfit',sans-serif;">Cashed Events Results Matching</h4>
-                      <div class="search-box" style="min-width:200px; flex:0 1 250px;">
-                        <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
-                        <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(player.name)}', this.value)">
+                  ${report.mode !== 'profile-only' ? `
+                    <div class="sub-tab-content" data-tab="events">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                        <h4 style="margin:0; font-family:'Outfit',sans-serif;">Cashed Events Results Matching</h4>
+                        <div class="search-box" style="min-width:200px; flex:0 1 250px;">
+                          <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+                          <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(player.name)}', this.value)">
+                        </div>
+                      </div>
+
+                      <div class="table-container">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>\${labels.seriesEvent}</th>
+                              <th>\${labels.dateText}</th>
+                              <th>\${labels.rankText}</th>
+                              <th>\${labels.earningsText}</th>
+                              <th>\${labels.resultUrlText}</th>
+                              <th>\${labels.resultCheckText}</th>
+                              <th>\${labels.finalFindingText}</th>
+                            </tr>
+                          </thead>
+                          <tbody class="events-tbody">
+                            <!-- Filled dynamically -->
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div class="pagination-bar">
+                        <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', -1)">◀ Prev</button>
+                        <span class="events-page-info">1 / 1 (0)</span>
+                        <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', 1)">Next ▶</button>
                       </div>
                     </div>
-
-                    <div class="table-container">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>\${labels.seriesEvent}</th>
-                            <th>\${labels.dateText}</th>
-                            <th>\${labels.rankText}</th>
-                            <th>\${labels.earningsText}</th>
-                            <th>\${labels.resultUrlText}</th>
-                            <th>\${labels.resultCheckText}</th>
-                            <th>\${labels.finalFindingText}</th>
-                          </tr>
-                        </thead>
-                        <tbody class="events-tbody">
-                          <!-- Filled dynamically -->
-                        </tbody>
-                      </table>
+                  ` : `
+                    <div style="padding: 25px 20px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.015); border-radius: 8px; border: 1px dashed var(--border); font-size: 13px; margin-top: 15px;">
+                      \${isKo
+                        ? "ℹ️ <strong>Profile Only 모드</strong>: 프로필 요약 및 탭 검증은 수행되었으나, 대회 결과(Result) 상세 검증 단계는 의도적으로 생략되었습니다."
+                        : "ℹ️ <strong>Profile Only Mode</strong>: Profile summary and tab validation were performed, and tournament result (Result) detail checks were intentionally skipped."}
                     </div>
-
-                    <div class="pagination-bar">
-                      <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', -1)">◀ Prev</button>
-                      <span class="events-page-info">1 / 1 (0)</span>
-                      <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', 1)">Next ▶</button>
-                    </div>
-                  </div>
+                  `}
                 `}
 
               </div>
