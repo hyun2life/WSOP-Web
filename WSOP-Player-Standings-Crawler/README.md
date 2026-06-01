@@ -546,3 +546,43 @@ You can now run the crawler with `--profile-only`.
 - `brandOptions.sourceCategory` / `sourceUrl`: 옵션을 수집한 standings 카테고리와 URL
 
 대시보드는 최근 크롤러 JSON에 `brandOptions`가 있으면 이 값을 기준으로 Brand Filter 체크박스를 자동 구성합니다. 아직 최신 JSON이 없거나 옵션 수집에 실패한 경우에는 기본 브랜드 목록을 fallback으로 사용합니다.
+
+## Snapshot result-only mode
+
+Use this when the full Result verification must cover the same player/event set but should not repeat brand filtering and profile tab collection.
+
+Recommended flow:
+
+1. Run the crawler with `PROFILE_ONLY=true` to create a profile/event snapshot JSON.
+2. Run Result verification with `--result-only --from-report <snapshot-json>`.
+3. Review the generated report and CSV. Profile defects from the snapshot are preserved, and Result defects are added.
+
+PowerShell example:
+
+```powershell
+cd C:\Users\USER1\Desktop\WSOP-Web\WSOP-Player-Standings-Crawler
+powershell -NoProfile -ExecutionPolicy Bypass -File automation\run_player_standings_crawler.ps1 `
+  -PlayersUrl "https://www.wsop.com/player-standings/" `
+  -ResultOnly `
+  -FromReport "automation\output\wsop-player-crawler-live-YYYYMMDD-HHMMSS-data.json" `
+  -Headed `
+  -ResultLimit 0 `
+  -ResultPageLimit 0 `
+  -Concurrency 10
+```
+
+BAT environment example:
+
+```bat
+set "RESULT_ONLY=true"
+set "FROM_REPORT=automation\output\wsop-player-crawler-live-YYYYMMDD-HHMMSS-data.json"
+set "WSOP_NO_PAUSE=true"
+RUN_WSOP_PLAYER_CRAWLER_LIVE.bat
+```
+
+Notes:
+
+- `--result-only` requires `--from-report`.
+- Snapshot rows without a direct Result URL are not silently passed. They are reported as `Result skipped` review notes.
+- Profile-only skip warnings are removed from the result-only report, but profile mismatches from the snapshot are preserved.
+- This keeps coverage intact while avoiding repeated profile and brand collection work.

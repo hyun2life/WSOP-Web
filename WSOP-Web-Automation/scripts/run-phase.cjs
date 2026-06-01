@@ -279,7 +279,9 @@ function setEnvVar(key, val, env) {
     'ui': 'UI',
     'brand': 'BRAND',
     'standings-only': 'STANDINGS_ONLY',
-    'profile-only': 'PROFILE_ONLY'
+    'profile-only': 'PROFILE_ONLY',
+    'result-only': 'RESULT_ONLY',
+    'from-report': 'FROM_REPORT'
   };
   const envKey = mapping[key.toLowerCase()];
   if (envKey) {

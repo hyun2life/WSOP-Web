@@ -53,10 +53,12 @@ if "%UI%"=="true" (set "UI_FLAG=-Ui") else (set "UI_FLAG=")
 
 if "%STANDINGS_ONLY%"=="true" (set "STANDINGS_ONLY_FLAG=-StandingsOnly") else (set "STANDINGS_ONLY_FLAG=")
 if "%PROFILE_ONLY%"=="true" (set "PROFILE_ONLY_FLAG=-ProfileOnly") else (set "PROFILE_ONLY_FLAG=")
+if "%RESULT_ONLY%"=="true" (set "RESULT_ONLY_FLAG=-ResultOnly") else (set "RESULT_ONLY_FLAG=")
+if not "%FROM_REPORT%"=="" (set "FROM_REPORT_PARAM=-FromReport "%FROM_REPORT%"") else (set "FROM_REPORT_PARAM=")
 if not "%BRAND%"=="" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% -Brand "%BRAND%" -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% %RESULT_ONLY_FLAG% %FROM_REPORT_PARAM% -Brand "%BRAND%" -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% %RESULT_ONLY_FLAG% %FROM_REPORT_PARAM% -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
 )
 set EXIT_CODE=%ERRORLEVEL%
 

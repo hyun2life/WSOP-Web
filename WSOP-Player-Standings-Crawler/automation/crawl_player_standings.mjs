@@ -108,6 +108,8 @@ function parseArgs(argv) {
     selfTest: false,
     standingsOnly: false,
     profileOnly: false,
+    resultOnly: false,
+    fromReport: null,
     concurrency: DEFAULT_CONCURRENCY,
     brand: null,
     help: false
@@ -151,11 +153,14 @@ function parseArgs(argv) {
     else if (arg === "--self-test") args.selfTest = true;
     else if (arg === "--standings-only") args.standingsOnly = true;
     else if (arg === "--profile-only") args.profileOnly = true;
+    else if (arg === "--result-only") args.resultOnly = true;
+    else if (arg === "--from-report") args.fromReport = argv[++i];
     else if (arg === "--brand") args.brand = argv[++i];
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
   applyManualPlayerOutputDefaults(args);
+  applyResultOnlyOutputDefaults(args);
   applyBrandOutputDefaults(args);
   return args;
 }
@@ -237,7 +242,7 @@ function applyManualPlayerOutputDefaults(args) {
 }
 
 function applyBrandOutputDefaults(args) {
-  if (args.selfTest || !args.brand) return;
+  if (args.selfTest || args.resultOnly || !args.brand) return;
 
   const brandSuffix = splitBrandArgument(args.brand)
     .map((b) => safeFilePart(b.trim(), "brand"))
@@ -254,6 +259,22 @@ function applyBrandOutputDefaults(args) {
   }
   if (!args.outputPathOverrides.defects) {
     args.defects = insertBrandSuffix(args.defects, brandSuffix);
+  }
+}
+
+function applyResultOnlyOutputDefaults(args) {
+  if (args.selfTest || !args.resultOnly || !args.fromReport) return;
+
+  const reportBase = path.basename(args.fromReport, path.extname(args.fromReport));
+  const tag = `wsop-player-crawler-result-only-${safeFilePart(reportBase, "snapshot")}-${formatRunTimestamp()}`;
+  if (!args.outputPathOverrides.out) {
+    args.out = `automation/output/${tag}-data.json`;
+  }
+  if (!args.outputPathOverrides.html) {
+    args.html = `automation/output/${tag}-report.html`;
+  }
+  if (!args.outputPathOverrides.defects) {
+    args.defects = `automation/output/${tag}-defects.csv`;
   }
 }
 
@@ -291,6 +312,8 @@ Options:
                             Direct --player-url runs use timestamped output names unless these paths are set.
   --standings-only          Collect standings player targets only, then skip profile and Result crawling.
   --profile-only            Crawl profile summary/tabs/events only, then skip Result page checks.
+  --result-only             Reuse a profile/snapshot report and crawl Result pages only.
+  --from-report <path>      JSON report to use as the result-only snapshot input.
   --self-test               Run local data-model checks without opening a browser.
 `);
 }
@@ -3356,6 +3379,120 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
   }
 }
 
+function loadSnapshotReport(filePath) {
+  if (!filePath) {
+    throw new Error("--from-report is required when --result-only is used.");
+  }
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Snapshot report not found: ${filePath}`);
+  }
+
+  const report = JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+  if (!Array.isArray(report.players)) {
+    throw new Error(`Snapshot report has no players array: ${filePath}`);
+  }
+  return report;
+}
+
+function cloneData(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function isProfileOnlySkipText(value) {
+  return /profile-only mode|Result detail page checks were skipped/i.test(String(value || ""));
+}
+
+function snapshotPlayerForResultOnly(snapshotPlayer) {
+  const player = cloneData(snapshotPlayer);
+  player.warnings = (player.warnings || []).filter((warning) => !isProfileOnlySkipText(warning));
+  player.events = (player.events || []).map((event) => {
+    const next = cloneData(event);
+    if (isProfileOnlySkipText(next.resultSkipped)) {
+      delete next.resultSkipped;
+    }
+    return next;
+  });
+  return player;
+}
+
+function playerEntriesFromSnapshotReport(report) {
+  return (report.players || []).map((player) => ({
+    url: player.url,
+    standingsSources: player.standingsSources || [],
+    snapshotPlayer: player
+  }));
+}
+
+async function crawlSnapshotPlayerResults(context, snapshotPlayer, timeout, resultLimit, resultRankLimit, authWaitMs, resultPageLimit, disabledResultMode) {
+  const player = snapshotPlayerForResultOnly(snapshotPlayer);
+  player.summary = player.summary || {};
+  player.events = player.events || [];
+  player.comparisons = player.comparisons || compareSummary(player.summaryForComparison || player.summary, player.calculated || {});
+  player.tabChecks = player.tabChecks || [];
+  player.warnings = player.warnings || [];
+  player.defects = [];
+
+  const { comparisonEvents: profileComparisonEvents } = comparisonEventsForSummary(player.events, player.summary);
+  const unavailableResultEvents = profileComparisonEvents.filter((event) => event.resultUnavailable && !event.resultPage);
+
+  for (const event of unavailableResultEvents) {
+    if (disabledResultMode === "fail") {
+      event.resultPage = {
+        url: event.disabledResultUrl || event.resultUrl || player.url,
+        status: "fail",
+        error: event.resultUnavailableReason || "Result control is disabled in the snapshot.",
+        checks: { resultControlEnabled: false },
+        missing: ["resultControlEnabled"]
+      };
+    } else if (disabledResultMode === "check" && event.disabledResultUrl) {
+      event.resultUrl = event.disabledResultUrl;
+    } else {
+      event.resultSkipped = event.resultUnavailableReason || "Skipped (snapshot result-only mode: Result control is disabled or unavailable).";
+    }
+  }
+
+  const checkableResultEvents = profileComparisonEvents.filter((event) => !event.resultPage && (event.resultUrl || event.hasResultControl));
+  const rankEligibleResultEvents = [];
+  const rankSkippedResultEvents = [];
+  const missingDirectUrlEvents = [];
+
+  for (const event of checkableResultEvents) {
+    if (resultRankLimit > 0 && event.rank !== null && event.rank > resultRankLimit) {
+      event.resultSkipped = `Skipped (ResultRankLimit is ${resultRankLimit}, player rank is ${event.rank})`;
+      rankSkippedResultEvents.push(event);
+    } else if (!event.resultUrl) {
+      event.resultSkipped = "Skipped (snapshot result-only mode: direct Result URL was not captured; run full profile crawl for this row).";
+      missingDirectUrlEvents.push(event);
+    } else {
+      rankEligibleResultEvents.push(event);
+    }
+  }
+
+  const resultEvents = resultLimit > 0 ? rankEligibleResultEvents.slice(0, resultLimit) : rankEligibleResultEvents;
+  const resultEventsToSkip = resultLimit > 0 ? rankEligibleResultEvents.slice(resultLimit) : [];
+
+  for (const event of resultEvents) {
+    event.resultPage = await crawlResultByUrl(context, player, event, timeout, authWaitMs, resultPageLimit);
+  }
+  for (const event of resultEventsToSkip) {
+    event.resultSkipped = `Skipped (ResultLimit ${resultLimit} exceeded)`;
+  }
+
+  if (rankSkippedResultEvents.length) {
+    player.warnings.push(`ResultRankLimit skipped ${rankSkippedResultEvents.length} Result checks.`);
+  }
+  if (missingDirectUrlEvents.length) {
+    player.warnings.push(`Snapshot result-only could not verify ${missingDirectUrlEvents.length} Result rows because direct Result URLs were not captured.`);
+  }
+  if (unavailableResultEvents.length && disabledResultMode !== "fail") {
+    player.warnings.push(`Snapshot result-only skipped ${unavailableResultEvents.length} disabled/unavailable Result rows.`);
+  }
+
+  player.defects = buildDefects(player);
+  player.status = playerStatus(player);
+  return player;
+}
+
 function flattenDefects(report) {
   return (report.players || []).flatMap((player) => player.defects?.length ? player.defects : buildDefects(player));
 }
@@ -5023,6 +5160,13 @@ function runSelfTest() {
   if (manualPlayerCustomHtmlArgs.html !== "automation/output/custom.html" || manualPlayerCustomHtmlArgs.out === DEFAULT_OUT_PATH) {
     throw new Error("Explicit manual player output paths should be preserved while unspecified paths are timestamped");
   }
+  const resultOnlyArgs = parseArgs(["--result-only", "--from-report", "automation/output/profile-snapshot-data.json"]);
+  if (!resultOnlyArgs.resultOnly || resultOnlyArgs.fromReport !== "automation/output/profile-snapshot-data.json") {
+    throw new Error("Result-only snapshot argument parsing failed");
+  }
+  if (!/automation\/output\/wsop-player-crawler-result-only-profile-snapshot-data-\d{8}-\d{6}-\d{3}-report\.html$/.test(resultOnlyArgs.html.replace(/\\/g, "/"))) {
+    throw new Error("Result-only runs should use timestamped output report paths by default");
+  }
   if (normalizeDisabledResultMode(parsedArgs.disabledResultMode) !== "fail") {
     throw new Error("Disabled Result mode argument parsing failed");
   }
@@ -5363,6 +5507,14 @@ async function main() {
     return;
   }
   args.disabledResultMode = normalizeDisabledResultMode(args.disabledResultMode);
+  if (args.resultOnly) {
+    if (!args.fromReport) {
+      throw new Error("--from-report is required when --result-only is used.");
+    }
+    if (args.standingsOnly || args.profileOnly) {
+      throw new Error("--result-only cannot be combined with --standings-only or --profile-only.");
+    }
+  }
 
   const { chromium } = await import("playwright");
   const launchOptions = { headless: !args.headed };
@@ -5417,12 +5569,21 @@ async function main() {
 
   try {
     const startedAt = new Date().toISOString();
+    let snapshotReport = null;
     let playerEntries = args.playerUrls.map((url) => ({
       url,
       standingsSources: [{ category: "Manual player URL", rank: null, name: "", rowText: "", selected: false }]
     }));
     let brandOptions = null;
-    if (!playerEntries.length) {
+    if (args.resultOnly) {
+      snapshotReport = loadSnapshotReport(args.fromReport);
+      playerEntries = playerEntriesFromSnapshotReport(snapshotReport);
+      brandOptions = snapshotReport.brandOptions || null;
+      args.playersUrl = snapshotReport.playersUrl || args.playersUrl;
+      args.brand = args.brand || snapshotReport.brandFilter || null;
+      console.log(`  [크롤러] Snapshot result-only source: ${args.fromReport}`);
+      console.log(`  [크롤러] Snapshot players: ${playerEntries.length}`);
+    } else if (!playerEntries.length) {
       const listPage = await context.newPage();
       try {
         brandOptions = await collectBrandOptions(listPage, args.playersUrl, authWaitMs);
@@ -5483,7 +5644,7 @@ async function main() {
         interruptedReason,
         brandFilter: args.brand,
         brandOptions,
-        mode: args.profileOnly ? "profile-only" : "crawler"
+        mode: args.resultOnly ? "result-only" : (args.profileOnly ? "profile-only" : "crawler")
       });
       const koreanHtml = writeReportArtifacts(args, report);
       return { report, koreanHtml };
@@ -5503,19 +5664,30 @@ async function main() {
         try {
           // 개별 크롤러 실행을 백오프 재시도로 안전하게 래핑
           const playerResult = await retryWithBackoff(async () => {
-            const result = await crawlPlayer(
-              context,
-              entry.url,
-              args.timeout,
-              args.resultLimit,
-              args.resultRankLimit,
-              authWaitMs,
-              args.maxLoadMore,
-              args.resultPageLimit,
-              args.disabledResultMode,
-              args.profileOnly,
-              entry.standingsSources
-            );
+            const result = args.resultOnly
+              ? await crawlSnapshotPlayerResults(
+                context,
+                entry.snapshotPlayer,
+                args.timeout,
+                args.resultLimit,
+                args.resultRankLimit,
+                authWaitMs,
+                args.resultPageLimit,
+                args.disabledResultMode
+              )
+              : await crawlPlayer(
+                context,
+                entry.url,
+                args.timeout,
+                args.resultLimit,
+                args.resultRankLimit,
+                authWaitMs,
+                args.maxLoadMore,
+                args.resultPageLimit,
+                args.disabledResultMode,
+                args.profileOnly,
+                entry.standingsSources
+              );
             if (result.error) throw new Error(result.error);
             return result;
           }, 2, 2000);
@@ -5564,7 +5736,7 @@ async function main() {
     process.removeListener("SIGINT", handleStopSignal);
     process.removeListener("SIGTERM", handleStopSignal);
     if (context) await context.close().catch(() => {});
-    else if (browser) await browser.close().catch(() => {});
+    if (browser) await browser.close().catch(() => {});
   }
 }
 

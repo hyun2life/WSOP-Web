@@ -18,8 +18,10 @@ param(
   [string]$DefectReport = "",
   [int]$Concurrency = 5,
   [string]$Brand = "",
+  [string]$FromReport = "",
   [switch]$StandingsOnly,
   [switch]$ProfileOnly,
+  [switch]$ResultOnly,
   [switch]$Headed,
   [switch]$Ui
 )
@@ -272,6 +274,12 @@ try {
   }
   if ($ProfileOnly) {
     $scriptArgs += "--profile-only"
+  }
+  if ($ResultOnly) {
+    $scriptArgs += "--result-only"
+  }
+  if ($FromReport) {
+    $scriptArgs += @("--from-report", $FromReport)
   }
   if ($Brand) {
     $scriptArgs += @("--brand", $Brand)
