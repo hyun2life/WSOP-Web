@@ -54,9 +54,6 @@ test.describe('Phase 3 - Player of the Year presentation', () => {
           return null;
         });
         validatedPlayers.push(link ? { ...player, profileUrl: link.href } : player);
-        if (validatedPlayers.length >= 2) {
-          break;
-        }
         continue;
       }
 
@@ -65,9 +62,6 @@ test.describe('Phase 3 - Player of the Year presentation', () => {
         await searchPlayerIfSearchInputExists(page, player.searchKeyword ?? player.displayName, `poy-fallback-${player.displayName}`);
         const link = await findPlayerProfileLink(page, player);
         validatedPlayers.push({ ...player, profileUrl: link.href });
-        if (validatedPlayers.length >= 2) {
-          break;
-        }
       } catch (error) {
         addWarning(
           `poy-player-${player.displayName}`,
@@ -87,7 +81,7 @@ test.describe('Phase 3 - Player of the Year presentation', () => {
 
     expect(
       validatedPlayers.length,
-      `At least 2 POY players should be visible on POY or searchable. Found: ${validatedPlayers.map((p) => p.displayName).join(', ')}`,
-    ).toBeGreaterThanOrEqual(2);
+      `All POY players should be visible on POY or searchable. Found: ${validatedPlayers.map((p) => p.displayName).join(', ')}`,
+    ).toBeGreaterThanOrEqual(poyPlayers.length);
   });
 });
