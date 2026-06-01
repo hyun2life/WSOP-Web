@@ -37,6 +37,12 @@ const STANDINGS_CATEGORIES = [
   { label: "All Player Stats", path: null, sectionSelector: ".standings-all-player-stats" }
 ];
 
+const BRAND_FILTER_EXCLUDED_CATEGORIES = new Set([
+  "2026 Standings",
+  "All-Time Bracelets",
+  "All-Time Rings"
+]);
+
 // ALL 탭과 별도로 독립 검증할 프로필 지표 탭.
 const PROFILE_TAB_CHECKS = [
   { key: "titles", label: "Title", summaryKey: "titles", tabLabels: ["TITLES", "TITLE"] },
@@ -1070,13 +1076,227 @@ function categoryUrlFor(playersUrl, category) {
   }
 }
 
+function normalizeBrandOptionLabel(value) {
+  return normalizeText(value)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlaceholderBrandOption(value) {
+  const label = normalizeBrandOptionLabel(value).toLowerCase();
+  return !label
+    || label === "all"
+    || label === "all brand"
+    || label === "all brands"
+    || label === "brand"
+    || label === "brands"
+    || label === "select brand"
+    || label === "select brands";
+}
+
+function uniqueBrandOptionLabels(values) {
+  const seen = new Set();
+  const result = [];
+
+  for (const value of values || []) {
+    const label = normalizeBrandOptionLabel(value);
+    if (!label) continue;
+
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(label);
+  }
+
+  return result;
+}
+
+function compactBrandLabel(value) {
+  return normalizeBrandOptionLabel(value).toUpperCase().replace(/[^A-Z0-9]+/g, "");
+}
+
+function brandSelectionAliases(brand) {
+  const label = normalizeBrandOptionLabel(brand);
+  const compact = compactBrandLabel(label);
+  const aliases = new Set([label]);
+
+  if (compact.startsWith("WSOP")) {
+    aliases.add("WSOP");
+  }
+  if (compact === "GGPOKER") {
+    aliases.add("GGPoker");
+  }
+  if (compact === "GGMASTERS") {
+    aliases.add("GGMasters");
+    aliases.add("GGMASTERS");
+  }
+  if (compact === "GGMILLION" || compact === "GGMILLIONS" || compact === "GGMILLON" || compact === "GGMILLONS") {
+    aliases.add("GGMillion$");
+    aliases.add("GGMillions");
+    aliases.add("GGMILLION$");
+    aliases.add("GGMILLIONS");
+  }
+  if (compact === "WPTPRIME") {
+    aliases.add("WPT Prime");
+    aliases.add("WPT PRIME");
+  }
+  if (compact === "IRISHPOKEROPEN") {
+    aliases.add("Irish Poker Open");
+    aliases.add("IRISH POKER OPEN");
+  }
+  if (compact === "IRISHPOKERTOUR") {
+    aliases.add("Irish Poker Tour");
+    aliases.add("IRISH POKER TOUR");
+  }
+  if (compact === "TRITON") {
+    aliases.add("Triton");
+    aliases.add("TRITON");
+  }
+  if (compact === "PGT" || compact === "PGTPOKERGOTOUR") {
+    aliases.add("PGT");
+    aliases.add("PGT (Poker Go Tour)");
+    aliases.add("Poker Go Tour");
+  }
+
+  return Array.from(aliases).filter(Boolean);
+}
+
+function shouldApplyBrandFilter(category) {
+  return !BRAND_FILTER_EXCLUDED_CATEGORIES.has(category.label);
+}
+
+async function selectBrandFilter(page, brand) {
+  const aliases = brandSelectionAliases(brand);
+  const aliasKeys = aliases.map(compactBrandLabel);
+  const selectLocator = page.locator("select").first();
+  const hasSelect = (await selectLocator.count()) > 0 && (await selectLocator.isVisible().catch(() => false));
+
+  if (hasSelect) {
+    const options = await selectLocator.evaluate((select) => Array.from(select.options || []).map((option) => ({
+      label: (option.textContent || "").trim(),
+      value: option.value
+    }))).catch(() => []);
+
+    const matched = options.find((option) => {
+      const labelKey = compactBrandLabel(option.label);
+      const valueKey = compactBrandLabel(option.value);
+      return aliasKeys.includes(labelKey) || aliasKeys.includes(valueKey);
+    });
+
+    if (matched) {
+      await selectLocator.selectOption({ value: matched.value }).catch(async () => {
+        await selectLocator.selectOption({ label: matched.label }).catch(() => {});
+      });
+      return true;
+    }
+  }
+
+  const dropdownTrigger = page.locator("button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+    await dropdownTrigger.click().catch(() => {});
+    await page.waitForTimeout(300);
+
+    for (const alias of aliases) {
+      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(alias)}$`, "i") }).first();
+      if ((await optionItems.count()) > 0 && (await optionItems.isVisible().catch(() => true))) {
+        await optionItems.click().catch(() => {});
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+async function collectBrandOptionsFromCurrentPage(page) {
+  const selectCandidates = await page.evaluate(() => {
+    const visible = (el) => {
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+
+    return Array.from(document.querySelectorAll("select"))
+      .filter(visible)
+      .map((select) => {
+        const options = Array.from(select.options || [])
+          .map((option) => (option.textContent || option.value || "").trim())
+          .filter(Boolean);
+        const label = [
+          select.getAttribute("aria-label"),
+          select.getAttribute("name"),
+          select.id,
+          select.closest("label")?.textContent
+        ].filter(Boolean).join(" ");
+        return { label, options };
+      });
+  }).catch(() => []);
+
+  const brandishSelect = selectCandidates.find((candidate) => {
+    const haystack = `${candidate.label || ""} ${(candidate.options || []).join(" ")}`;
+    return /brand|wsop|ggpoker|wpt|pgt|poker/i.test(haystack);
+  }) || selectCandidates.find((candidate) => (candidate.options || []).length > 1);
+
+  if (brandishSelect?.options?.length) {
+    return uniqueBrandOptionLabels(brandishSelect.options);
+  }
+
+  const trigger = page.locator("button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  if ((await trigger.count()) > 0 && (await trigger.isVisible().catch(() => false))) {
+    await trigger.click().catch(() => {});
+    await page.waitForTimeout(300);
+
+    const dropdownOptions = await page.evaluate(() => {
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      return Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+        .filter(visible)
+        .map((el) => (el.textContent || "").trim())
+        .filter((text) => text && text.length <= 80);
+    }).catch(() => []);
+
+    return uniqueBrandOptionLabels(dropdownOptions.filter((text) => /brand|wsop|ggpoker|wpt|pgt|poker|masters|million|circuit|paradise|europe|asia|online|irish/i.test(text)));
+  }
+
+  return [];
+}
+
+async function collectBrandOptions(page, playersUrl, authWaitMs) {
+  const sourceCategory = STANDINGS_CATEGORIES.find((category) => category.label !== "2026 Standings" && categoryUrlFor(playersUrl, category))
+    || STANDINGS_CATEGORIES.find((category) => categoryUrlFor(playersUrl, category));
+  const sourceUrl = sourceCategory ? categoryUrlFor(playersUrl, sourceCategory) : playersUrl;
+
+  await retryWithBackoff(async () => {
+    await page.goto(sourceUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+    await waitForAccessLogin(page, authWaitMs);
+  }, 2, 1500);
+
+  const rawOptions = uniqueBrandOptionLabels(await collectBrandOptionsFromCurrentPage(page));
+  const options = rawOptions.filter((option) => !isPlaceholderBrandOption(option));
+
+  return {
+    collectedAt: new Date().toISOString(),
+    sourceCategory: sourceCategory?.label || "Player standings",
+    sourceUrl: page.url(),
+    count: options.length,
+    rawCount: rawOptions.length,
+    options,
+    rawOptions
+  };
+}
+
 
 async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand = null) {
   if (limit <= 0) return [];
 
   const byUrl = new Map();
   let selectedAnyCategory = false;
-  
   const brands = brand ? brand.split(',').map(b => b.trim()).filter(Boolean) : [null];
 
   for (const currentBrand of brands) {
@@ -1087,8 +1307,8 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
     }, 2, 2000);
 
     for (const category of STANDINGS_CATEGORIES) {
-      // brand 필터링 조건이 있을 경우, 2026 Standings는 대상에서 제외
-      if (currentBrand && category.label === "2026 Standings") {
+      if (currentBrand && !shouldApplyBrandFilter(category)) {
+        console.log(`  [크롤러] 브랜드 필터 제외 카테고리 skip: ${category.label}`);
         continue;
       }
 
@@ -1127,25 +1347,11 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
       }
       if (!selected) continue;
 
-      // 브랜드 필터가 지정된 경우 필터 적용
       if (currentBrand) {
         console.log(`  [크롤러] 브랜드 필터 적용 중: "${currentBrand}"`);
-        const selectLocator = page.locator('select').first();
-        const hasSelect = (await selectLocator.count()) > 0 && (await selectLocator.isVisible().catch(() => false));
-        
-        if (hasSelect) {
-          await selectLocator.selectOption({ label: currentBrand }).catch(() => {});
-        } else {
-          const dropdownTrigger = page.locator('button, a, div, span').filter({ hasText: /All Brands|Brand|WSOP/i }).first();
-          if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
-            await dropdownTrigger.click().catch(() => {});
-            await page.waitForTimeout(300);
-            
-            const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${currentBrand}$`, 'i') }).first();
-            if ((await optionItems.count()) > 0) {
-              await optionItems.click().catch(() => {});
-            }
-          }
+        const applied = await selectBrandFilter(page, currentBrand);
+        if (!applied) {
+          console.warn(`  [경고] 브랜드 필터 옵션을 찾지 못했습니다: "${currentBrand}"`);
         }
         await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
         await page.waitForTimeout(1000);
@@ -1153,17 +1359,16 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
 
       let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
 
-      // 브랜드 필터 지정 시 2페이지까지 수집 지원
       if (currentBrand && rows.length < limit) {
         const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
         const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
-        
+
         if (hasNext) {
           console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
           await nextButton.click().catch(() => {});
           await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
           await page.waitForTimeout(1000);
-          
+
           const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
           rows = rows.concat(page2Rows);
         }
@@ -1200,7 +1405,6 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
 
   return Array.from(byUrl.values());
 }
-
 function playerNameFromUrl(urlValue) {
   try {
     const url = new URL(urlValue);
@@ -3160,6 +3364,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
   const totalChecked = summary.checkedPlayers || 1;
   const passPercent = Math.round((summary.passedPlayers / totalChecked) * 100);
+  const isStandingsOnly = report.mode === "standings-only";
+  const isProfileOnly = report.mode === "profile-only";
+  const resultSkippedByMode = isStandingsOnly || isProfileOnly;
 
   const t = {
     title: isKo ? "WSOP 선수 순위 크롤러 대시보드" : "WSOP Player Standings Dashboard",
@@ -3428,7 +3635,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     <div class="header-content">
       <div class="header-title">
         <div class="eyebrow">${isKo ? "WSOP 플레이어 standings 크롤러" : "WSOP PLAYER STANDINGS CRAWLER"}</div>
-        <h1>${escapeHtml(t.title)}${report.mode === 'standings-only' ? `<span class="status-badge warn" style="margin-left: 12px; font-size: 14px; padding: 6px 14px; vertical-align: middle; font-family: 'Inter', sans-serif;">${isKo ? "순위 수집 전용" : "Standings Only"}</span>` : ""}</h1>
+        <h1>${escapeHtml(t.title)}${isStandingsOnly ? `<span class="status-badge warn" style="margin-left: 12px; font-size: 14px; padding: 6px 14px; vertical-align: middle; font-family: 'Inter', sans-serif;">${isKo ? "순위 수집 전용" : "Standings Only"}</span>` : (isProfileOnly ? `<span class="status-badge warn" style="margin-left: 12px; font-size: 14px; padding: 6px 14px; vertical-align: middle; font-family: 'Inter', sans-serif;">${isKo ? "프로필 검증 전용" : "Profile Only"}</span>` : "")}</h1>
         <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>${summary.interruptedReason ? ` (${escapeHtml(summary.interruptedReason)})` : ""} | ${escapeHtml(t.source)}: <a href="${escapeHtml(report.playersUrl || "")}">${escapeHtml(report.playersUrl || "")}</a></p>
       </div>
       <div class="header-actions" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
@@ -3475,6 +3682,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="kpi-label">${isKo ? "경고/주의 항목" : "Warnings / Notes"}</div>
         <div class="kpi-value" style="color: ${reviewNotes.length ? "var(--warning)" : "inherit"};">${summary.reviewNotes}</div>
       </div>
+      <div class="kpi-card" onclick="filterByStatus('all')">
+        <div class="kpi-label">${isKo ? "Result 검증 단계" : "Result Check Stage"}</div>
+        <div class="kpi-value" style="font-size:22px;">${resultSkippedByMode ? (isKo ? "생략" : "Skipped") : (isKo ? "수행" : "Enabled")}</div>
+      </div>
     </div>
 
     <!-- Visualizations Row -->
@@ -3514,6 +3725,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             <span>${isKo ? "확인한 선수" : "Players Checked"}: ${summary.completedPlayers}/${summary.totalPlayers}</span>
             <span>${isKo ? "생성 시간" : "Generated"}: ${escapeHtml(new Date().toLocaleString())}</span>
             <span>${isKo ? "수집 카테고리" : "Categories"}: ${summary.checkedStandingsCategories}</span>
+            <span>${isKo ? "실행 모드" : "Mode"}: <strong>${escapeHtml(isStandingsOnly ? (isKo ? "Standings Only" : "Standings Only") : (isProfileOnly ? (isKo ? "Profile Only" : "Profile Only") : (isKo ? "Full Crawl" : "Full Crawl")))}</strong></span>
           </div>
           <div class="bar" aria-label="정합성 비율">
             <div class="bar-pass" style="width:${(summary.passedPlayers / (summary.checkedPlayers || 1)) * 100}%"></div>
@@ -4145,12 +4357,18 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                       ? "⚡ <strong>Standings Only 수집</strong>: 이 선수는 순위 목록에서 수집되었으며, 상세 프로필 분석 및 Result 검증 단계를 거치지 않았습니다." 
                       : "⚡ <strong>Standings Only Mode</strong>: This player was collected directly from the standings list. Detailed profile analysis and Results verification were skipped."}
                   </div>
+                ` : report.mode === 'profile-only' ? `
+                  <div style="padding: 25px 20px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.015); border-radius: 8px; border: 1px dashed var(--border); font-size: 13px; margin-top: 10px;">
+                    ${isKo
+                      ? "<strong>Profile Only</strong>: 프로필 요약/탭/이벤트 수집까지만 수행했고 Result 상세 페이지 검증은 의도적으로 생략되었습니다."
+                      : "<strong>Profile Only Mode</strong>: Profile summary/tab/event checks were executed, and Result detail verification was intentionally skipped."}
+                  </div>
                 ` : `
                   <!-- Tab Headers -->
                   <div class="sub-tabs-container">
                     <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(player.name)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
                     <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(player.name)}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
-                    <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
+                    <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${report.mode === 'profile-only' ? (isKo ? "3. Result 검증(생략)" : "3. Result Verification (Skipped)") : (isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification")}</button>
                     <div class="tab-active-bar"></div>
                   </div>
 
@@ -4516,7 +4734,7 @@ function writeCsv(filePath, rows) {
 
 // 모든 선수 크롤링이 끝나거나 실행이 중단된 뒤 최종 리포트 객체를 만든다.
 // 디버깅과 재개 판단을 위해 pending player 정보를 보존한다.
-function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null, mode = "crawler" }) {
+function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null, brandOptions = null, mode = "crawler" }) {
   const completedPlayers = [];
   const pendingPlayers = [];
 
@@ -4542,6 +4760,7 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
     finishedAt,
     playersUrl,
     brandFilter,
+    brandOptions,
     standingsCategories: STANDINGS_CATEGORIES.map((category) => category.label),
     totalPlayers: playerEntries.length,
     completedPlayers: completedPlayers.length,
@@ -4569,7 +4788,7 @@ function standingOnlyPlayerFromEntry(entry) {
   };
 }
 
-function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null }) {
+function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null, brandOptions = null }) {
   const players = playerEntries.map(standingOnlyPlayerFromEntry);
   const report = buildCrawlerReport({
     startedAt,
@@ -4578,7 +4797,8 @@ function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEnt
     playerEntries,
     players,
     runStatus: "complete",
-    brandFilter
+    brandFilter,
+    brandOptions
   });
 
   report.mode = "standings-only";
@@ -5052,8 +5272,24 @@ async function main() {
       url,
       standingsSources: [{ category: "Manual player URL", rank: null, name: "", rowText: "", selected: false }]
     }));
+    let brandOptions = null;
     if (!playerEntries.length) {
       const listPage = await context.newPage();
+      try {
+        brandOptions = await collectBrandOptions(listPage, args.playersUrl, authWaitMs);
+        console.log(`  [크롤러] 브랜드 옵션 ${brandOptions.count}개 수집: ${brandOptions.options.join(", ") || "없음"}`);
+      } catch (error) {
+        brandOptions = {
+          collectedAt: new Date().toISOString(),
+          sourceUrl: args.playersUrl,
+          count: 0,
+          rawCount: 0,
+          options: [],
+          rawOptions: [],
+          error: error.message
+        };
+        console.warn(`  [경고] 브랜드 옵션 목록 수집 실패: ${error.message}`);
+      }
       playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs, args.brand);
       await listPage.close().catch(() => {});
     }
@@ -5066,7 +5302,8 @@ async function main() {
         finishedAt: new Date().toISOString(),
         playersUrl: args.playersUrl,
         playerEntries,
-        brandFilter: args.brand
+        brandFilter: args.brand,
+        brandOptions
       });
       const koreanHtml = writeReportArtifacts(args, report);
 
@@ -5096,6 +5333,7 @@ async function main() {
         runStatus,
         interruptedReason,
         brandFilter: args.brand,
+        brandOptions,
         mode: args.profileOnly ? "profile-only" : "crawler"
       });
       const koreanHtml = writeReportArtifacts(args, report);

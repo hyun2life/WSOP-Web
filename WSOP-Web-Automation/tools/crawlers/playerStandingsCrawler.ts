@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -37,6 +36,12 @@ const STANDINGS_CATEGORIES = [
   { label: "All-Time Rings", path: "all-time-rings" },
   { label: "All Player Stats", path: null, sectionSelector: ".standings-all-player-stats" }
 ];
+
+const BRAND_FILTER_EXCLUDED_CATEGORIES = new Set([
+  "2026 Standings",
+  "All-Time Bracelets",
+  "All-Time Rings"
+]);
 
 // ALL 탭과 별도로 독립 검증할 프로필 지표 탭.
 const PROFILE_TAB_CHECKS = [
@@ -466,6 +471,9 @@ function findResultRowInBodyText(bodyText, player, targetRank, targetEarnings) {
     const beforeMoney = nearbyText.slice(0, Math.max(0, index - Math.max(0, index - 180)));
     const rankMatch = beforeMoney.match(/(?:^|\s)(\d{1,6})\s+[^$€£₩\u20a9₱\u20b1]{2,180}$/);
     const parsedRank = rankMatch ? Number(rankMatch[1].replace(/,/g, "")) : null;
+    // targetRank가 있는 검증에서는 rank를 명시적으로 읽어내지 못한 fallback 조각을 신뢰하지 않는다.
+    // (과거에는 parsedRank를 targetRank로 대체해 오탐을 만들 수 있었다.)
+    if (targetRank && parsedRank === null) continue;
     if (targetRank && parsedRank !== targetRank) continue;
 
     return {
@@ -479,13 +487,6 @@ function findResultRowInBodyText(bodyText, player, targetRank, targetEarnings) {
   }
 
   return null;
-}
-
-function shouldAttemptResultTextFallback(targetRank, range, pageIndex, totalPages) {
-  if (!targetRank) return true;
-  if (range && range.min <= targetRank && targetRank <= range.max) return true;
-  if (range && range.min > targetRank) return true;
-  return pageIndex === totalPages;
 }
 
 function resultRowMatchesTarget(row, player) {
@@ -1075,13 +1076,227 @@ function categoryUrlFor(playersUrl, category) {
   }
 }
 
+function normalizeBrandOptionLabel(value) {
+  return normalizeText(value)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlaceholderBrandOption(value) {
+  const label = normalizeBrandOptionLabel(value).toLowerCase();
+  return !label
+    || label === "all"
+    || label === "all brand"
+    || label === "all brands"
+    || label === "brand"
+    || label === "brands"
+    || label === "select brand"
+    || label === "select brands";
+}
+
+function uniqueBrandOptionLabels(values) {
+  const seen = new Set();
+  const result = [];
+
+  for (const value of values || []) {
+    const label = normalizeBrandOptionLabel(value);
+    if (!label) continue;
+
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(label);
+  }
+
+  return result;
+}
+
+function compactBrandLabel(value) {
+  return normalizeBrandOptionLabel(value).toUpperCase().replace(/[^A-Z0-9]+/g, "");
+}
+
+function brandSelectionAliases(brand) {
+  const label = normalizeBrandOptionLabel(brand);
+  const compact = compactBrandLabel(label);
+  const aliases = new Set([label]);
+
+  if (compact.startsWith("WSOP")) {
+    aliases.add("WSOP");
+  }
+  if (compact === "GGPOKER") {
+    aliases.add("GGPoker");
+  }
+  if (compact === "GGMASTERS") {
+    aliases.add("GGMasters");
+    aliases.add("GGMASTERS");
+  }
+  if (compact === "GGMILLION" || compact === "GGMILLIONS" || compact === "GGMILLON" || compact === "GGMILLONS") {
+    aliases.add("GGMillion$");
+    aliases.add("GGMillions");
+    aliases.add("GGMILLION$");
+    aliases.add("GGMILLIONS");
+  }
+  if (compact === "WPTPRIME") {
+    aliases.add("WPT Prime");
+    aliases.add("WPT PRIME");
+  }
+  if (compact === "IRISHPOKEROPEN") {
+    aliases.add("Irish Poker Open");
+    aliases.add("IRISH POKER OPEN");
+  }
+  if (compact === "IRISHPOKERTOUR") {
+    aliases.add("Irish Poker Tour");
+    aliases.add("IRISH POKER TOUR");
+  }
+  if (compact === "TRITON") {
+    aliases.add("Triton");
+    aliases.add("TRITON");
+  }
+  if (compact === "PGT" || compact === "PGTPOKERGOTOUR") {
+    aliases.add("PGT");
+    aliases.add("PGT (Poker Go Tour)");
+    aliases.add("Poker Go Tour");
+  }
+
+  return Array.from(aliases).filter(Boolean);
+}
+
+function shouldApplyBrandFilter(category) {
+  return !BRAND_FILTER_EXCLUDED_CATEGORIES.has(category.label);
+}
+
+async function selectBrandFilter(page, brand) {
+  const aliases = brandSelectionAliases(brand);
+  const aliasKeys = aliases.map(compactBrandLabel);
+  const selectLocator = page.locator("select").first();
+  const hasSelect = (await selectLocator.count()) > 0 && (await selectLocator.isVisible().catch(() => false));
+
+  if (hasSelect) {
+    const options = await selectLocator.evaluate((select) => Array.from(select.options || []).map((option) => ({
+      label: (option.textContent || "").trim(),
+      value: option.value
+    }))).catch(() => []);
+
+    const matched = options.find((option) => {
+      const labelKey = compactBrandLabel(option.label);
+      const valueKey = compactBrandLabel(option.value);
+      return aliasKeys.includes(labelKey) || aliasKeys.includes(valueKey);
+    });
+
+    if (matched) {
+      await selectLocator.selectOption({ value: matched.value }).catch(async () => {
+        await selectLocator.selectOption({ label: matched.label }).catch(() => {});
+      });
+      return true;
+    }
+  }
+
+  const dropdownTrigger = page.locator("button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+    await dropdownTrigger.click().catch(() => {});
+    await page.waitForTimeout(300);
+
+    for (const alias of aliases) {
+      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^${escapeRegExp(alias)}$`, "i") }).first();
+      if ((await optionItems.count()) > 0 && (await optionItems.isVisible().catch(() => true))) {
+        await optionItems.click().catch(() => {});
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+async function collectBrandOptionsFromCurrentPage(page) {
+  const selectCandidates = await page.evaluate(() => {
+    const visible = (el) => {
+      const style = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+
+    return Array.from(document.querySelectorAll("select"))
+      .filter(visible)
+      .map((select) => {
+        const options = Array.from(select.options || [])
+          .map((option) => (option.textContent || option.value || "").trim())
+          .filter(Boolean);
+        const label = [
+          select.getAttribute("aria-label"),
+          select.getAttribute("name"),
+          select.id,
+          select.closest("label")?.textContent
+        ].filter(Boolean).join(" ");
+        return { label, options };
+      });
+  }).catch(() => []);
+
+  const brandishSelect = selectCandidates.find((candidate) => {
+    const haystack = `${candidate.label || ""} ${(candidate.options || []).join(" ")}`;
+    return /brand|wsop|ggpoker|wpt|pgt|poker/i.test(haystack);
+  }) || selectCandidates.find((candidate) => (candidate.options || []).length > 1);
+
+  if (brandishSelect?.options?.length) {
+    return uniqueBrandOptionLabels(brandishSelect.options);
+  }
+
+  const trigger = page.locator("button, a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
+  if ((await trigger.count()) > 0 && (await trigger.isVisible().catch(() => false))) {
+    await trigger.click().catch(() => {});
+    await page.waitForTimeout(300);
+
+    const dropdownOptions = await page.evaluate(() => {
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      return Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+        .filter(visible)
+        .map((el) => (el.textContent || "").trim())
+        .filter((text) => text && text.length <= 80);
+    }).catch(() => []);
+
+    return uniqueBrandOptionLabels(dropdownOptions.filter((text) => /brand|wsop|ggpoker|wpt|pgt|poker|masters|million|circuit|paradise|europe|asia|online|irish/i.test(text)));
+  }
+
+  return [];
+}
+
+async function collectBrandOptions(page, playersUrl, authWaitMs) {
+  const sourceCategory = STANDINGS_CATEGORIES.find((category) => category.label !== "2026 Standings" && categoryUrlFor(playersUrl, category))
+    || STANDINGS_CATEGORIES.find((category) => categoryUrlFor(playersUrl, category));
+  const sourceUrl = sourceCategory ? categoryUrlFor(playersUrl, sourceCategory) : playersUrl;
+
+  await retryWithBackoff(async () => {
+    await page.goto(sourceUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+    await waitForAccessLogin(page, authWaitMs);
+  }, 2, 1500);
+
+  const rawOptions = uniqueBrandOptionLabels(await collectBrandOptionsFromCurrentPage(page));
+  const options = rawOptions.filter((option) => !isPlaceholderBrandOption(option));
+
+  return {
+    collectedAt: new Date().toISOString(),
+    sourceCategory: sourceCategory?.label || "Player standings",
+    sourceUrl: page.url(),
+    count: options.length,
+    rawCount: rawOptions.length,
+    options,
+    rawOptions
+  };
+}
+
 
 async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand = null) {
   if (limit <= 0) return [];
 
   const byUrl = new Map();
   let selectedAnyCategory = false;
-  
   const brands = brand ? brand.split(',').map(b => b.trim()).filter(Boolean) : [null];
 
   for (const currentBrand of brands) {
@@ -1092,8 +1307,8 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
     }, 2, 2000);
 
     for (const category of STANDINGS_CATEGORIES) {
-      // brand 필터링 조건이 있을 경우, 2026 Standings는 대상에서 제외
-      if (currentBrand && category.label === "2026 Standings") {
+      if (currentBrand && !shouldApplyBrandFilter(category)) {
+        console.log(`  [크롤러] 브랜드 필터 제외 카테고리 skip: ${category.label}`);
         continue;
       }
 
@@ -1123,41 +1338,58 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
             await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
             await waitForAccessLogin(page, authWaitMs);
           }, 2, 1500);
-        const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
-        selected = sectionExists;
-      } catch {
-        selected = false;
+          selected = true;
+        } catch {
+          selected = false;
+        }
+      } else {
+        selected = await clickExactTextControl(page, category.label);
       }
-    } else if (categoryUrl) {
-      try {
-        await retryWithBackoff(async () => {
-          await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
-          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-          await waitForAccessLogin(page, authWaitMs);
-        }, 2, 1500);
-        selected = true;
-      } catch {
-        selected = false;
-      }
-    } else {
-      selected = await clickExactTextControl(page, category.label);
-    }
-    if (!selected) continue;
-    const rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
-    if (!rows.length) continue;
-    selectedAnyCategory = true;
+      if (!selected) continue;
 
-    for (const row of rows) {
-      if (!byUrl.has(row.url)) {
-        byUrl.set(row.url, { url: row.url, standingsSources: [] });
+      if (currentBrand) {
+        console.log(`  [크롤러] 브랜드 필터 적용 중: "${currentBrand}"`);
+        const applied = await selectBrandFilter(page, currentBrand);
+        if (!applied) {
+          console.warn(`  [경고] 브랜드 필터 옵션을 찾지 못했습니다: "${currentBrand}"`);
+        }
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+        await page.waitForTimeout(1000);
       }
-      byUrl.get(row.url).standingsSources.push({
-        category: category.label,
-        rank: row.rank,
-        name: row.name,
-        rowText: row.rowText,
-        sourceUrl: page.url()
-      });
+
+      let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
+
+      if (currentBrand && rows.length < limit) {
+        const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
+        const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
+
+        if (hasNext) {
+          console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
+          await nextButton.click().catch(() => {});
+          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+          await page.waitForTimeout(1000);
+
+          const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
+          rows = rows.concat(page2Rows);
+        }
+      }
+
+      if (!rows.length) continue;
+      selectedAnyCategory = true;
+
+      for (const row of rows) {
+        if (!byUrl.has(row.url)) {
+          byUrl.set(row.url, { url: row.url, standingsSources: [] });
+        }
+        byUrl.get(row.url).standingsSources.push({
+          category: category.label,
+          rank: row.rank,
+          name: row.name,
+          rowText: row.rowText,
+          sourceUrl: page.url(),
+          brand: currentBrand || "All"
+        });
+      }
     }
   }
 
@@ -1166,14 +1398,13 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
     for (const row of rows) {
       byUrl.set(row.url, {
         url: row.url,
-        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, selected: false }]
+        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, selected: false, brand: "All" }]
       });
     }
   }
 
   return Array.from(byUrl.values());
 }
-
 function playerNameFromUrl(urlValue) {
   try {
     const url = new URL(urlValue);
@@ -1551,7 +1782,8 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
   let stalledClicks = 0;
 
   while (expansion.loadMoreClicks < maxLoadMore) {
-    if (expected && events.length >= expected) {
+    const uniqueCount = deduplicateComparisonEvents(events).uniqueEvents.length;
+    if (expected && uniqueCount >= (expected + 5)) {
       expansion.reachedExpectedCashes = true;
       expansion.stoppedReason = "expected-cashes-reached";
       break;
@@ -1592,7 +1824,8 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
   if (expansion.stoppedReason === "not-started") {
     expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : (expected && events.length < expected ? "load-more-not-found" : "complete");
   }
-  if (expected && events.length >= expected) expansion.reachedExpectedCashes = true;
+  const finalUniqueCount = deduplicateComparisonEvents(events).uniqueEvents.length;
+  if (expected && finalUniqueCount >= expected) expansion.reachedExpectedCashes = true;
   expansion.finalEventCount = events.length;
   return { events, expansion };
 }
@@ -1609,7 +1842,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   };
   let stalledClicks = 0;
 
-  while (expected && events.length < expected && expansion.loadMoreClicks < maxLoadMore) {
+  while (expected && deduplicateComparisonEvents(events).uniqueEvents.length < (expected + 5) && expansion.loadMoreClicks < maxLoadMore) {
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
       if (expected && events.length < expected && stalledClicks < 3) {
@@ -1642,7 +1875,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
     await page.waitForTimeout(500);
   }
 
-  if (expected && events.length >= expected) {
+  if (expected && deduplicateComparisonEvents(events).uniqueEvents.length >= expected) {
     expansion.reachedExpectedRows = true;
     expansion.stoppedReason = "expected-rows-reached";
   } else if (expected && expansion.stoppedReason === "not-started") {
@@ -1774,7 +2007,12 @@ async function extractFinalResultRows(page) {
     for (const table of Array.from(document.querySelectorAll("table"))) {
       if (!isVisibleElement(table)) continue;
       const headerText = normalize(table.querySelector("thead")?.textContent || table.textContent || "");
-      if (!/\bNo\b/i.test(headerText) || !/\bPlayer\b/i.test(headerText) || !/\bEarnings\b/i.test(headerText)) continue;
+      
+      const hasRank = /no|rank|pos|place/i.test(headerText);
+      const hasPlayer = /player|name/i.test(headerText);
+      const hasEarnings = /earnings|prize|payout|cash|\$/i.test(headerText);
+
+      if (!hasRank || !hasPlayer || !hasEarnings) continue;
 
       for (const row of Array.from(table.querySelectorAll("tr"))) {
         if (!isVisibleElement(row)) continue;
@@ -2385,15 +2623,12 @@ function evaluateResultFromCachedPages(cachedPages, player, event, urlKey) {
   }
 
   if (!foundRow) {
-    const totalCachedPages = cachedPages.length;
-    for (let cachedIndex = 0; cachedIndex < totalCachedPages; cachedIndex += 1) {
-      const cachedPage = cachedPages[cachedIndex];
-      const range = rankRangeForRows(cachedPage.rows || []);
-      if (!shouldAttemptResultTextFallback(targetRank, range, cachedIndex + 1, totalCachedPages)) continue;
-
+    for (const cachedPage of cachedPages) {
       const lastBody = cachedPage.bodyText || "";
       foundRow = findResultRowInBodyText(lastBody, player, targetRank, targetEarnings);
-      if (foundRow) break;
+      if (foundRow) {
+        break;
+      }
     }
   }
 
@@ -2458,6 +2693,7 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
   for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
     await page.waitForTimeout(1000);
     const url = page.url();
+    await page.waitForSelector("table tr", { timeout: 6000 }).catch(() => {});
 
     const rows = await extractFinalResultRows(page);
     const title = await page.title().catch(() => "");
@@ -2482,7 +2718,7 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
     const candidates = targetRank ? rows.filter((row) => row.no === targetRank) : rows;
     let pageFoundRow = candidates.find((row) => resultRowMatchesTarget(row, player)) || null;
 
-    if (!pageFoundRow && shouldAttemptResultTextFallback(targetRank, range, pageIndex, pageInspectionLimit)) {
+    if (!pageFoundRow) {
       lastBody = bodyText;
       pageFoundRow = findResultRowInBodyText(lastBody, player, targetRank, targetEarnings);
     }
@@ -2570,7 +2806,16 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
   try {
     // 백오프 재시도를 페이지 로드에 반영
     await retryWithBackoff(async () => {
-      await page.goto(event.resultUrl, { waitUntil: "domcontentloaded", timeout });
+      try {
+        await page.goto(event.resultUrl, { waitUntil: "domcontentloaded", timeout });
+      } catch (gotoError) {
+        const tableCount = await page.locator("table").count().catch(() => 0);
+        if (tableCount > 0) {
+          console.log(`    [경고] page.goto 타임아웃이 발생했으나 테이블 돔이 감지되어 크롤링을 속행합니다: ${event.resultUrl}`);
+        } else {
+          throw gotoError;
+        }
+      }
       await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
@@ -2625,7 +2870,7 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
       const candidates = targetRank ? rows.filter((row) => row.no === targetRank) : rows;
       let pageFoundRow = candidates.find((row) => resultRowMatchesTarget(row, player)) || null;
 
-      if (!pageFoundRow && shouldAttemptResultTextFallback(targetRank, range, pageIndex, pageInspectionLimit)) {
+      if (!pageFoundRow) {
         lastBody = bodyText;
         pageFoundRow = findResultRowInBodyText(lastBody, player, targetRank, targetEarnings);
       }
@@ -2707,7 +2952,16 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
   const page = await context.newPage();
   try {
     await retryWithBackoff(async () => {
-      await page.goto(player.url, { waitUntil: "domcontentloaded", timeout });
+      try {
+        await page.goto(player.url, { waitUntil: "domcontentloaded", timeout });
+      } catch (gotoError) {
+        const hasContainer = await page.locator("body").count().catch(() => 0);
+        if (hasContainer > 0) {
+          console.log(`    [경고] 플레이어 프로필 page.goto 타임아웃이 발생했으나 바디 영역이 감지되어 크롤링을 속행합니다: ${player.url}`);
+        } else {
+          throw gotoError;
+        }
+      }
       await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
@@ -2784,7 +3038,16 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
   const page = await context.newPage();
   const warnings = [];
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+    } catch (gotoError) {
+      const hasContainer = await page.locator("body").count().catch(() => 0);
+      if (hasContainer > 0) {
+        console.log(`    [경고] crawlPlayer page.goto 타임아웃이 발생했으나 바디 영역이 감지되어 크롤링을 속행합니다: ${url}`);
+      } else {
+        throw gotoError;
+      }
+    }
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
     await waitForAccessLogin(page, authWaitMs);
 
@@ -2952,8 +3215,11 @@ function flattenReviewNotes(report) {
   const notes = [];
 
   for (const player of report.players || []) {
+    const playerBrands = Array.from(new Set((player.standingsSources || []).map(s => s.brand || "All"))).join(", ");
+
     for (const warning of player.warnings || []) {
       notes.push({
+        brand: playerBrands,
         type: "Crawler warning",
         player: player.name,
         item: "warning",
@@ -2966,6 +3232,7 @@ function flattenReviewNotes(report) {
       if (!event.resultSkipped) continue;
       if (!/(result|ranklimit|resultlimit|비활|결과|검증)/i.test(event.resultSkipped)) continue;
       notes.push({
+        brand: playerBrands,
         type: "Result skipped",
         player: player.name,
         item: event.eventName,
@@ -3097,6 +3364,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
   const totalChecked = summary.checkedPlayers || 1;
   const passPercent = Math.round((summary.passedPlayers / totalChecked) * 100);
+  const isStandingsOnly = report.mode === "standings-only";
+  const isProfileOnly = report.mode === "profile-only";
+  const resultSkippedByMode = isStandingsOnly || isProfileOnly;
 
   const t = {
     title: isKo ? "WSOP 선수 순위 크롤러 대시보드" : "WSOP Player Standings Dashboard",
@@ -3365,7 +3635,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     <div class="header-content">
       <div class="header-title">
         <div class="eyebrow">${isKo ? "WSOP 플레이어 standings 크롤러" : "WSOP PLAYER STANDINGS CRAWLER"}</div>
-        <h1>${escapeHtml(t.title)}</h1>
+        <h1>${escapeHtml(t.title)}${isStandingsOnly ? `<span class="status-badge warn" style="margin-left: 12px; font-size: 14px; padding: 6px 14px; vertical-align: middle; font-family: 'Inter', sans-serif;">${isKo ? "순위 수집 전용" : "Standings Only"}</span>` : (isProfileOnly ? `<span class="status-badge warn" style="margin-left: 12px; font-size: 14px; padding: 6px 14px; vertical-align: middle; font-family: 'Inter', sans-serif;">${isKo ? "프로필 검증 전용" : "Profile Only"}</span>` : "")}</h1>
         <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.status}">${escapeHtml(isKo ? formatStatus(summary.status) : summary.status)}</span>${summary.interruptedReason ? ` (${escapeHtml(summary.interruptedReason)})` : ""} | ${escapeHtml(t.source)}: <a href="${escapeHtml(report.playersUrl || "")}">${escapeHtml(report.playersUrl || "")}</a></p>
       </div>
       <div class="header-actions" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
@@ -3412,6 +3682,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="kpi-label">${isKo ? "경고/주의 항목" : "Warnings / Notes"}</div>
         <div class="kpi-value" style="color: ${reviewNotes.length ? "var(--warning)" : "inherit"};">${summary.reviewNotes}</div>
       </div>
+      <div class="kpi-card" onclick="filterByStatus('all')">
+        <div class="kpi-label">${isKo ? "Result 검증 단계" : "Result Check Stage"}</div>
+        <div class="kpi-value" style="font-size:22px;">${resultSkippedByMode ? (isKo ? "생략" : "Skipped") : (isKo ? "수행" : "Enabled")}</div>
+      </div>
     </div>
 
     <!-- Visualizations Row -->
@@ -3447,10 +3721,11 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="panel-body">
           <div class="summary-line">
             <span>${isKo ? "대상 사이트" : "Source"}: <a href="${escapeHtml(report.playersUrl || "")}" target="_blank" onclick="event.stopPropagation();">${escapeHtml(report.playersUrl || "")}</a></span>
+            <span>${isKo ? "브랜드 필터" : "Brand Filter"}: <strong>${escapeHtml(report.brandFilter || (isKo ? "전체" : "All"))}</strong></span>
             <span>${isKo ? "확인한 선수" : "Players Checked"}: ${summary.completedPlayers}/${summary.totalPlayers}</span>
             <span>${isKo ? "생성 시간" : "Generated"}: ${escapeHtml(new Date().toLocaleString())}</span>
             <span>${isKo ? "수집 카테고리" : "Categories"}: ${summary.checkedStandingsCategories}</span>
-            <span>${isKo ? "브랜드 필터" : "Brand Filter"}: <strong>${escapeHtml(report.brandFilter || (isKo ? "전체" : "All"))}</strong></span>
+            <span>${isKo ? "실행 모드" : "Mode"}: <strong>${escapeHtml(isStandingsOnly ? (isKo ? "Standings Only" : "Standings Only") : (isProfileOnly ? (isKo ? "Profile Only" : "Profile Only") : (isKo ? "Full Crawl" : "Full Crawl")))}</strong></span>
           </div>
           <div class="bar" aria-label="정합성 비율">
             <div class="bar-pass" style="width:${(summary.passedPlayers / (summary.checkedPlayers || 1)) * 100}%"></div>
@@ -4076,90 +4351,104 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   </div>
                 \` : ""}
 
-                <!-- Tab Headers -->
-                <div class="sub-tabs-container">
-                  <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(player.name)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
-                  <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(player.name)}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
-                  <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
-                  <div class="tab-active-bar"></div>
-                </div>
-
-                <!-- Sub-tab Content: Summary Metrics -->
-                <div class="sub-tab-content" data-tab="summary">
-                  <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Summary Metrics Check</h4>
-                  <table style="width:100%;">
-                    <thead>
-                      <tr><th>Stat</th><th>\${labels.profileStat}</th><th>\${labels.calculatedValue}</th><th>\${labels.statusText}</th></tr>
-                    </thead>
-                    <tbody>
-                      \${(player.comparisons || []).map(item => \`
-                        <tr>
-                          <td><strong>\${escapeHtml(formatLabel(item.label))}</strong></td>
-                          <td>\${escapeHtml(formatValue(item.label, item.top))}</td>
-                          <td>\${escapeHtml(formatValue(item.label, item.calculated))}</td>
-                          <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
-                        </tr>
-                      \`).join("")}
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Sub-tab Content: Profile Tab Integrity -->
-                <div class="sub-tab-content" data-tab="tabs">
-                  <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Profile Tabs Integrity</h4>
-                  <table style="width:100%;">
-                    <thead>
-                      <tr><th>\${labels.tabHeader}</th><th>\${labels.selectedTabLabel}</th><th>\${labels.profileStat}</th><th>\${labels.visibleRows}</th><th>\${labels.statusText}</th></tr>
-                    </thead>
-                    <tbody>
-                      \${(player.tabChecks || []).map(item => \`
-                        <tr>
-                          <td><strong>\${escapeHtml(formatLabel(item.label))}\${isKo ? " 탭" : ""}</strong></td>
-                          <td><code>\${escapeHtml(item.selectedTab || "-")}</code></td>
-                          <td>\${escapeHtml(formatValue(item.label, item.expected))}</td>
-                          <td>\${escapeHtml(formatValue(item.label, item.actual))}</td>
-                          <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
-                        </tr>
-                      \`).join("")}
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Sub-tab Content: Events results list -->
-                <div class="sub-tab-content" data-tab="events">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
-                    <h4 style="margin:0; font-family:'Outfit',sans-serif;">Cashed Events Results Matching</h4>
-                    <div class="search-box" style="min-width:200px; flex:0 1 250px;">
-                      <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
-                      <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(player.name)}', this.value)">
-                    </div>
+                ${report.mode === 'standings-only' ? `
+                  <div style="padding: 25px 20px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.015); border-radius: 8px; border: 1px dashed var(--border); font-size: 13px; margin-top: 10px;">
+                    ${isKo 
+                      ? "⚡ <strong>Standings Only 수집</strong>: 이 선수는 순위 목록에서 수집되었으며, 상세 프로필 분석 및 Result 검증 단계를 거치지 않았습니다." 
+                      : "⚡ <strong>Standings Only Mode</strong>: This player was collected directly from the standings list. Detailed profile analysis and Results verification were skipped."}
+                  </div>
+                ` : report.mode === 'profile-only' ? `
+                  <div style="padding: 25px 20px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.015); border-radius: 8px; border: 1px dashed var(--border); font-size: 13px; margin-top: 10px;">
+                    ${isKo
+                      ? "<strong>Profile Only</strong>: 프로필 요약/탭/이벤트 수집까지만 수행했고 Result 상세 페이지 검증은 의도적으로 생략되었습니다."
+                      : "<strong>Profile Only Mode</strong>: Profile summary/tab/event checks were executed, and Result detail verification was intentionally skipped."}
+                  </div>
+                ` : `
+                  <!-- Tab Headers -->
+                  <div class="sub-tabs-container">
+                    <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(player.name)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
+                    <button class="sub-tab-btn" data-tab="tabs" onclick="switchSubTab('\${escapeHtml(player.name)}', 'tabs')">\${isKo ? "2. 프로필 탭 검증" : "2. Profile Tab Integrity"}</button>
+                    <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${report.mode === 'profile-only' ? (isKo ? "3. Result 검증(생략)" : "3. Result Verification (Skipped)") : (isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification")}</button>
+                    <div class="tab-active-bar"></div>
                   </div>
 
-                  <div class="table-container">
-                    <table>
+                  <!-- Sub-tab Content: Summary Metrics -->
+                  <div class="sub-tab-content" data-tab="summary">
+                    <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Summary Metrics Check</h4>
+                    <table style="width:100%;">
                       <thead>
-                        <tr>
-                          <th>\${labels.seriesEvent}</th>
-                          <th>\${labels.dateText}</th>
-                          <th>\${labels.rankText}</th>
-                          <th>\${labels.earningsText}</th>
-                          <th>\${labels.resultUrlText}</th>
-                          <th>\${labels.resultCheckText}</th>
-                          <th>\${labels.finalFindingText}</th>
-                        </tr>
+                        <tr><th>Stat</th><th>\${labels.profileStat}</th><th>\${labels.calculatedValue}</th><th>\${labels.statusText}</th></tr>
                       </thead>
-                      <tbody class="events-tbody">
-                        <!-- Filled dynamically -->
+                      <tbody>
+                        \${(player.comparisons || []).map(item => \`
+                          <tr>
+                            <td><strong>\${escapeHtml(formatLabel(item.label))}</strong></td>
+                            <td>\${escapeHtml(formatValue(item.label, item.top))}</td>
+                            <td>\${escapeHtml(formatValue(item.label, item.calculated))}</td>
+                            <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
+                          </tr>
+                        \`).join("")}
                       </tbody>
                     </table>
                   </div>
 
-                  <div class="pagination-bar">
-                    <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', -1)">◀ Prev</button>
-                    <span class="events-page-info">1 / 1 (0)</span>
-                    <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', 1)">Next ▶</button>
+                  <!-- Sub-tab Content: Profile Tab Integrity -->
+                  <div class="sub-tab-content" data-tab="tabs">
+                    <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Profile Tabs Integrity</h4>
+                    <table style="width:100%;">
+                      <thead>
+                        <tr><th>\${labels.tabHeader}</th><th>\${labels.selectedTabLabel}</th><th>\${labels.profileStat}</th><th>\${labels.visibleRows}</th><th>\${labels.statusText}</th></tr>
+                      </thead>
+                      <tbody>
+                        \${(player.tabChecks || []).map(item => \`
+                          <tr>
+                            <td><strong>\${escapeHtml(formatLabel(item.label))}\${isKo ? " 탭" : ""}</strong></td>
+                            <td><code>\${escapeHtml(item.selectedTab || "-")}</code></td>
+                            <td>\${escapeHtml(formatValue(item.label, item.expected))}</td>
+                            <td>\${escapeHtml(formatValue(item.label, item.actual))}</td>
+                            <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
+                          </tr>
+                        \`).join("")}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
+
+                  <!-- Sub-tab Content: Events results list -->
+                  <div class="sub-tab-content" data-tab="events">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                      <h4 style="margin:0; font-family:'Outfit',sans-serif;">Cashed Events Results Matching</h4>
+                      <div class="search-box" style="min-width:200px; flex:0 1 250px;">
+                        <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+                        <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(player.name)}', this.value)">
+                      </div>
+                    </div>
+
+                    <div class="table-container">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>\${labels.seriesEvent}</th>
+                            <th>\${labels.dateText}</th>
+                            <th>\${labels.rankText}</th>
+                            <th>\${labels.earningsText}</th>
+                            <th>\${labels.resultUrlText}</th>
+                            <th>\${labels.resultCheckText}</th>
+                            <th>\${labels.finalFindingText}</th>
+                          </tr>
+                        </thead>
+                        <tbody class="events-tbody">
+                          <!-- Filled dynamically -->
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div class="pagination-bar">
+                      <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', -1)">◀ Prev</button>
+                      <span class="events-page-info">1 / 1 (0)</span>
+                      <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(player.name)}', 1)">Next ▶</button>
+                    </div>
+                  </div>
+                `}
 
               </div>
             </div>
@@ -4445,7 +4734,7 @@ function writeCsv(filePath, rows) {
 
 // 모든 선수 크롤링이 끝나거나 실행이 중단된 뒤 최종 리포트 객체를 만든다.
 // 디버깅과 재개 판단을 위해 pending player 정보를 보존한다.
-function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null, mode = "crawler" }) {
+function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null, brandOptions = null, mode = "crawler" }) {
   const completedPlayers = [];
   const pendingPlayers = [];
 
@@ -4470,8 +4759,9 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
     startedAt,
     finishedAt,
     playersUrl,
-    standingsCategories: STANDINGS_CATEGORIES.map((category) => category.label),
     brandFilter,
+    brandOptions,
+    standingsCategories: STANDINGS_CATEGORIES.map((category) => category.label),
     totalPlayers: playerEntries.length,
     completedPlayers: completedPlayers.length,
     pendingPlayers,
@@ -4498,7 +4788,7 @@ function standingOnlyPlayerFromEntry(entry) {
   };
 }
 
-function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null }) {
+function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null, brandOptions = null }) {
   const players = playerEntries.map(standingOnlyPlayerFromEntry);
   const report = buildCrawlerReport({
     startedAt,
@@ -4507,7 +4797,8 @@ function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEnt
     playerEntries,
     players,
     runStatus: "complete",
-    brandFilter
+    brandFilter,
+    brandOptions
   });
 
   report.mode = "standings-only";
@@ -4550,179 +4841,19 @@ function getPastHtmlReports(htmlReportPath, isKo = false) {
   }
 }
 
-function playerKeyFromUrl(url) {
-  try {
-    const parsed = new URL(url);
-    const parts = parsed.pathname.split("/").filter(Boolean);
-    return parts[parts.length - 1] || "unknown";
-  } catch {
-    const parts = url.split("/").filter(Boolean);
-    return parts[parts.length - 1] || "unknown";
-  }
-}
-
 function writeReportArtifacts(args, report) {
-  // 1. 디렉토리 경로 계산
-  const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const artifactsBase = path.join(process.cwd(), "artifacts", "crawlers", "player-standings");
-  const latestDir = path.join(artifactsBase, "latest");
-  const dailyDir = path.join(artifactsBase, todayStr);
+  writeJson(args.out, report);
+  fs.mkdirSync(path.dirname(args.html), { recursive: true });
 
-  [latestDir, dailyDir].forEach(dir => {
-    fs.mkdirSync(dir, { recursive: true });
-  });
-
-  const finishedAt = report.finishedAt || new Date().toISOString();
-  const playersUrl = report.playersUrl || "https://www.wsop.com/player-standings/";
-
-  // 2. crawler-summary.json 가공
-  const summaryPayload = {
-    generatedAt: finishedAt,
-    generatedBy: "crawlers",
-    runStatus: report.runStatus || "complete",
-    totalPlayers: report.totalPlayers || 0,
-    completedPlayers: report.completedPlayers || 0,
-    source: playersUrl,
-    sourceOfTruth: false,
-    baseline: true
-  };
-
-  // 3. standings.snapshot.json 가공
-  const categoriesMap = new Map();
-  STANDINGS_CATEGORIES.forEach(cat => {
-    const key = cat.path || "all-player-stats";
-    categoriesMap.set(key, {
-      categoryKey: key,
-      categoryLabel: cat.label,
-      players: []
-    });
-  });
-
-  report.players.forEach(p => {
-    (p.standingsSources || []).forEach(src => {
-      const catDef = STANDINGS_CATEGORIES.find(c => c.label === src.category);
-      const key = catDef ? (catDef.path || "all-player-stats") : "unknown";
-      if (categoriesMap.has(key)) {
-        categoriesMap.get(key).players.push({
-          rank: src.rank,
-          displayName: p.name,
-          profileUrl: p.url,
-          earnings: p.summary?.totalEarnings ? `$${p.summary.totalEarnings.toLocaleString()}` : null
-        });
-      }
-    });
-  });
-
-  const standingsSnapshotPayload = {
-    metadata: {
-      generatedAt: finishedAt,
-      generatedBy: "crawlers",
-      source: playersUrl,
-      sourceOfTruth: false,
-      baseline: true
-    },
-    categories: Array.from(categoriesMap.values()).map(cat => {
-      cat.players.sort((a, b) => a.rank - b.rank);
-      return cat;
-    })
-  };
-
-  // 4. player-candidates.json 가공
-  const playerCandidatesPayload = {
-    metadata: {
-      generatedAt: finishedAt,
-      generatedBy: "crawlers",
-      source: playersUrl,
-      sourceOfTruth: false,
-      baseline: true
-    },
-    players: report.players.map(p => {
-      const pKey = playerKeyFromUrl(p.url);
-      return {
-        playerKey: pKey,
-        displayName: p.name,
-        profileUrl: p.url,
-        country: null,
-        bracelets: p.summary?.bracelets ?? null,
-        rings: p.summary?.rings ?? null,
-        finalTables: p.summary?.finalTables ?? null,
-        cashes: p.summary?.cashes ?? null,
-        totalEarnings: p.summary?.totalEarnings ? `$${p.summary.totalEarnings.toLocaleString()}` : null,
-        knownExceptionKey: null,
-        results: (p.events || []).map(ev => ({
-          eventNameContains: ev.eventName,
-          seriesContains: ev.eventName,
-          dateContains: ev.date,
-          rankContains: ev.rankText,
-          earnings: ev.earnings ? `$${ev.earnings.toLocaleString()}` : null,
-          resultUrlContains: ev.resultUrl
-        }))
-      };
-    })
-  };
-
-  // 5. identity-targets.json 가공
-  const identityTargetsPayload = {
-    metadata: {
-      generatedAt: finishedAt,
-      generatedBy: "crawlers",
-      source: playersUrl,
-      sourceOfTruth: false,
-      baseline: true
-    },
-    players: report.players.map(p => {
-      const pKey = playerKeyFromUrl(p.url);
-      return {
-        playerKey: pKey,
-        displayName: p.name,
-        profileUrl: p.url,
-        expectedProfileUrlContains: `/players/${pKey}/`,
-        aliases: [p.name]
-      };
-    })
-  };
-
-  // 6. 파일 쓰기 실행 (latest 및 daily)
-  const filesToWrite = [
-    { name: "crawler-summary.json", data: summaryPayload },
-    { name: "standings.snapshot.json", data: standingsSnapshotPayload },
-    { name: "player-candidates.json", data: playerCandidatesPayload },
-    { name: "identity-targets.json", data: identityTargetsPayload },
-    { name: "wsop-player-crawler-data.json", data: report }
-  ];
-
-  filesToWrite.forEach(f => {
-    writeJson(path.join(latestDir, f.name), f.data);
-    writeJson(path.join(dailyDir, f.name), f.data);
-  });
-
-  // HTML 리포트 및 Defects CSV 쓰기 (latest 및 daily)
   const pastEnglishReports = getPastHtmlReports(args.html, false);
   const pastKoreanReports = getPastHtmlReports(args.html, true);
 
-  const englishHtmlContent = renderHtml(report, pastEnglishReports);
-  const koreanHtmlContent = renderKoreanHtml(report, pastKoreanReports);
-  const csvContent = [
-    ["type", "player", "item", "expected", "actual", "url", "detail"],
-    ...flattenDefects(report).map(row => ["type", "player", "item", "expected", "actual", "url", "detail"].map(h => csvEscape(row[h])).join(","))
-  ].join("\n") + "\n";
-
-  fs.writeFileSync(path.join(latestDir, "crawler-report.html"), englishHtmlContent, "utf8");
-  fs.writeFileSync(path.join(latestDir, "crawler-report-ko.html"), koreanHtmlContent, "utf8");
-  fs.writeFileSync(path.join(latestDir, "crawler-defects.csv"), csvContent, "utf8");
-
-  fs.writeFileSync(path.join(dailyDir, "crawler-report.html"), englishHtmlContent, "utf8");
-  fs.writeFileSync(path.join(dailyDir, "crawler-report-ko.html"), koreanHtmlContent, "utf8");
-  fs.writeFileSync(path.join(dailyDir, "crawler-defects.csv"), csvContent, "utf8");
-
-  // 사용자 지정 경로에도 기존 아웃풋 그대로 씀 (호환성 유지)
-  writeJson(args.out, report);
-  fs.writeFileSync(args.html, englishHtmlContent, "utf8");
-  const legacyKoHtml = koreanHtmlPath(args.html);
-  fs.writeFileSync(legacyKoHtml, koreanHtmlContent, "utf8");
+  fs.writeFileSync(args.html, renderHtml(report, pastEnglishReports), "utf8");
+  const koreanHtml = koreanHtmlPath(args.html);
+  fs.writeFileSync(koreanHtml, renderKoreanHtml(report, pastKoreanReports), "utf8");
   writeCsv(args.defects, flattenDefects(report));
 
-  return legacyKoHtml;
+  return koreanHtml;
 }
 
 // 데이터 모델과 pagination edge case를 빠르게 확인하는 로컬 안전망.
@@ -4829,6 +4960,15 @@ function runSelfTest() {
   const vndFallbackRow = findResultRowInBodyText("Final Result No Player Country Earnings 7 Punnat Punsri Thailand ₫1,564,687,416", { name: "Punnat Punsri", standingsSources: [] }, 7, 1564687416);
   if (!vndFallbackRow || vndFallbackRow.no !== 7 || vndFallbackRow.earnings !== 1564687416) {
     throw new Error("Final result text fallback should read the Vietnamese Dong earnings or match it numeric-only");
+  }
+  const ranklessNearbyFallbackRow = findResultRowInBodyText(
+    "Final Result No Player Country Earnings Alpha Row Daniel Rezaei Austria $307 Beta Row Other Player Germany $1,000",
+    { name: "Daniel Rezaei", standingsSources: [] },
+    589,
+    254
+  );
+  if (ranklessNearbyFallbackRow) {
+    throw new Error("Final result text fallback should not invent a target rank when nearby text has no rank token");
   }
   const resultEarningsMismatchChecks = {
     hasFinalResultRows: true,
@@ -5126,21 +5266,30 @@ async function main() {
     }
   }
 
-  if (context) {
-    await context.addInitScript(() => {
-      // @ts-ignore
-      window.__name = (fn) => fn;
-    });
-  }
-
   try {
     const startedAt = new Date().toISOString();
     let playerEntries = args.playerUrls.map((url) => ({
       url,
       standingsSources: [{ category: "Manual player URL", rank: null, name: "", rowText: "", selected: false }]
     }));
+    let brandOptions = null;
     if (!playerEntries.length) {
       const listPage = await context.newPage();
+      try {
+        brandOptions = await collectBrandOptions(listPage, args.playersUrl, authWaitMs);
+        console.log(`  [크롤러] 브랜드 옵션 ${brandOptions.count}개 수집: ${brandOptions.options.join(", ") || "없음"}`);
+      } catch (error) {
+        brandOptions = {
+          collectedAt: new Date().toISOString(),
+          sourceUrl: args.playersUrl,
+          count: 0,
+          rawCount: 0,
+          options: [],
+          rawOptions: [],
+          error: error.message
+        };
+        console.warn(`  [경고] 브랜드 옵션 목록 수집 실패: ${error.message}`);
+      }
       playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs, args.brand);
       await listPage.close().catch(() => {});
     }
@@ -5153,7 +5302,8 @@ async function main() {
         finishedAt: new Date().toISOString(),
         playersUrl: args.playersUrl,
         playerEntries,
-        brandFilter: args.brand
+        brandFilter: args.brand,
+        brandOptions
       });
       const koreanHtml = writeReportArtifacts(args, report);
 
@@ -5183,6 +5333,7 @@ async function main() {
         runStatus,
         interruptedReason,
         brandFilter: args.brand,
+        brandOptions,
         mode: args.profileOnly ? "profile-only" : "crawler"
       });
       const koreanHtml = writeReportArtifacts(args, report);

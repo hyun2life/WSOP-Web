@@ -3,6 +3,98 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedPhase = null;
   let isRunning = false;
 
+  const defaultBrandOptions = [
+    'WSOP',
+    'GGPoker',
+    'WPT',
+    'PGT (Poker Go Tour)',
+    'Irish Poker Open',
+    'WSOP PARADISE',
+    'WSOP EUROPE',
+    'WSOP ASIA',
+    'WSOP ONLINE',
+    'WSOP CIRCUIT',
+    'GGMASTERS',
+    'GGMILLION$',
+    'GGMILLIONS',
+    'WPT PRIME',
+    'TRITON',
+    'PGT',
+    'Irish Poker Tour',
+  ];
+
+  const phaseCopy = {
+    phase1: {
+      nameKo: '공개 페이지 기본 점검',
+      shortSummaryKo: '주요 공개 페이지 로딩, 핵심 문구, 내비게이션, 콘솔 오류를 빠르게 확인합니다.',
+      descriptionKo: '배포 후 공개 페이지가 정상 접근되는지 확인하는 smoke 검증입니다.',
+      stepsKo: ['주요 공개 페이지 접근', '핵심 콘텐츠 확인', '내부 링크 샘플 확인', '콘솔 오류 수집', '리포트 생성'],
+      passCriteriaKo: ['주요 페이지가 정상 응답해야 합니다.', '핵심 UI와 문구가 렌더링되어야 합니다.', '치명적인 콘솔 오류가 없어야 합니다.'],
+    },
+    phase2: {
+      nameKo: '공개 기능 흐름 점검',
+      shortSummaryKo: 'Schedule, Search, Standings, News 등 사용자 흐름을 확인합니다.',
+      descriptionKo: '사용자가 공개 사이트에서 주요 정보를 탐색하는 흐름이 정상 동작하는지 검증합니다.',
+      stepsKo: ['Tournament Schedule 흐름 확인', 'Player Search 흐름 확인', 'Player Standings 확인', 'News 상세 진입 확인', '리포트 생성'],
+      passCriteriaKo: ['주요 링크와 상세 페이지 이동이 정상이어야 합니다.', '검색 결과 목록 UI가 깨지지 않아야 합니다.'],
+    },
+    phase3: {
+      nameKo: '플레이어 표현 및 프로필 UI',
+      shortSummaryKo: 'standings 대상 선수의 이름, 국기, 이미지, 프로필 링크, 특수 배지를 확인합니다.',
+      descriptionKo: 'DB/API 통합값보다 공개 화면의 선수 표현과 연결 상태를 검증합니다.',
+      stepsKo: ['standings-only 대상 수집', '선수 카드 표현 확인', '검색 프로필 연결 확인', 'HOF/POY 특수 프로필 확인', '리포트 생성'],
+      passCriteriaKo: ['선수 이름과 프로필 링크가 정상이어야 합니다.', '국기/이미지/배지가 깨지지 않아야 합니다.'],
+    },
+    phase4: {
+      nameKo: '검색 필터 및 정렬 회귀 점검',
+      shortSummaryKo: '검색어, 필터, 정렬, 페이지 이동 UI를 확인합니다.',
+      descriptionKo: 'Player Search와 Standings 목록에서 탐색 기능이 안정적으로 동작하는지 검증합니다.',
+      stepsKo: ['검색어 입력 확인', '결과 없음/특수 검색 확인', '카테고리 전환 확인', '정렬/더보기 확인', '리포트 생성'],
+      passCriteriaKo: ['검색 결과와 빈 상태가 정상 표시되어야 합니다.', '필터/정렬 조작 중 UI가 깨지지 않아야 합니다.'],
+    },
+    phase5: {
+      nameKo: 'Result 상세 무결성 점검',
+      shortSummaryKo: 'Result 상세 페이지 진입과 선수/순위/상금 표시를 확인합니다.',
+      descriptionKo: '프로필 이벤트와 Result 상세 페이지 간 기본 연결 상태를 검증합니다.',
+      stepsKo: ['프로필 이벤트 수집', 'Result 링크 진입', '최종 결과 표 확인', '불일치 후보 수집', '리포트 생성'],
+      passCriteriaKo: ['Result 상세 페이지 접근이 가능해야 합니다.', '선수/순위/상금 정보 확인이 가능해야 합니다.'],
+    },
+    phase6: {
+      nameKo: '데이터 API 정합성 점검',
+      shortSummaryKo: '공개 UI와 기준 데이터의 정합성을 확인합니다.',
+      descriptionKo: '수집 데이터와 fixture/API 기준값을 비교하는 정합성 검증입니다.',
+      stepsKo: ['기준 데이터 준비', '공개 UI 데이터 수집', '값 비교', '불일치 후보 정리', '리포트 생성'],
+      passCriteriaKo: ['필수 데이터가 누락되지 않아야 합니다.', '허용 범위를 벗어난 불일치는 리포트에 표시되어야 합니다.'],
+    },
+    phase7: {
+      nameKo: '성능 및 안정성 점검',
+      shortSummaryKo: '주요 흐름의 반복 실행 안정성과 지연을 확인합니다.',
+      descriptionKo: '반복 실행 중 flaky 현상과 주요 성능 지표를 점검합니다.',
+      stepsKo: ['주요 흐름 반복 실행', '지연 및 실패 수집', '경고 항목 정리', '리포트 생성'],
+      passCriteriaKo: ['반복 실행 중 필수 흐름이 안정적으로 완료되어야 합니다.'],
+    },
+    phase8: {
+      nameKo: '시각 회귀 점검',
+      shortSummaryKo: '스크린샷 기준으로 주요 화면 레이아웃 변화를 확인합니다.',
+      descriptionKo: 'baseline 대비 화면 깨짐이나 레이아웃 변화가 있는지 검증합니다.',
+      stepsKo: ['주요 화면 캡처', 'baseline 비교', '변경 영역 확인', '리포트 생성'],
+      passCriteriaKo: ['허용 범위를 벗어난 시각 차이가 없어야 합니다.'],
+    },
+    phase9: {
+      nameKo: '전체 회귀 검증',
+      shortSummaryKo: '릴리즈 전 주요 Phase를 묶어 최종 회귀 범위를 검증합니다.',
+      descriptionKo: '릴리즈 게이트 기준으로 필수 검증을 순차 실행합니다.',
+      stepsKo: ['회귀 suite 선택', '필수 Phase 실행', '경고/실패 집계', '릴리즈 게이트 결과 생성'],
+      passCriteriaKo: ['필수 검증이 통과해야 하며, 실패 사유가 리포트에 남아야 합니다.'],
+    },
+    crawler: {
+      nameKo: '플레이어 스탠딩 크롤러',
+      shortSummaryKo: 'Live/Stage standings 대상 선수를 수집하고 프로필 또는 Result 검증 리포트를 생성합니다.',
+      descriptionKo: '브랜드 필터, standings-only, profile-only, full 모드를 선택해 선수 데이터를 수집합니다.',
+      stepsKo: ['브랜드와 환경 선택', '실제 화면 브랜드 옵션 수집', 'standings 대상 수집', '선택 모드에 따라 프로필 또는 Result 검증', 'JSON/HTML/CSV 산출물 생성'],
+      passCriteriaKo: ['실제 화면의 브랜드 옵션 목록이 JSON에 저장되어야 합니다.', '지정한 조건의 대상 선수가 수집되어야 합니다.', '선택한 모드에 맞는 리포트가 생성되어야 합니다.'],
+    },
+  };
   const phaseListContainer = document.getElementById('phase-list-container');
   const detailId = document.getElementById('detail-id');
   const detailName = document.getElementById('detail-name');
@@ -18,6 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const customEnvUrl = document.getElementById('custom-env-url');
   const crawlerOptionsPanel = document.getElementById('crawler-options');
   const pwOptionsPanel = document.getElementById('pw-options');
+  const brandListContainer = document.getElementById('opt-brand-list-container');
+  const customBrandContainer = document.getElementById('custom-brand-container');
+  const customBrandInput = document.getElementById('custom-brand-input');
 
   const btnRun = document.getElementById('btn-run');
   const btnKill = document.getElementById('btn-kill');
@@ -55,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     retries: { chk: document.getElementById('opt-retries-check'), input: document.getElementById('opt-retries-input'), arg: 'retries' },
   };
 
+  renderBrandOptions(defaultBrandOptions, { sourceLabel: '기본 브랜드 목록' });
   setupCheckboxToggles(crawlerOpts);
   setupCheckboxToggles(pwOpts);
 
@@ -62,23 +158,29 @@ document.addEventListener('DOMContentLoaded', () => {
     customEnvUrlContainer.classList.toggle('hidden', envSelect.value !== 'Custom');
   });
 
-  const customBrandChk = document.getElementById('opt-brand-custom-chk');
-  const customBrandContainer = document.getElementById('custom-brand-container');
-  const customBrandInput = document.getElementById('custom-brand-input');
-
-  if (customBrandChk && customBrandContainer) {
-    customBrandChk.addEventListener('change', () => {
-      const brandChk = document.getElementById('opt-brand-check');
-      const showCustom = brandChk.checked && customBrandChk.checked;
-      customBrandContainer.classList.toggle('hidden', !showCustom);
-      if (customBrandInput) {
-        customBrandInput.disabled = !showCustom;
-      }
-    });
-  }
-
   initSse();
   loadPhases();
+  loadBrandOptions();
+
+  function withReadablePhaseCopy(phase) {
+    const copy = phaseCopy[phase.id];
+    return copy ? { ...phase, ...copy } : phase;
+  }
+
+  function createAllPhase() {
+    return {
+      id: 'all',
+      name: 'All Implemented Phases',
+      nameKo: '전체 실행',
+      reportSuite: 'all',
+      testDir: 'All active test directories',
+      implemented: true,
+      shortSummaryKo: '구현 완료된 Phase를 순서대로 실행합니다.',
+      descriptionKo: '현재 ready 상태의 모든 구현 Phase를 순차 실행합니다. 전체 점검이 필요할 때 사용합니다.',
+      stepsKo: ['ready Phase 목록 확인', 'Phase 1 Smoke 실행', 'Phase 2 Functional 실행', 'Phase 3 Player Presentation 실행', '각 Phase 리포트 확인'],
+      passCriteriaKo: ['구현 완료된 Phase가 순서대로 실행되어야 합니다.', '각 Phase 결과가 리포트에 남아야 합니다.'],
+    };
+  }
 
   function loadPhases() {
     fetch('/api/phases')
@@ -87,13 +189,91 @@ document.addEventListener('DOMContentLoaded', () => {
         return res.json();
       })
       .then((data) => {
-        phases = data.phases || [];
+        phases = (data.phases || []).map(withReadablePhaseCopy);
         renderPhaseCards();
         checkRunningStatus();
       })
       .catch((err) => {
         appendSystemLog(`Phase 설정을 불러오지 못했습니다: ${err.message}`, 'text-error');
       });
+  }
+
+  function loadBrandOptions() {
+    fetch('/api/brand-options')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load brand options');
+        return res.json();
+      })
+      .then((data) => {
+        const options = Array.isArray(data.options) && data.options.length ? data.options : defaultBrandOptions;
+        renderBrandOptions(options, data);
+      })
+      .catch((err) => {
+        appendSystemLog(`브랜드 옵션 목록을 불러오지 못했습니다. 기본 목록을 사용합니다: ${err.message}`, 'text-muted');
+        renderBrandOptions(defaultBrandOptions, { sourceLabel: '기본 브랜드 목록' });
+      });
+  }
+
+  function renderBrandOptions(options, meta = {}) {
+    if (!brandListContainer) return;
+
+    const selected = new Set(Array.from(document.querySelectorAll('input[name="opt-brand"]:checked')).map((input) => input.value));
+    const brandEnabled = Boolean(crawlerOpts.brand?.chk?.checked);
+    const uniqueOptions = uniqueLabels(options).filter((brand) => brand.toLowerCase() !== 'custom');
+    const sourceLabel = meta.sourceLabel || (meta.source === 'latest-crawler-json' ? '최근 크롤러 JSON' : '기본 브랜드 목록');
+
+    brandListContainer.innerHTML = [
+      `<div class="brand-options-meta" style="grid-column: 1 / -1; color: var(--text-muted); font-size: 0.75rem; padding-bottom: 4px;">브랜드 옵션: ${escapeHtml(`${uniqueOptions.length}개`)} · ${escapeHtml(sourceLabel)}</div>`,
+      ...uniqueOptions.map((brand) => `
+        <div class="brand-checkbox-item">
+          <label class="custom-checkbox">
+            <input type="checkbox" name="opt-brand" value="${escapeHtml(brand)}" ${brandEnabled ? '' : 'disabled'} ${selected.has(brand) ? 'checked' : ''}>
+            <span class="checkmark"></span>${escapeHtml(brand)}
+          </label>
+        </div>
+      `),
+      `<div class="brand-checkbox-item">
+        <label class="custom-checkbox">
+          <input type="checkbox" name="opt-brand" value="Custom" id="opt-brand-custom-chk" ${brandEnabled ? '' : 'disabled'} ${selected.has('Custom') ? 'checked' : ''}>
+          <span class="checkmark"></span>Custom...
+        </label>
+      </div>`,
+    ].join('');
+
+    bindCustomBrandToggle();
+    syncBrandControls();
+  }
+
+  function uniqueLabels(values) {
+    const seen = new Set();
+    const result = [];
+    (values || []).forEach((value) => {
+      const label = String(value || '').replace(/\s+/g, ' ').trim();
+      if (!label) return;
+      const key = label.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(label);
+    });
+    return result;
+  }
+
+  function bindCustomBrandToggle() {
+    const customBrandChk = document.getElementById('opt-brand-custom-chk');
+    if (!customBrandChk || !customBrandContainer) return;
+    customBrandChk.addEventListener('change', syncBrandControls);
+  }
+
+  function syncBrandControls() {
+    const brandEnabled = Boolean(crawlerOpts.brand?.chk?.checked);
+    document.querySelectorAll('input[name="opt-brand"]').forEach((chk) => {
+      chk.disabled = !brandEnabled;
+    });
+
+    const customBrandChk = document.getElementById('opt-brand-custom-chk');
+    const showCustom = brandEnabled && Boolean(customBrandChk?.checked);
+    if (customBrandContainer) customBrandContainer.classList.toggle('hidden', !showCustom);
+    if (customBrandInput) customBrandInput.disabled = !showCustom;
   }
 
   function setupAccordion(toggleEl, contentEl, defaultCollapsed = false) {
@@ -106,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
       contentEl.classList.toggle('collapsed', collapsed);
       if (icon) {
         icon.classList.toggle('collapsed', collapsed);
-        icon.textContent = '▾';
+        icon.textContent = collapsed ? '▸' : '▾';
       }
       if (text) text.textContent = collapsed ? '펼치기' : '접기';
     };
@@ -138,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     plannedSubHeader.innerHTML = `
       <span>준비 중인 Phase</span>
       <button class="accordion-toggle" id="planned-toggle" type="button">
-        <span class="accordion-icon collapsed">▾</span>
+        <span class="accordion-icon collapsed">▸</span>
         <span class="toggle-text">펼치기</span>
       </button>
     `;
@@ -152,23 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const crawlerList = createListContainer();
     crawlerContent.appendChild(crawlerList);
 
-    const allPhase = {
-      id: 'all',
-      name: 'All Implemented Phases',
-      nameKo: '준비 완료 Phase 전체 실행',
-      reportSuite: 'all',
-      testDir: 'All active test directories',
-      implemented: true,
-      shortSummaryKo: 'ready 상태의 모든 Phase를 순차적으로 실행합니다.',
-      descriptionKo: '현재 구현되어 ready 상태인 모든 Playwright Phase를 순차적으로 실행합니다. 전체 점검이 필요할 때 사용합니다.',
-      stepsKo: [
-        'ready 상태의 Phase 목록 확인',
-        'Phase 1 Smoke 실행',
-        'Phase 2 Functional Flow 실행',
-        'Phase 3 Player Presentation 실행',
-        '각 Phase별 리포트 생성 확인',
-      ],
-    };
+    const allPhase = createAllPhase();
     appendPhaseCard(allPhase, allContent);
 
     phases.forEach((phase) => {
@@ -263,19 +427,16 @@ document.addEventListener('DOMContentLoaded', () => {
     crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3');
     pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'all');
 
-    // Phase 3는 무조건 standings-only가 필요하므로 UI를 강제 설정하고 비활성화합니다.
     const soChk = document.getElementById('opt-standingsonly-check');
     const poChk = document.getElementById('opt-profileonly-check');
     if (soChk) {
       if (phase.id === 'phase3') {
-        // Preserve user choice and temporarily force standings-only for phase3
         if (!soChk.disabled) {
           soChk.dataset.prevChecked = soChk.checked ? 'true' : 'false';
         }
         soChk.checked = true;
         soChk.disabled = true;
       } else {
-        // Restore previous user choice when leaving phase3
         if (soChk.disabled && soChk.dataset.prevChecked) {
           soChk.checked = soChk.dataset.prevChecked === 'true';
         }
@@ -319,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!steps.length) {
       const item = document.createElement('li');
-      item.textContent = '아직 세부 검증 스텝이 등록되지 않았습니다.';
+      item.textContent = '아직 검증 스텝이 등록되지 않았습니다.';
       detailSteps.appendChild(item);
       return;
     }
@@ -336,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!criteria.length) {
       const item = document.createElement('li');
-      item.textContent = '합격 검수 기준 정보가 등록되지 않았습니다.';
+      item.textContent = '합격 기준이 등록되지 않았습니다.';
       detailCriteria.appendChild(item);
       return;
     }
@@ -350,21 +511,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setupCheckboxToggles(optGroup) {
     Object.values(optGroup).forEach((item) => {
+      if (!item.chk) return;
       item.chk.addEventListener('change', () => {
         if (item.arg === 'brand') {
-          const brandChks = document.querySelectorAll('input[name="opt-brand"]');
-          brandChks.forEach((chk) => {
-            chk.disabled = !item.chk.checked;
-          });
-          const customChk = document.getElementById('opt-brand-custom-chk');
-          const customInput = document.getElementById('custom-brand-input');
-          const customContainer = document.getElementById('custom-brand-container');
-          if (customInput && customContainer && customChk) {
-            const showCustomInput = item.chk.checked && customChk.checked;
-            customInput.disabled = !showCustomInput;
-            customContainer.classList.toggle('hidden', !showCustomInput);
-          }
-        } else {
+          syncBrandControls();
+        } else if (item.input) {
           item.input.disabled = !item.chk.checked;
         }
       });
@@ -417,30 +568,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (data.isRunning && data.phaseId) {
           updateExecutionStatus('running');
-
-          const allPhase = {
-            id: 'all',
-            name: 'All Implemented Phases',
-            nameKo: '준비 완료 Phase 전체 실행',
-            reportSuite: 'all',
-            testDir: 'All active test directories',
-            implemented: true,
-            shortSummaryKo: 'ready 상태의 모든 Phase를 순차적으로 실행합니다.',
-            descriptionKo: '현재 구현되어 ready 상태인 모든 Playwright Phase를 순차적으로 실행합니다. 전체 점검이 필요할 때 사용합니다.',
-            stepsKo: [
-              'ready 상태의 Phase 목록 확인',
-              'Phase 1 Smoke 실행',
-              'Phase 2 Functional Flow 실행',
-              'Phase 3 Player Presentation 실행',
-              '각 Phase별 리포트 생성 확인',
-            ],
-          };
-
-          const phaseToSelect = data.phaseId === 'all' ? allPhase : phases.find(p => p.id === data.phaseId);
+          const phaseToSelect = data.phaseId === 'all' ? createAllPhase() : phases.find((p) => p.id === data.phaseId);
           if (phaseToSelect) {
             selectPhase(phaseToSelect);
           }
-          appendSystemLog(`[SYSTEM] 이전 테스트(${data.phaseId})가 백그라운드에서 여전히 실행 중입니다.`, 'text-system');
+          appendSystemLog(`이전 테스트(${data.phaseId})가 백그라운드에서 여전히 실행 중입니다.`, 'text-system');
         }
       })
       .catch((err) => {
@@ -460,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const badge = card.querySelector('.phase-badge');
     if (badge) {
       badge.classList.remove('ready', 'planned', 'running', 'success', 'failed', 'warning');
-      
+
       let badgeClass = status;
       let badgeText = '준비됨';
 
@@ -469,7 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeText = '준비됨';
       } else if (status === 'running') {
         badgeClass = 'running';
-        badgeText = '진행중';
+        badgeText = '진행 중';
       } else if (status === 'success') {
         badgeClass = 'success';
         badgeText = '통과';
@@ -478,7 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeText = '실패';
       } else if (status === 'warning') {
         badgeClass = 'warning';
-        badgeText = 'Warning';
+        badgeText = '주의';
       } else if (status === 'planned') {
         badgeClass = 'planned';
         badgeText = '예정';
@@ -555,10 +687,9 @@ document.addEventListener('DOMContentLoaded', () => {
   btnRun.addEventListener('click', () => {
     if (!selectedPhase || isRunning) return;
 
-    // Reset all implemented phase cards to ready status
-    phases.forEach(p => {
-      if (p.implemented) {
-        updatePhaseCardStatus(p.id, 'ready');
+    phases.forEach((phase) => {
+      if (phase.implemented) {
+        updatePhaseCardStatus(phase.id, 'ready');
       }
     });
     updatePhaseCardStatus('crawler', 'ready');
@@ -577,39 +708,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3') {
       Object.values(crawlerOpts).forEach((opt) => {
-        if (opt.chk.checked) {
-          if (selectedPhase.id === 'phase3' && opt.arg === 'profile-only') {
-            return;
-          }
-          let val = '';
-          if (opt.arg === 'brand') {
-            const selectedBrands = [];
-            const brandChks = document.querySelectorAll('input[name="opt-brand"]:checked');
-            brandChks.forEach((chk) => {
-              if (chk.value === 'Custom') {
-                const customInput = document.getElementById('custom-brand-input');
-                if (customInput && customInput.value.trim()) {
-                  selectedBrands.push(customInput.value.trim());
-                }
-              } else {
-                selectedBrands.push(chk.value);
+        if (!opt.chk || !opt.chk.checked) return;
+        if (selectedPhase.id === 'phase3' && opt.arg === 'profile-only') return;
+
+        if (opt.arg === 'brand') {
+          const selectedBrands = [];
+          const brandChks = document.querySelectorAll('input[name="opt-brand"]:checked');
+          brandChks.forEach((chk) => {
+            if (chk.value === 'Custom') {
+              const customInput = document.getElementById('custom-brand-input');
+              if (customInput && customInput.value.trim()) {
+                selectedBrands.push(customInput.value.trim());
               }
-            });
-            val = selectedBrands.join(',');
-          } else {
-            val = opt.input.value.trim();
-          }
-          if (opt.arg === 'standings-only') {
-            customArgs[opt.arg] = true;
-          } else {
-            customArgs[opt.arg] = val;
-          }
+            } else {
+              selectedBrands.push(chk.value);
+            }
+          });
+          customArgs[opt.arg] = selectedBrands.join(',');
+        } else if (opt.arg === 'standings-only' || opt.arg === 'profile-only') {
+          customArgs[opt.arg] = true;
+        } else if (opt.input) {
+          customArgs[opt.arg] = opt.input.value.trim();
         }
       });
     }
+
     if (selectedPhase.id !== 'crawler' && selectedPhase.id !== 'all') {
       Object.values(pwOpts).forEach((opt) => {
-        if (opt.chk.checked) customArgs[opt.arg] = opt.input.value.trim();
+        if (opt.chk && opt.chk.checked && opt.input) customArgs[opt.arg] = opt.input.value.trim();
       });
     }
 
@@ -649,13 +775,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const reports = Array.isArray(data.reports) ? data.reports : [];
 
       if (reports.length === 0) {
-        appendSystemLog(`No ${reportMode} reports found for ${suite}.`, 'text-error');
+        appendSystemLog(`${suite}에 대한 ${reportMode} 리포트를 찾지 못했습니다.`, 'text-error');
         return;
       }
 
       showReportPicker({ suite, mode: reportMode, reports });
     } catch (err) {
-      appendSystemLog(`Report list request failed: ${err.message}`, 'text-error');
+      appendSystemLog(`리포트 목록 요청 실패: ${err.message}`, 'text-error');
     }
   }
 
@@ -678,7 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function showReportPicker({ suite, mode, reports }) {
     if (!reportPickerModal || !reportPickerSelect) {
       openReport(suite, mode, reports[0].path).catch((err) => {
-        appendSystemLog(`Report open failed: ${err.message}`, 'text-error');
+        appendSystemLog(`리포트 열기 실패: ${err.message}`, 'text-error');
       });
       return;
     }
@@ -696,7 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const modeLabel = mode === 'ko' ? 'KO' : mode === 'en' ? 'EN' : 'PW';
     if (reportPickerSubtitle) {
-      reportPickerSubtitle.textContent = `${suite} / ${modeLabel} report list (${reports.length})`;
+      reportPickerSubtitle.textContent = `${suite} / ${modeLabel} 리포트 목록 (${reports.length})`;
     }
 
     reportPickerModal.classList.remove('hidden');
@@ -746,18 +872,19 @@ document.addEventListener('DOMContentLoaded', () => {
         await openReport(pendingReportSelection.suite, pendingReportSelection.mode, selectedPath);
         closeReportPicker();
       } catch (err) {
-        appendSystemLog(`Report open failed: ${err.message}`, 'text-error');
+        appendSystemLog(`리포트 열기 실패: ${err.message}`, 'text-error');
       }
     });
   }
+
   btnClearLog.addEventListener('click', () => {
     consoleOutput.innerHTML = '';
-    appendSystemLog('Console 화면을 비웠습니다.', 'text-muted');
+    appendSystemLog('콘솔 화면을 비웠습니다.', 'text-muted');
   });
 
   btnCopyLog.addEventListener('click', () => {
     navigator.clipboard.writeText(consoleOutput.innerText)
-      .then(() => appendSystemLog('Console 로그를 클립보드에 복사했습니다.', 'text-muted'))
+      .then(() => appendSystemLog('콘솔 로그를 클립보드에 복사했습니다.', 'text-muted'))
       .catch((err) => console.error('Copy failed:', err));
   });
 
@@ -804,4 +931,3 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#39;');
   }
 });
-

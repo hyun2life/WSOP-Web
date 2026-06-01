@@ -9,6 +9,25 @@ const AUTO_LAUNCH = process.env.AUTO_LAUNCH !== 'false';
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const PHASES_JSON_PATH = path.join(PROJECT_ROOT, 'automation', 'phases.json');
 const WEB_UI_DIR = path.join(PROJECT_ROOT, 'automation', 'web-ui');
+const DEFAULT_BRAND_OPTIONS = [
+  'WSOP',
+  'GGPoker',
+  'WPT',
+  'PGT (Poker Go Tour)',
+  'Irish Poker Open',
+  'WSOP PARADISE',
+  'WSOP EUROPE',
+  'WSOP ASIA',
+  'WSOP ONLINE',
+  'WSOP CIRCUIT',
+  'GGMASTERS',
+  'GGMILLION$',
+  'GGMILLIONS',
+  'WPT PRIME',
+  'TRITON',
+  'PGT',
+  'Irish Poker Tour',
+];
 
 let activeProcess = null;
 let activePhaseId = null;
@@ -98,6 +117,13 @@ const server = http.createServer((req, res) => {
     const data = fs.readFileSync(PHASES_JSON_PATH, 'utf8');
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(data);
+    return;
+  }
+
+  if (method === 'GET' && url === '/api/brand-options') {
+    const payload = getLatestBrandOptionsPayload();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(payload));
     return;
   }
 
@@ -626,6 +652,107 @@ function findLatestMatchingFile(dirPath, pattern) {
     .sort((a, b) => b.mtime - a.mtime);
 
   return candidates.length > 0 ? candidates[0].path : null;
+}
+
+function getLatestBrandOptionsPayload() {
+  const latest = findLatestCrawlerDataWithBrandOptions();
+  if (latest) {
+    return latest;
+  }
+
+  return {
+    source: 'default',
+    sourceLabel: '기본 브랜드 목록',
+    count: DEFAULT_BRAND_OPTIONS.length,
+    rawCount: DEFAULT_BRAND_OPTIONS.length,
+    options: DEFAULT_BRAND_OPTIONS,
+    rawOptions: DEFAULT_BRAND_OPTIONS,
+    updatedAt: null,
+    reportPath: null,
+  };
+}
+
+function findLatestCrawlerDataWithBrandOptions() {
+  const dirs = [
+    path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output'),
+    path.join(PROJECT_ROOT, 'automation', 'output'),
+  ];
+
+  const candidates = [];
+  const dataPattern = /(?:crawler|standings).*-(?:data|report)\.json$/i;
+
+  dirs.forEach((dir) => {
+    if (!fs.existsSync(dir)) return;
+    fs.readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && dataPattern.test(entry.name))
+      .forEach((entry) => {
+        const fullPath = path.join(dir, entry.name);
+        candidates.push({
+          path: fullPath,
+          mtime: fs.statSync(fullPath).mtimeMs,
+        });
+      });
+  });
+
+  candidates.sort((a, b) => b.mtime - a.mtime);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(candidate.path, 'utf8'));
+      const normalized = normalizeBrandOptionsPayload(parsed.brandOptions);
+      if (!normalized.options.length) continue;
+
+      return {
+        source: 'latest-crawler-json',
+        sourceLabel: '최근 크롤러 JSON',
+        count: normalized.options.length,
+        rawCount: normalized.rawOptions.length,
+        options: normalized.options,
+        rawOptions: normalized.rawOptions,
+        collectedAt: parsed.brandOptions?.collectedAt || null,
+        sourceUrl: parsed.brandOptions?.sourceUrl || parsed.playersUrl || null,
+        sourceCategory: parsed.brandOptions?.sourceCategory || null,
+        updatedAt: new Date(candidate.mtime).toISOString(),
+        reportPath: candidate.path,
+      };
+    } catch {
+      // Ignore stale or unrelated JSON files.
+    }
+  }
+
+  return null;
+}
+
+function normalizeBrandOptionsPayload(value) {
+  const rawOptions = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.rawOptions)
+      ? value.rawOptions
+      : Array.isArray(value?.options)
+        ? value.options
+        : [];
+  const options = Array.isArray(value?.options) ? value.options : rawOptions;
+
+  return {
+    rawOptions: uniqueLabels(rawOptions),
+    options: uniqueLabels(options),
+  };
+}
+
+function uniqueLabels(values) {
+  const seen = new Set();
+  const result = [];
+
+  (values || []).forEach((value) => {
+    const label = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(label);
+  });
+
+  return result;
 }
 
 server.listen(PORT, HOST, () => {
