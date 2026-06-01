@@ -70,6 +70,10 @@ function stripAnsi(str) {
   return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
 }
 
+function isTruthyArg(value) {
+  return value === true || String(value || '').toLowerCase() === 'true';
+}
+
 // Broadcaster to all connected SSE clients
 function sendToSse(type, payload) {
   const message = `data: ${JSON.stringify({ type, ...payload })}\n\n`;
@@ -160,6 +164,12 @@ const server = http.createServer((req, res) => {
         if (!phaseId) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Missing phaseId' }));
+          return;
+        }
+
+        if (customArgs && isTruthyArg(customArgs['standings-only']) && isTruthyArg(customArgs['profile-only'])) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'standings-only and profile-only cannot be selected together. Choose exactly one crawler mode.' }));
           return;
         }
 

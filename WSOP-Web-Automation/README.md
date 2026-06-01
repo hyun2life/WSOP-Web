@@ -632,3 +632,10 @@ RUN_BRAND_COMPARE_LATEST.bat "LIVE_DATA_JSON" "STAGE_DATA_JSON"
 - 해당 이벤트의 `resultPage.status`는 `warn`으로 저장됩니다.
 - 리포트의 검토/경고 목록에는 남기지만 `Result search incomplete` 또는 `Result page mismatch` 결함으로 집계하지 않습니다.
 - 이 케이스는 Stage/Live 서버가 Result 상세 페이지를 정상 응답한 뒤 재실행해서 검증해야 합니다.
+
+## Crawler mode selection note
+
+- `standings-only` and `profile-only` are mutually exclusive crawler modes.
+- `standings-only` collects standings target URLs only and skips player profile/result validation.
+- `profile-only` collects standings targets, then validates profile summary/tabs/events while skipping Result detail pages.
+- When Brand Filter is enabled with `profile-only`, the crawler reviews the first-page target set from the three brand-filtered standings categories: `All-Time Earnings - Men`, `All-Time Earnings - Women`, and `All Player Stats`.

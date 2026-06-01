@@ -153,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderBrandOptions(defaultBrandOptions, { sourceLabel: '기본 브랜드 목록' });
   setupCheckboxToggles(crawlerOpts);
   setupCheckboxToggles(pwOpts);
+  setupExclusiveCrawlerModes();
 
   envSelect.addEventListener('change', () => {
     customEnvUrlContainer.classList.toggle('hidden', envSelect.value !== 'Custom');
@@ -519,6 +520,20 @@ document.addEventListener('DOMContentLoaded', () => {
           item.input.disabled = !item.chk.checked;
         }
       });
+    });
+  }
+
+  function setupExclusiveCrawlerModes() {
+    const standingsOnly = crawlerOpts.standingsOnly?.chk;
+    const profileOnly = crawlerOpts.profileOnly?.chk;
+    if (!standingsOnly || !profileOnly) return;
+
+    standingsOnly.addEventListener('change', () => {
+      if (standingsOnly.checked) profileOnly.checked = false;
+    });
+
+    profileOnly.addEventListener('change', () => {
+      if (profileOnly.checked) standingsOnly.checked = false;
     });
   }
 

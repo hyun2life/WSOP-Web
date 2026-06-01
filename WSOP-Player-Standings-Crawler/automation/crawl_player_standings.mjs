@@ -5733,6 +5733,9 @@ async function main() {
     return;
   }
   args.disabledResultMode = normalizeDisabledResultMode(args.disabledResultMode);
+  if (args.standingsOnly && args.profileOnly) {
+    throw new Error("--standings-only and --profile-only cannot be combined. Choose standings-only for target collection or profile-only for profile validation.");
+  }
   if (args.resultOnly) {
     if (!args.fromReport) {
       throw new Error("--from-report is required when --result-only is used.");

@@ -594,3 +594,11 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 - The filter is populated from each player's `standingsSources[].brand` values.
 - It applies to the defect inspector, warning/skipped inspector, and player detail cards together.
 - Profile-only reports use the same filter so profile validation results can be reviewed brand by brand.
+
+## Crawler mode exclusivity
+
+`--standings-only` and `--profile-only` are mutually exclusive.
+
+- Use `--standings-only` when only standings target collection is needed.
+- Use `--profile-only` when standings targets should be collected and player profile summary/tab/event checks should run, but Result detail pages should be skipped.
+- With `--brand`, profile-only collection is intended to review the first-page target set from the brand-filtered categories: `All-Time Earnings - Men`, `All-Time Earnings - Women`, and `All Player Stats`.
