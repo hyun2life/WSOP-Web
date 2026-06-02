@@ -1096,6 +1096,68 @@ function compareSummary(summary, calculated, badgeCounts = null) {
   });
 }
 
+function standingsMetricDef(category) {
+  if (/all-time earnings/i.test(category || "")) {
+    return { key: "totalEarnings", label: "Total Earnings", type: "money" };
+  }
+  if (/all-time bracelets/i.test(category || "")) {
+    return { key: "bracelets", label: "Bracelets", type: "number" };
+  }
+  if (/all-time rings/i.test(category || "")) {
+    return { key: "rings", label: "Rings", type: "number" };
+  }
+  return null;
+}
+
+function parseStandingMetricValue(category, rowText) {
+  const metric = standingsMetricDef(category);
+  if (!metric) return null;
+
+  const text = normalizeText(rowText);
+  if (metric.type === "money") return parseMoneyFromText(text);
+
+  const withoutLeadingRank = text.replace(/^\s*\d{1,6}\s+/, "");
+  const matches = Array.from(withoutLeadingRank.matchAll(/\d[\d,]*/g));
+  if (!matches.length) return null;
+  return Number(matches[matches.length - 1][0].replace(/,/g, ""));
+}
+
+function buildStandingMetricSource(category, rowText) {
+  const metric = standingsMetricDef(category);
+  if (!metric) return {};
+  return {
+    metricKey: metric.key,
+    metricLabel: metric.label,
+    metricValue: parseStandingMetricValue(category, rowText)
+  };
+}
+
+function compareStandingsSourcesToSummary(standingsSources = [], summary = {}) {
+  return (standingsSources || [])
+    .map((source) => {
+      if (!source?.metricKey) return null;
+      const profileValue = summary?.[source.metricKey];
+      const standingValue = source.metricValue;
+      const comparable = Number.isFinite(profileValue) && Number.isFinite(standingValue);
+      return {
+        category: source.category,
+        brand: source.brand || "All",
+        rank: source.rank,
+        label: source.metricLabel,
+        metricKey: source.metricKey,
+        profileValue,
+        standingValue,
+        sourceUrl: source.sourceUrl,
+        rowText: source.rowText,
+        status: comparable ? (profileValue === standingValue ? "pass" : "fail") : "warn",
+        detail: comparable
+          ? `${source.category}: standings ${source.metricLabel}=${formatValue(source.metricLabel, standingValue)}, profile ${source.metricLabel}=${formatValue(source.metricLabel, profileValue)}`
+          : `${source.category}: standings/profile ${source.metricLabel} value was not comparable`
+      };
+    })
+    .filter(Boolean);
+}
+
 function formatValue(label, value) {
   if (value === null || value === undefined || value === "") return "-";
   if (/earning/i.test(label)) return `$${Number(value).toLocaleString("en-US")}`;
@@ -1105,8 +1167,8 @@ function formatValue(label, value) {
 function formatLabel(label) {
   return {
     Title: "Title",
-    Bracelets: "Bracelets",
-    Rings: "Rings",
+    Bracelets: "Bracelets Badge",
+    Rings: "Rings Badge",
     "Final Tables": "Final Tables",
     Cashes: "Cashes",
     "Total Earnings": "Total Earnings"
@@ -1167,6 +1229,20 @@ function buildDefects(player) {
     });
   }
 
+  for (const standingCheck of player.standingsChecks || []) {
+    if (standingCheck.status !== "fail") continue;
+    defects.push({
+      brand: standingCheck.brand || playerBrands,
+      type: "Standings/profile summary mismatch",
+      player: player.name,
+      item: `${standingCheck.category} ${standingCheck.label}`,
+      expected: formatValue(standingCheck.label, standingCheck.standingValue),
+      actual: formatValue(standingCheck.label, standingCheck.profileValue),
+      url: player.url,
+      detail: `${standingCheck.detail}. rank=${standingCheck.rank ?? "-"}, source=${standingCheck.sourceUrl || "-"}, row=${standingCheck.rowText || ""}`
+    });
+  }
+
   for (const event of player.events || []) {
     const result = event.resultPage;
     if (!result) continue;
@@ -1207,7 +1283,7 @@ function playerStatus(player) {
   if (player?.error) return "fail";
   const defects = player?.defects?.length ? player.defects : buildDefects(player || {});
   if (defects.length) return "fail";
-  if ((player?.warnings || []).length || hasWarningStatus(player?.comparisons) || hasWarningStatus(player?.tabChecks) || (player?.events || []).some((event) => event.resultPage?.status === "warn")) {
+  if ((player?.warnings || []).length || hasWarningStatus(player?.comparisons) || hasWarningStatus(player?.tabChecks) || hasWarningStatus(player?.standingsChecks) || (player?.events || []).some((event) => event.resultPage?.status === "warn")) {
     return "warn";
   }
   return "pass";
@@ -1729,7 +1805,8 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
           name: row.name,
           rowText: row.rowText,
           sourceUrl: page.url(),
-          brand: currentBrand || "All"
+          brand: currentBrand || "All",
+          ...buildStandingMetricSource(category.label, row.rowText)
         });
       }
     }
@@ -3571,12 +3648,17 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       tabEventsByKey,
       calculated,
       comparisons: [],
+      standingsChecks: [],
       warnings,
       defects: [],
       status: "fail"
     };
 
     player.comparisons = compareSummary(player.summaryForComparison || player.summary, player.calculated, player.badgeCounts);
+    player.standingsChecks = compareStandingsSourcesToSummary(player.standingsSources, player.summary);
+    for (const standingCheck of player.standingsChecks) {
+      if (standingCheck.status === "warn") warnings.push(standingCheck.detail);
+    }
     for (const event of unavailableResultEvents) {
       // 비활성 Result 컨트롤도 프로필 요약 계산에는 포함한다.
       // Result 결함으로 볼지는 disabledResultMode 설정에 따른다.
@@ -3662,6 +3744,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       events: [],
       calculated: {},
       comparisons: [],
+      standingsChecks: [],
       warnings,
       defects: [],
       status: "fail",
@@ -3920,6 +4003,8 @@ function formatKoreanResultFinding(event) {
 function formatKoreanDefectType(type) {
   return {
     "Profile summary mismatch": "프로필 요약 불일치",
+    "Profile badge count mismatch": "프로필 뱃지 개수 불일치",
+    "Standings/profile summary mismatch": "스탠딩/프로필 요약 불일치",
     "Profile tab count mismatch": "프로필 탭 개수 불일치",
     "Result page mismatch": "Result 페이지 불일치",
     "Result page unavailable": "Result 페이지 일시 접근 불가",
@@ -4002,6 +4087,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     backToSimple: isKo ? "기존 단순 리포트 보기" : "View Simple Report",
     searchEventsPlaceholder: isKo ? "이벤트명 검색..." : "Search events...",
     rulesData: isKo ? [
+      ["Standings/Profile", "All-Time Earnings - Men/Women의 Earnings, All-Time Bracelets의 Bracelets, All-Time Rings의 Rings를 프로필 요약값과 비교합니다."],
       ["Standings 카테고리", `${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}에서 상위 선수를 수집합니다.`],
       ["Title", "ALL 탭 이벤트 중 Rank가 1인 row를 계산합니다."],
       ["Bracelets Badge", "뱃지의 표시 개수를 프로필 상단 Bracelets 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
@@ -4013,6 +4099,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       ["Result", "Result 페이지를 열어 최종 결과표에서 No, 선수명, 상금이 모두 정확히 맞는지 확인합니다."]
     ] : [
       ["Standings categories", `Collect top players from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
+      ["Standings/Profile", "Compare All-Time Earnings - Men/Women Earnings, All-Time Bracelets Bracelets, and All-Time Rings Rings against the profile summary values."],
       ["Title", "Count ALL-tab events where Rank is 1."],
       ["Bracelets Badge", "Compare the displayed count with the profile Bracelets value, and report mismatches as defect candidates."],
       ["Rings Badge", "Compare the displayed count with the profile Rings value, and report mismatches as defect candidates."],
@@ -4531,6 +4618,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       return {
         "Profile summary mismatch": "프로필 요약 불일치",
         "Profile badge count mismatch": "프로필 뱃지 개수 불일치",
+        "Standings/profile summary mismatch": "스탠딩/프로필 요약 불일치",
         "Profile tab count mismatch": "프로필 탭 개수 불일치",
         "Result page mismatch": "Result 페이지 불일치",
         "Result page unavailable": "Result 페이지 일시 접근 불가",
@@ -5804,6 +5892,24 @@ function runSelfTest() {
   const earningsComparison = compareSummary({ totalEarnings: 100 }, { totalEarnings: 200 }).find((item) => item.key === "totalEarnings");
   if (earningsComparison?.status !== "warn" || buildDefects({ name: "Sample", url: "https://example.test/player", comparisons: [earningsComparison] }).length) {
     throw new Error("Total Earnings mismatch should warn without creating a failure defect");
+  }
+  const standingsEarningsSource = buildStandingMetricSource("All-Time Earnings - Men", "1 Alex Kulev Bulgaria $12,361,923");
+  if (standingsEarningsSource.metricValue !== 12361923 || standingsEarningsSource.metricKey !== "totalEarnings") {
+    throw new Error("All-Time Earnings standings row should extract Total Earnings");
+  }
+  const standingsBraceletsSource = {
+    category: "All-Time Bracelets",
+    rank: 1,
+    name: "Phil Hellmuth",
+    rowText: "1 Phil Hellmuth United States 17",
+    brand: "WSOP",
+    sourceUrl: "https://example.test/standings",
+    ...buildStandingMetricSource("All-Time Bracelets", "1 Phil Hellmuth United States 17")
+  };
+  const standingsChecks = compareStandingsSourcesToSummary([standingsBraceletsSource], { bracelets: 16 });
+  const standingsDefect = buildDefects({ name: "Phil Hellmuth", url: "https://example.test/player", standingsSources: [standingsBraceletsSource], standingsChecks, comparisons: [], tabChecks: [], events: [] })[0];
+  if (standingsChecks[0]?.status !== "fail" || standingsDefect?.type !== "Standings/profile summary mismatch") {
+    throw new Error("Standings/profile metric mismatches should create a failure defect");
   }
   const warningOnlyPlayer = { name: "Warn Sample", url: "https://example.test/warn", comparisons: [earningsComparison], tabChecks: [], events: [], defects: [] };
   warningOnlyPlayer.status = playerStatus(warningOnlyPlayer);
