@@ -584,6 +584,34 @@ async function resultPageUnavailableWarning(page, event, statusCode = null) {
   };
 }
 
+async function profilePageUnavailableWarningPlayer(page, url, standingsSources = [], statusCode = null) {
+  const title = await page.title().catch(() => "");
+  const bodyText = normalizeText(await page.locator("body").innerText({ timeout: 10000 }).catch(() => ""));
+  if (!isTransientResultPageFailure(bodyText, title, statusCode)) return null;
+  const statusLabel = Number.isFinite(Number(statusCode)) ? `HTTP ${statusCode}` : "server unavailable";
+  const warning = `Profile page temporarily unavailable (${statusLabel}). Retrying later is required before summary consistency checks.`;
+  return {
+    name: playerNameFromUrl(url) || url,
+    url,
+    standingsSources,
+    summary: {},
+    events: [],
+    calculated: {},
+    comparisons: [],
+    tabChecks: [],
+    tabEventsByKey: {},
+    warnings: [warning],
+    defects: [],
+    status: "warn",
+    profilePage: {
+      status: "warn",
+      title,
+      error: warning,
+      extractedTextSample: bodyText.slice(0, 1000)
+    }
+  };
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -674,7 +702,7 @@ function classifyAward(textValue) {
   const text = textValue.toLowerCase();
   if (/national championship/i.test(text)) return "bracelet";
   if (/(wsopc|wsop-c|wsop circuit|\bring\b|\bcircuit\b)/i.test(text)) return "ring";
-  if (/\b(bracelet|wsop\d*|world series of poker|online bracelet)\b/i.test(text)) return "bracelet";
+  if (/\b(bracelet|online bracelet)\b|wsop|world series of poker/i.test(text)) return "bracelet";
   return "other";
 }
 
@@ -3292,8 +3320,10 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
   const page = await context.newPage();
   const warnings = [];
   try {
+    let profilePageStatusCode = null;
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+      profilePageStatusCode = response?.status?.() ?? null;
     } catch (gotoError) {
       const hasContainer = await page.locator("body").count().catch(() => 0);
       if (hasContainer > 0) {
@@ -3304,6 +3334,10 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     }
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
     await waitForAccessLogin(page, authWaitMs);
+    const profileUnavailable = await profilePageUnavailableWarningPlayer(page, url, standingsSources, profilePageStatusCode);
+    if (profileUnavailable) {
+      return profileUnavailable;
+    }
 
     // Cashes 또는 Earnings 통계 텍스트가 렌더링될 때까지 명시적 대기
     await page.waitForFunction(() => {
@@ -3408,7 +3442,6 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
           event.resultSkipped = event.resultSkipped || "Skipped (profile-only mode)";
         }
       }
-      warnings.push("Profile-only mode enabled: Result detail page checks were skipped.");
       player.defects = buildDefects(player);
       player.status = playerStatus(player);
       return player;

@@ -651,7 +651,7 @@ function classifyAward(textValue) {
   const text = textValue.toLowerCase();
   if (/national championship/i.test(text)) return "bracelet";
   if (/(wsopc|wsop-c|wsop circuit|\bring\b|\bcircuit\b)/i.test(text)) return "ring";
-  if (/\b(bracelet|wsop\d*|world series of poker|online bracelet)\b/i.test(text)) return "bracelet";
+  if (/\b(bracelet|online bracelet)\b|wsop|world series of poker/i.test(text)) return "bracelet";
   return "other";
 }
 
@@ -3321,7 +3321,6 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
           event.resultSkipped = event.resultSkipped || "Skipped (profile-only mode)";
         }
       }
-      warnings.push("Profile-only mode enabled: Result detail page checks were skipped.");
       player.defects = buildDefects(player);
       player.status = playerStatus(player);
       return player;
