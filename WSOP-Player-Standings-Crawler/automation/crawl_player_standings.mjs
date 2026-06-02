@@ -3660,6 +3660,7 @@ function flattenReviewNotes(report) {
         });
       }
       if (!event.resultSkipped) continue;
+      if (/profile-only|standings-only/i.test(event.resultSkipped)) continue;
       if (!/(result|ranklimit|resultlimit|비활|결과|검증)/i.test(event.resultSkipped)) continue;
       notes.push({
         brand: playerBrands,
@@ -4613,7 +4614,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             });
           }
           if (ev.resultSkipped && /(result|ranklimit|resultlimit|비활|결과|검증)/i.test(ev.resultSkipped)) {
-            warningsList.push({ type: "Result skipped", player: p.name, item: ev.eventName, url: ev.resultUrl || ev.disabledResultUrl || p.url, detail: ev.resultSkipped });
+            if (!/profile-only|standings-only/i.test(ev.resultSkipped)) {
+              warningsList.push({ type: "Result skipped", player: p.name, item: ev.eventName, url: ev.resultUrl || ev.disabledResultUrl || p.url, detail: ev.resultSkipped });
+            }
           }
         });
       });
