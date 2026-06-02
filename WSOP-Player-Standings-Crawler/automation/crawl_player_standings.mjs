@@ -1239,7 +1239,7 @@ function buildDefects(player) {
       expected: formatValue(standingCheck.label, standingCheck.standingValue),
       actual: formatValue(standingCheck.label, standingCheck.profileValue),
       url: player.url,
-      detail: `${standingCheck.detail}. rank=${standingCheck.rank ?? "-"}, source=${standingCheck.sourceUrl || "-"}, row=${standingCheck.rowText || ""}`
+      detail: `${standingCheck.detail}. source=${standingCheck.sourceUrl || "-"}, row=${standingCheck.rowText || ""}`
     });
   }
 
