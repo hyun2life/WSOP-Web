@@ -1159,6 +1159,11 @@ async function clickControlWithFallback(control, timeout = 5000) {
     if (!canFallback) throw error;
   }
 
+  // Playwright force click fallback
+  const forceClickSuccess = await control.click({ force: true, timeout: 3000 }).then(() => true).catch(() => false);
+  if (forceClickSuccess) return true;
+
+  // DOM evaluate click fallback
   return await control.evaluate((element) => {
     element.scrollIntoView({ block: "center", inline: "center" });
     if (typeof element.click === "function") {
@@ -2027,7 +2032,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 
   while (expansion.loadMoreClicks < maxLoadMore) {
     const uniqueCount = deduplicateComparisonEvents(events).uniqueEvents.length;
-    if (expected && uniqueCount >= (expected + 5)) {
+    if (expected && uniqueCount >= expected) {
       expansion.reachedExpectedCashes = true;
       expansion.stoppedReason = "expected-cashes-reached";
       break;
@@ -2100,7 +2105,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   };
   let stalledClicks = 0;
 
-  while (expected && deduplicateComparisonEvents(events).uniqueEvents.length < (expected + 5) && expansion.loadMoreClicks < maxLoadMore) {
+  while (expected && deduplicateComparisonEvents(events).uniqueEvents.length < expected && expansion.loadMoreClicks < maxLoadMore) {
     const loadMore = await waitForVisibleLoadMoreControl(page);
     if (!loadMore) {
       if (expected && events.length < expected && stalledClicks < 3) {
@@ -3354,6 +3359,26 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     }
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
     await waitForAccessLogin(page, authWaitMs);
+
+    // 가림막 요소(쿠키 배너, 오버레이 등)를 강제로 제거하여 클릭이 막히는 것을 방지
+    await page.evaluate(() => {
+      const selectors = [
+        '#onetrust-consent-sdk',
+        '.cookie-banner',
+        '.cookie-consent',
+        '.cookie-notice',
+        '[id*="cookie" i]',
+        '[class*="cookie" i]',
+        '.sol-cookie-banner',
+        '#hs-eu-cookie-confirmation'
+      ];
+      for (const s of selectors) {
+        try {
+          const elements = document.querySelectorAll(s);
+          elements.forEach(el => el.remove());
+        } catch {}
+      }
+    }).catch(() => {});
     const profileUnavailable = await profilePageUnavailableWarningPlayer(page, url, standingsSources, profilePageStatusCode);
     if (profileUnavailable) {
       return profileUnavailable;
