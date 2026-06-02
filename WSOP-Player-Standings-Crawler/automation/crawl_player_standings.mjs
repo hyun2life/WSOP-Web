@@ -2057,10 +2057,20 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
     if (events.length <= beforeCount) {
       stalledClicks += 1;
       if (stalledClicks >= 3) {
+        await page.waitForTimeout(3000);
+        const finalVisible = await extractEventRows(page);
+        const finalMerge = mergeVisibleEventRows(events, finalVisible);
+        if (finalMerge.events.length > events.length) {
+          events = finalMerge.events;
+          visibleEvents = finalVisible;
+          stalledClicks = 0;
+          await page.waitForTimeout(500);
+          continue;
+        }
         expansion.stoppedReason = "row-count-did-not-increase";
         break;
       }
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
       continue;
     }
 
@@ -2115,10 +2125,20 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
     if (events.length <= beforeCount) {
       stalledClicks += 1;
       if (stalledClicks >= 3) {
+        await page.waitForTimeout(3000);
+        const finalVisible = await extractEventRows(page);
+        const finalMerge = mergeVisibleEventRows(events, finalVisible);
+        if (finalMerge.events.length > events.length) {
+          events = finalMerge.events;
+          visibleEvents = finalVisible;
+          stalledClicks = 0;
+          await page.waitForTimeout(500);
+          continue;
+        }
         expansion.stoppedReason = "row-count-did-not-increase";
         break;
       }
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
       continue;
     }
 
