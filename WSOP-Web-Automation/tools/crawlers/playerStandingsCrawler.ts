@@ -798,6 +798,46 @@ function normalizeEvent(row) {
   };
 }
 
+function eventCollectionKey(event) {
+  const comparisonKey = eventComparisonKey(event);
+  const resultKey = normalizeComparable(event?.resultUrl || event?.disabledResultUrl || "");
+  const rowKey = normalizeComparable(event?.rowText || "");
+  return [comparisonKey, resultKey || rowKey].filter(Boolean).join("|");
+}
+
+function mergeVisibleEventRows(collectedEvents = [], visibleEvents = []) {
+  const merged = [...collectedEvents];
+  const byKey = new Map();
+  for (const event of merged) {
+    const key = eventCollectionKey(event);
+    if (key) byKey.set(key, event);
+  }
+
+  let added = 0;
+  for (const event of visibleEvents || []) {
+    const key = eventCollectionKey(event);
+    const existing = key ? byKey.get(key) : null;
+    if (existing) {
+      existing.resultUrl = existing.resultUrl || event.resultUrl;
+      existing.disabledResultUrl = existing.disabledResultUrl || event.disabledResultUrl;
+      existing.hasResultControl = existing.hasResultControl || event.hasResultControl;
+      existing.resultUnavailable = existing.resultUnavailable || event.resultUnavailable;
+      existing.resultUnavailableReason = existing.resultUnavailableReason || event.resultUnavailableReason;
+      continue;
+    }
+
+    merged.push(event);
+    if (key) byKey.set(key, event);
+    added += 1;
+  }
+
+  return { events: merged, added };
+}
+
+function eventRowsSignature(events = []) {
+  return events.map(eventCollectionKey).join("||");
+}
+
 function calculateFromEvents(events) {
   const winningEvents = events.filter((event) => event.rank === 1);
   return {
@@ -2145,6 +2185,38 @@ async function waitForEventRowsToIncrease(page, beforeCount, timeoutMs = 15000) 
   return latestEvents;
 }
 
+// Load more can append rows or replace the visible window.
+// Keep a cumulative event list and accept either count growth or visible-row changes.
+async function waitForEventRowsUpdate(page, collectedEvents, beforeVisibleEvents = [], timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  const beforeSignature = eventRowsSignature(beforeVisibleEvents);
+  let latestVisibleEvents = await extractEventRows(page);
+  let latestMerge = mergeVisibleEventRows(collectedEvents, latestVisibleEvents);
+
+  while (Date.now() < deadline) {
+    const latestSignature = eventRowsSignature(latestVisibleEvents);
+    if (latestMerge.added > 0 || (beforeSignature && latestSignature && latestSignature !== beforeSignature)) {
+      return {
+        events: latestMerge.events,
+        visibleEvents: latestVisibleEvents,
+        added: latestMerge.added,
+        changed: latestSignature !== beforeSignature
+      };
+    }
+    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {});
+    await page.waitForTimeout(700);
+    latestVisibleEvents = await extractEventRows(page);
+    latestMerge = mergeVisibleEventRows(collectedEvents, latestVisibleEvents);
+  }
+
+  return {
+    events: latestMerge.events,
+    visibleEvents: latestVisibleEvents,
+    added: latestMerge.added,
+    changed: eventRowsSignature(latestVisibleEvents) !== beforeSignature
+  };
+}
+
 // ALL 탭을 프로필 Cashes 수까지 펼친다.
 // ALL 탭은 요약 계산과 Result 페이지 검증에 쓰는 기본 이벤트 목록이다.
 async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
@@ -2157,7 +2229,8 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
     stoppedReason: "not-started"
   };
 
-  let events = await extractEventRows(page);
+  let visibleEvents = await extractEventRows(page);
+  let events = visibleEvents;
   const expected = Number.isFinite(expectedCashes) && expectedCashes > 0 ? expectedCashes : null;
   let stalledClicks = 0;
 
@@ -2182,10 +2255,13 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
     }
 
     const beforeCount = events.length;
+    const beforeVisibleEvents = visibleEvents;
     await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
     await clickControlWithFallback(loadMore, 10000);
     expansion.loadMoreClicks += 1;
-    events = await waitForEventRowsToIncrease(page, beforeCount);
+    const update = await waitForEventRowsUpdate(page, events, beforeVisibleEvents);
+    events = update.events;
+    visibleEvents = update.visibleEvents;
 
     if (events.length <= beforeCount) {
       stalledClicks += 1;
@@ -2195,6 +2271,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
         const finalMerge = mergeVisibleEventRows(events, finalVisible);
         if (finalMerge.events.length > events.length) {
           events = finalMerge.events;
+          visibleEvents = finalVisible;
           stalledClicks = 0;
           await page.waitForTimeout(500);
           continue;
@@ -2222,7 +2299,8 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 // 단일 지표 탭을 펼친 뒤 ALL과 같은 규칙으로 해당 지표를 계산한다.
 // Title/Final Tables는 프로필 요약 비교의 우선 비교값으로도 사용한다.
 async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
-  let events = await extractEventRows(page);
+  let visibleEvents = await extractEventRows(page);
+  let events = visibleEvents;
   const expected = Number.isFinite(expectedRows) && expectedRows > 0 ? expectedRows : null;
   const expansion = {
     loadMoreClicks: 0,
@@ -2245,10 +2323,13 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
     }
 
     const beforeCount = events.length;
+    const beforeVisibleEvents = visibleEvents;
     await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
     await clickControlWithFallback(loadMore, 10000);
     expansion.loadMoreClicks += 1;
-    events = await waitForEventRowsToIncrease(page, beforeCount);
+    const update = await waitForEventRowsUpdate(page, events, beforeVisibleEvents);
+    events = update.events;
+    visibleEvents = update.visibleEvents;
 
     if (events.length <= beforeCount) {
       stalledClicks += 1;
@@ -2258,6 +2339,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
         const finalMerge = mergeVisibleEventRows(events, finalVisible);
         if (finalMerge.events.length > events.length) {
           events = finalMerge.events;
+          visibleEvents = finalVisible;
           stalledClicks = 0;
           await page.waitForTimeout(500);
           continue;
@@ -3535,7 +3617,8 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     // Summary는 ALL 탭 수집값으로, 각 탭은 자기 탭 수집값으로 독립 계산한다.
 
     // ALL 탭 기반 지표별 계산 수량과 개별 지표 탭 수집 수량 교차 정합성 검증 (Cross-Tab Validation)
-    if (tabEventsByKey && Object.keys(tabEventsByKey).length > 0) {
+    const allCollectionIncomplete = Boolean(summary.cashes && events.length < summary.cashes && expansion?.expectedCashes && !expansion?.reachedExpectedCashes);
+    if (!allCollectionIncomplete && tabEventsByKey && Object.keys(tabEventsByKey).length > 0) {
       const keys = ["titles", "finalTables"];
       for (const key of keys) {
         const tabEvents = tabEventsByKey[key] || [];
@@ -3555,7 +3638,8 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
 
     if (!events.length) warnings.push("수집된 이벤트 행이 존재하지 않습니다.");
     if (summary.cashes && events.length < summary.cashes) {
-      warnings.push(`프로필 입상 수(Cashes)는 ${summary.cashes}개이나, 수집된 ALL 탭 행은 ${events.length}개입니다. (중단 사유: ${expansion.stoppedReason})`);
+      const missingRows = summary.cashes - events.length;
+      warnings.push(`프로필 요약 Cashes는 ${summary.cashes}개이나, ALL 탭에 렌더링/수집된 row는 ${events.length}개입니다. (${missingRows}개 부족, 중단 사유: ${expansion.stoppedReason}) 프로필 요약값을 기준으로 보고, ALL 탭 목록 수집 미완료로 분류합니다.`);
     }
     for (const tabCheck of tabChecks) {
       if (tabCheck.status === "warn") warnings.push(tabCheck.detail);
@@ -5633,6 +5717,18 @@ function runSelfTest() {
   const distinctSamePrizeEvents = deduplicateComparisonEvents([sameDateRankPrizeA, sameDateRankPrizeB]);
   if (distinctSamePrizeEvents.uniqueEvents.length !== 2 || distinctSamePrizeEvents.duplicateEvents.length !== 0) {
     throw new Error("Distinct events with the same date, rank, and earnings should not be deduplicated");
+  }
+  const firstVisibleWindow = [
+    normalizeEvent({ rowIndex: 1, text: "Window A #1 $100 Result", cells: ["Window A", "#1", "$100"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/window-a", hasResultControl: true }),
+    normalizeEvent({ rowIndex: 2, text: "Window B #2 $200 Result", cells: ["Window B", "#2", "$200"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/window-b", hasResultControl: true })
+  ];
+  const secondVisibleWindow = [
+    normalizeEvent({ rowIndex: 1, text: "Window C #3 $300 Result", cells: ["Window C", "#3", "$300"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/window-c", hasResultControl: true }),
+    normalizeEvent({ rowIndex: 2, text: "Window D #4 $400 Result", cells: ["Window D", "#4", "$400"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/window-d", hasResultControl: true })
+  ];
+  const windowMerge = mergeVisibleEventRows(firstVisibleWindow, secondVisibleWindow);
+  if (windowMerge.events.length !== 4 || windowMerge.added !== 2) {
+    throw new Error("Visible event windows should be accumulated when Load More replaces rows");
   }
   const earningsComparison = compareSummary({ totalEarnings: 100 }, { totalEarnings: 200 }).find((item) => item.key === "totalEarnings");
   if (earningsComparison?.status !== "warn" || buildDefects({ name: "Sample", url: "https://example.test/player", comparisons: [earningsComparison] }).length) {

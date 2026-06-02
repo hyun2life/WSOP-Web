@@ -3658,7 +3658,8 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     // Summary는 ALL 탭 수집값으로, 각 탭은 자기 탭 수집값으로 독립 계산한다.
 
     // ALL 탭 기반 지표별 계산 수량과 개별 지표 탭 수집 수량 교차 정합성 검증 (Cross-Tab Validation)
-    if (tabEventsByKey && Object.keys(tabEventsByKey).length > 0) {
+    const allCollectionIncomplete = Boolean(summary.cashes && events.length < summary.cashes && expansion?.expectedCashes && !expansion?.reachedExpectedCashes);
+    if (!allCollectionIncomplete && tabEventsByKey && Object.keys(tabEventsByKey).length > 0) {
       const keys = ["titles", "finalTables"];
       for (const key of keys) {
         const tabEvents = tabEventsByKey[key] || [];
@@ -3678,7 +3679,8 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
 
     if (!events.length) warnings.push("수집된 이벤트 행이 존재하지 않습니다.");
     if (summary.cashes && events.length < summary.cashes) {
-      warnings.push(`프로필 입상 수(Cashes)는 ${summary.cashes}개이나, 수집된 ALL 탭 행은 ${events.length}개입니다. (중단 사유: ${expansion.stoppedReason})`);
+      const missingRows = summary.cashes - events.length;
+      warnings.push(`프로필 요약 Cashes는 ${summary.cashes}개이나, ALL 탭에 렌더링/수집된 row는 ${events.length}개입니다. (${missingRows}개 부족, 중단 사유: ${expansion.stoppedReason}) 프로필 요약값을 기준으로 보고, ALL 탭 목록 수집 미완료로 분류합니다.`);
     }
     for (const tabCheck of tabChecks) {
       if (tabCheck.status === "warn") warnings.push(tabCheck.detail);
