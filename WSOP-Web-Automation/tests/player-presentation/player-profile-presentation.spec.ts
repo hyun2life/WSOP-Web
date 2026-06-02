@@ -2,6 +2,7 @@ import { test } from '@playwright/test';
 
 import {
   checkAvatarOrPlayerImage,
+  checkProfileBadgeSummaryConsistency,
   checkCountryOrFlagVisible,
   expectProfilePageLoaded,
   loadPlayerPresentationFixture,
@@ -31,6 +32,10 @@ test.describe('Phase 3 - player profile presentation', () => {
         player,
         testName: `profile-avatar-${player.displayName}`,
         knownException,
+      });
+      await checkProfileBadgeSummaryConsistency(page, {
+        player,
+        testName: `profile-badge-summary-${player.displayName}`,
       });
     });
   }

@@ -51,6 +51,11 @@ const PROFILE_TAB_CHECKS = [
   { key: "finalTables", label: "Final Tables", summaryKey: "finalTables", tabLabels: ["FINAL TABLES", "FINAL TABLE"] }
 ];
 
+const PROFILE_BADGE_DEFS = [
+  { key: "bracelets", label: "Bracelets", fileName: "badge_WSOPBracelet.webp", altPattern: /wsop\s+bracelet/i },
+  { key: "rings", label: "Rings", fileName: "badge_WSOPRing.webp", altPattern: /wsop\s+ring/i }
+];
+
 const DEFAULT_STANDINGS_LIMIT = 50;
 const DEFAULT_CONCURRENCY = 5;
 const MAX_CONCURRENCY = 10;
@@ -698,6 +703,84 @@ function parseSummary(bodyText) {
   return summary;
 }
 
+async function extractProfileBadgeCounts(page) {
+  const emptyCounts = PROFILE_BADGE_DEFS.reduce((counts, badgeDef) => {
+    counts[badgeDef.key] = 0;
+    return counts;
+  }, {});
+
+  try {
+    return await page.evaluate((badgeDefs) => {
+      const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
+      const parseCount = (value) => {
+        const match = normalize(value).match(/\d[\d,]*/);
+        return match ? Number(match[0].replace(/,/g, "")) : null;
+      };
+      const parseCountFromElement = (element) => element ? parseCount(element.textContent) : null;
+      const isVisibleElement = (element) => {
+        const style = window.getComputedStyle(element);
+        if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || Number(style.opacity) === 0) return false;
+        return Array.from(element.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
+      };
+      const readBadgeCount = (img) => {
+        const container = img.closest("li") || img.parentElement;
+        const candidates = [
+          container?.querySelector?.(".count"),
+          img.nextElementSibling,
+          img.previousElementSibling,
+          container,
+          img.parentElement?.nextElementSibling,
+          img.parentElement?.previousElementSibling,
+          img.parentElement?.parentElement
+        ];
+        for (const candidate of candidates) {
+          const count = parseCountFromElement(candidate);
+          if (count !== null) return count;
+        }
+        return 1;
+      };
+      const counts = {};
+      const details = {};
+      for (const badgeDef of badgeDefs) {
+        counts[badgeDef.key] = 0;
+        details[badgeDef.key] = [];
+      }
+
+      for (const img of Array.from(document.querySelectorAll("img"))) {
+        if (!isVisibleElement(img)) continue;
+        const sourceText = normalize([
+          img.getAttribute("src"),
+          img.getAttribute("srcset"),
+          img.getAttribute("alt"),
+          img.currentSrc
+        ].filter(Boolean).join(" "));
+        const badgeDef = badgeDefs.find((def) => sourceText.includes(def.fileName) || new RegExp(def.altPatternSource, "i").test(sourceText));
+        if (!badgeDef) continue;
+
+        const count = readBadgeCount(img);
+        counts[badgeDef.key] += count;
+        details[badgeDef.key].push({
+          count,
+          alt: img.getAttribute("alt") || "",
+          src: img.getAttribute("src") || img.currentSrc || ""
+        });
+      }
+
+      return { ...counts, details };
+    }, PROFILE_BADGE_DEFS.map((badgeDef) => ({
+      key: badgeDef.key,
+      fileName: badgeDef.fileName,
+      altPatternSource: badgeDef.altPattern.source
+    })));
+  } catch (error) {
+    return {
+      ...emptyCounts,
+      details: {},
+      error: error.message
+    };
+  }
+}
+
 function classifyAward(textValue) {
   const text = textValue.toLowerCase();
   if (/national championship/i.test(text)) return "bracelet";
@@ -976,17 +1059,38 @@ function pickClosestCountVariant(variants, preferredName = "raw") {
   return sorted[0] || variants[0];
 }
 
-function compareSummary(summary, calculated) {
+function compareSummary(summary, calculated, badgeCounts = null) {
   return STAT_DEFS.map((stat) => {
     const top = summary[stat.key];
     const calculatedValue = calculated[stat.key];
     const comparable = top !== null && top !== undefined && calculatedValue !== null && calculatedValue !== undefined;
+
+    if (stat.key === "bracelets" || stat.key === "rings") {
+      const badgeValue = badgeCounts?.[stat.key];
+      const hasBadgeValue = Number.isFinite(badgeValue);
+      const comparisonValue = hasBadgeValue ? badgeValue : calculatedValue;
+      const comparableBadgeValue = top !== null && top !== undefined && comparisonValue !== null && comparisonValue !== undefined;
+      const exactBadgeMatch = comparableBadgeValue && top === comparisonValue;
+      return {
+        key: stat.key,
+        label: stat.label,
+        top,
+        calculated: comparisonValue,
+        allCalculated: calculatedValue,
+        source: hasBadgeValue ? "profile-badge" : "all-tab-fallback",
+        sourceLabel: hasBadgeValue ? "Profile Badge Count" : "Calculated From ALL Tab (fallback)",
+        status: exactBadgeMatch ? "pass" : "fail"
+      };
+    }
+
     const exactMatch = comparable && top === calculatedValue;
     return {
       key: stat.key,
       label: stat.label,
       top,
       calculated: calculatedValue,
+      source: "all-tab",
+      sourceLabel: "Calculated From ALL Tab",
       status: exactMatch ? "pass" : stat.type === "money" ? "warn" : "fail"
     };
   });
@@ -1025,15 +1129,21 @@ function buildDefects(player) {
 
   for (const comparison of player.comparisons || []) {
     if (comparison.status !== "fail") continue;
+    const isBadgeComparison = comparison.source === "profile-badge";
     const detailParts = [
-      `${comparison.label}: top=${formatValue(comparison.label, comparison.top)}, calculated=${formatValue(comparison.label, comparison.calculated)}`
+      isBadgeComparison
+        ? `${comparison.label}: profile=${formatValue(comparison.label, comparison.top)}, badge=${formatValue(comparison.label, comparison.calculated)}`
+        : `${comparison.label}: top=${formatValue(comparison.label, comparison.top)}, calculated=${formatValue(comparison.label, comparison.calculated)}`
     ];
+    if (isBadgeComparison && Number.isFinite(comparison.allCalculated)) {
+      detailParts.push(`ALL tab calculated=${formatValue(comparison.label, comparison.allCalculated)}`);
+    }
     if (player.expansion?.expectedCashes && !player.expansion?.reachedExpectedCashes) {
       detailParts.push(`ALL tab collection incomplete: rows=${player.expansion.finalEventCount ?? (player.events || []).length}, expectedCashes=${player.expansion.expectedCashes}, loadMoreClicks=${player.expansion.loadMoreClicks ?? 0}, stopped=${player.expansion.stoppedReason || "-"}`);
     }
     defects.push({
       brand: playerBrands,
-      type: "Profile summary mismatch",
+      type: isBadgeComparison ? "Profile badge count mismatch" : "Profile summary mismatch",
       player: player.name,
       item: comparison.label,
       expected: formatValue(comparison.label, comparison.top),
@@ -1119,7 +1229,7 @@ async function waitForAccessLogin(page, authWaitMs) {
     null,
     { timeout: authWaitMs }
   );
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle").catch(() => { });
 }
 
 // 설정된 standings 카테고리에서 선수 URL을 수집한다. 같은 선수가 여러
@@ -1140,8 +1250,8 @@ async function clickExactTextControl(page, label) {
     const text = normalizeText(await control.innerText({ timeout: 1000 }).catch(() => ""));
     if (!exactPattern.test(text)) continue;
     if (!(await control.isVisible().catch(() => false))) continue;
-    await control.click({ timeout: 5000 }).catch(() => {});
-    await page.waitForLoadState("networkidle", { timeout: 7000 }).catch(() => {});
+    await control.click({ timeout: 5000 }).catch(() => { });
+    await page.waitForLoadState("networkidle", { timeout: 7000 }).catch(() => { });
     await page.waitForTimeout(800);
     return true;
   }
@@ -1352,17 +1462,17 @@ async function selectBrandFilter(page, brand) {
     const matched = options.find((option) => {
       const labelKey = compactBrandLabel(option.label);
       const valueKey = compactBrandLabel(option.value);
-      return aliasKeys.some(aliasKey => 
-        labelKey.includes(aliasKey) || 
-        aliasKey.includes(labelKey) || 
-        valueKey.includes(aliasKey) || 
+      return aliasKeys.some(aliasKey =>
+        labelKey.includes(aliasKey) ||
+        aliasKey.includes(labelKey) ||
+        valueKey.includes(aliasKey) ||
         aliasKey.includes(valueKey)
       );
     });
 
     if (matched) {
       await selectLocator.selectOption({ value: matched.value }).catch(async () => {
-        await selectLocator.selectOption({ label: matched.label }).catch(() => {});
+        await selectLocator.selectOption({ label: matched.label }).catch(() => { });
       });
       return true;
     }
@@ -1380,7 +1490,7 @@ async function selectBrandFilter(page, brand) {
   }
 
   if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
-    await dropdownTrigger.click().catch(() => {});
+    await dropdownTrigger.click().catch(() => { });
     await page.waitForTimeout(500);
 
     const matchedOptionText = await page.evaluate((keys) => {
@@ -1396,8 +1506,8 @@ async function selectBrandFilter(page, brand) {
         .map(el => ({ text: (el.textContent || "").trim(), compact: normalize(el.textContent) }))
         .filter(item => item.text.length > 0 && item.text.length < 80);
 
-      const found = items.find(item => 
-        keys.some(aliasKey => 
+      const found = items.find(item =>
+        keys.some(aliasKey =>
           item.compact.includes(aliasKey) || aliasKey.includes(item.compact)
         )
       );
@@ -1407,7 +1517,7 @@ async function selectBrandFilter(page, brand) {
     if (matchedOptionText) {
       const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(matchedOptionText)}\\s*$`, "i") }).first();
       if ((await optionItem.count()) > 0) {
-        await optionItem.click().catch(() => {});
+        await optionItem.click().catch(() => { });
         return true;
       }
     }
@@ -1415,7 +1525,7 @@ async function selectBrandFilter(page, brand) {
     for (const alias of aliases) {
       const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(alias)}\\s*$`, "i") }).first();
       if ((await optionItems.count()) > 0 && (await optionItems.isVisible().catch(() => true))) {
-        await optionItems.click().catch(() => {});
+        await optionItems.click().catch(() => { });
         return true;
       }
     }
@@ -1462,7 +1572,7 @@ async function collectBrandOptionsFromCurrentPage(page) {
     trigger = page.locator("div.select-box, div.select-container, [class*=select-box i], a, div, span").filter({ hasText: /All Brands|Brand|WSOP/i }).first();
   }
   if ((await trigger.count()) > 0 && (await trigger.isVisible().catch(() => false))) {
-    await trigger.click().catch(() => {});
+    await trigger.click().catch(() => { });
     await page.waitForTimeout(1000);
 
     const dropdownOptions = await page.evaluate(() => {
@@ -1505,7 +1615,7 @@ async function collectBrandOptions(page, playersUrl, authWaitMs) {
 
   await retryWithBackoff(async () => {
     await page.goto(sourceUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
     await waitForAccessLogin(page, authWaitMs);
   }, 2, 1500);
 
@@ -1534,7 +1644,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
   for (const currentBrand of brands) {
     await retryWithBackoff(async () => {
       await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
-      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.waitForLoadState("networkidle").catch(() => { });
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
 
@@ -1554,7 +1664,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
           if (!isOnMainPage) {
             await retryWithBackoff(async () => {
               await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
-              await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+              await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
               await waitForAccessLogin(page, authWaitMs);
             }, 2, 1500);
           }
@@ -1567,7 +1677,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
         try {
           await retryWithBackoff(async () => {
             await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
-            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
             await waitForAccessLogin(page, authWaitMs);
           }, 2, 1500);
           selected = true;
@@ -1585,7 +1695,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
         if (!applied) {
           console.warn(`  [경고] 브랜드 필터 옵션을 찾지 못했습니다: "${currentBrand}"`);
         }
-        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
         await page.waitForTimeout(1000);
       }
 
@@ -1597,8 +1707,8 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
 
         if (hasNext) {
           console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
-          await nextButton.click().catch(() => {});
-          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+          await nextButton.click().catch(() => { });
+          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
           await page.waitForTimeout(1000);
 
           const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
@@ -1821,7 +1931,7 @@ async function selectProfileTab(page, tabLabel) {
       let hrefPath = "";
       try {
         hrefPath = href ? new URL(href, window.location.href).pathname.replace(/\/+$/, "") : "";
-      } catch {}
+      } catch { }
       const inGlobalChrome = Boolean(element.closest("header, nav, footer"));
       const classText = normalize([
         element.className,
@@ -1854,14 +1964,14 @@ async function selectProfileTab(page, tabLabel) {
   candidates.sort((left, right) => right.score - left.score);
   for (const { control } of candidates) {
     const beforeUrl = page.url();
-    await control.click({ timeout: 5000 }).catch(() => {});
-    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+    await control.click({ timeout: 5000 }).catch(() => { });
+    await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => { });
     await page.waitForTimeout(500);
     const afterUrl = page.url();
     const afterPath = new URL(afterUrl).pathname.replace(/\/+$/, "");
     if (afterPath !== currentPath) {
-      await page.goto(beforeUrl, { waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
-      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+      await page.goto(beforeUrl, { waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => { });
+      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => { });
       continue;
     }
     return true;
@@ -1873,7 +1983,7 @@ async function selectProfileTab(page, tabLabel) {
 async function findVisibleLoadMoreControl(page) {
   const handle = await page.evaluateHandle(() => {
     const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
-    
+
     // button, a, [role=button], input 등과 더보기 관련 텍스트가 있을 만한 div, span 요소를 쿼리합니다.
     const candidates = Array.from(document.querySelectorAll(
       "button, a, [role=button], input[type=button], input[type=submit], div, span"
@@ -1936,9 +2046,9 @@ async function findVisibleLoadMoreControl(page) {
       // 요소의 실제 가시성(Visibility) 체크
       const rect = element.getBoundingClientRect();
       const style = window.getComputedStyle(element);
-      const isVisible = style.display !== "none" 
-        && style.visibility !== "hidden" 
-        && rect.width > 0 
+      const isVisible = style.display !== "none"
+        && style.visibility !== "hidden"
+        && rect.width > 0
         && rect.height > 0;
 
       if (isVisible) {
@@ -1966,14 +2076,14 @@ async function waitForVisibleLoadMoreControl(page, timeoutMs = 12000) {
         const height = document.body.scrollHeight;
         window.scrollTo(0, height * 0.7);
         setTimeout(() => window.scrollTo(0, height), 150);
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
-      await page.keyboard.press("PageDown").catch(() => {});
-      await page.keyboard.press("PageDown").catch(() => {});
+      await page.keyboard.press("PageDown").catch(() => { });
+      await page.keyboard.press("PageDown").catch(() => { });
     }
     scrollStep += 1;
 
-    await page.waitForLoadState("networkidle", { timeout: 400 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 400 }).catch(() => { });
     await page.waitForTimeout(300);
     lastControl = await findVisibleLoadMoreControl(page);
   }
@@ -1999,7 +2109,7 @@ async function waitForEventRowsUpdate(page, collectedEvents, beforeVisibleEvents
         changed: latestSignature !== beforeSignature
       };
     }
-    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => { });
     await page.waitForTimeout(700);
     latestVisibleEvents = await extractEventRows(page);
     latestMerge = mergeVisibleEventRows(collectedEvents, latestVisibleEvents);
@@ -2052,7 +2162,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 
     const beforeCount = events.length;
     const beforeVisibleEvents = visibleEvents;
-    await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+    await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => { });
     await clickControlWithFallback(loadMore, 10000);
     expansion.loadMoreClicks += 1;
     const update = await waitForEventRowsUpdate(page, events, beforeVisibleEvents);
@@ -2120,7 +2230,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
 
     const beforeCount = events.length;
     const beforeVisibleEvents = visibleEvents;
-    await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+    await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => { });
     await clickControlWithFallback(loadMore, 10000);
     expansion.loadMoreClicks += 1;
     const update = await waitForEventRowsUpdate(page, events, beforeVisibleEvents);
@@ -2247,7 +2357,7 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
     checks.push(check);
   }
 
-  await selectProfileTab(page, "ALL").catch(() => {});
+  await selectProfileTab(page, "ALL").catch(() => { });
   return { checks, tabEventsByKey };
 }
 
@@ -2283,7 +2393,7 @@ async function extractFinalResultRows(page) {
     for (const table of Array.from(document.querySelectorAll("table"))) {
       if (!isVisibleElement(table)) continue;
       const headerText = normalize(table.querySelector("thead")?.textContent || table.textContent || "");
-      
+
       const hasRank = /no|rank|pos|place/i.test(headerText);
       const hasPlayer = /player|name/i.test(headerText);
       const hasEarnings = /earnings|prize|payout|cash|\$/i.test(headerText);
@@ -2342,7 +2452,7 @@ async function waitForResultPageContentChange(page, previousSignature, timeoutMs
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => { });
     const currentSignature = await currentResultPageContentSignature(page);
     if (currentSignature && currentSignature !== previousSignature) return true;
     await page.waitForTimeout(400);
@@ -2355,8 +2465,8 @@ async function waitForResultPageContentChange(page, previousSignature, timeoutMs
 // 목표 구간을 지나친 뒤 이전 페이지 이동이 불가능할 때 처음부터 다시 확인하기 위한 경로다.
 async function reloadResultPageAtFirstPage(page, timeoutMs = 30000) {
   const previousSignature = await currentResultPageContentSignature(page);
-  await page.goto(page.url(), { waitUntil: "domcontentloaded", timeout: timeoutMs }).catch(() => {});
-  await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+  await page.goto(page.url(), { waitUntil: "domcontentloaded", timeout: timeoutMs }).catch(() => { });
+  await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
   await waitForResultPageContentChange(page, previousSignature, 5000).catch(() => false);
   return activeResultPageNumber(page);
 }
@@ -2987,7 +3097,7 @@ async function extractResultPageData(page, player, event, resultPageLimit, timeo
   for (let pageIndex = 1; pageIndex <= pageInspectionLimit; pageIndex += 1) {
     await page.waitForTimeout(1000);
     const url = page.url();
-    await page.waitForSelector("table tr", { timeout: 6000 }).catch(() => {});
+    await page.waitForSelector("table tr", { timeout: 6000 }).catch(() => { });
 
     const rows = await extractFinalResultRows(page);
     const title = await page.title().catch(() => "");
@@ -3112,7 +3222,7 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
           throw gotoError;
         }
       }
-      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
 
@@ -3249,7 +3359,7 @@ async function crawlResultByUrl(context, player, event, timeout, authWaitMs, res
   } catch (error) {
     return { url: event.resultUrl, status: "fail", error: error.message, checks: {}, missing: ["pageError"] };
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch(() => { });
   }
 }
 
@@ -3269,7 +3379,7 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
           throw gotoError;
         }
       }
-      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
       await waitForAccessLogin(page, authWaitMs);
     }, 2, 2000);
 
@@ -3287,7 +3397,7 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
     const popup = await popupPromise;
 
     if (popup) {
-      await popup.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => {});
+      await popup.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => { });
       const finalUrl = popup.url();
 
       // 만약 팝업 URL이 캐시에 있으면 바로 처리하고 팝업 닫기
@@ -3295,13 +3405,13 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
         const cachedResult = evaluateResultFromCachedPages(resultPageRowsCache.get(finalUrl), player, event, finalUrl);
         if (cachedResult) {
           console.log(`    [Cache Hit via Popup] 결과 페이지 캐시 데이터 사용 (${player.name}): ${finalUrl}`);
-          await popup.close().catch(() => {});
+          await popup.close().catch(() => { });
           return cachedResult;
         }
         console.log(`    [Cache Miss via Popup] 캐시 범위 밖 Result입니다. 실제 페이지를 확인합니다 (${player.name}): ${finalUrl}`);
       }
 
-      await popup.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+      await popup.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
       await waitForAccessLogin(popup, authWaitMs);
 
       // 팝업 페이지 크롤링 및 결과 캐시 적재
@@ -3309,19 +3419,19 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
       storeResultPageCache(finalUrl, result.cachedPages);
       delete result.cachedPages;
 
-      await popup.close().catch(() => {});
+      await popup.close().catch(() => { });
       return result;
     }
 
     await navigationPromise;
-    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
     const finalUrl = page.url();
 
     if (resultPageRowsCache.has(finalUrl)) {
       const cachedResult = evaluateResultFromCachedPages(resultPageRowsCache.get(finalUrl), player, event, finalUrl);
       if (cachedResult) {
         console.log(`    [Cache Hit via Navigation] 결과 페이지 캐시 데이터 사용 (${player.name}): ${finalUrl}`);
-        await popup.close().catch(() => {});
+        await popup.close().catch(() => { });
         return cachedResult;
       }
       console.log(`    [Cache Miss via Navigation] 캐시 범위 밖 Result입니다. 실제 페이지를 확인합니다 (${player.name}): ${finalUrl}`);
@@ -3335,7 +3445,7 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
   } catch (error) {
     return { url: player.url, status: "fail", error: error.message, checks: {}, missing: ["clickError"] };
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch(() => { });
   }
 }
 
@@ -3357,7 +3467,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
         throw gotoError;
       }
     }
-    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => { });
     await waitForAccessLogin(page, authWaitMs);
 
     // 가림막 요소(쿠키 배너, 오버레이 등)를 강제로 제거하여 클릭이 막히는 것을 방지
@@ -3376,9 +3486,9 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
         try {
           const elements = document.querySelectorAll(s);
           elements.forEach(el => el.remove());
-        } catch {}
+        } catch { }
       }
-    }).catch(() => {});
+    }).catch(() => { });
     const profileUnavailable = await profilePageUnavailableWarningPlayer(page, url, standingsSources, profilePageStatusCode);
     if (profileUnavailable) {
       return profileUnavailable;
@@ -3388,12 +3498,16 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     await page.waitForFunction(() => {
       const text = document.body?.innerText || "";
       return /cashes/i.test(text) || /earnings/i.test(text);
-    }, null, { timeout: 10000 }).catch(() => {});
+    }, null, { timeout: 10000 }).catch(() => { });
 
     const profileName = await extractPlayerName(page);
     const name = canonicalPlayerName(profileName, standingsSources);
     const bodyText = await page.locator("body").innerText({ timeout });
     const summary = parseSummary(bodyText);
+    const badgeCounts = await extractProfileBadgeCounts(page);
+    if (badgeCounts.error) {
+      warnings.push(`Profile badge count extraction failed: ${badgeCounts.error}`);
+    }
     const { events, expansion } = await expandAllEventRows(page, summary.cashes, maxLoadMore);
     const { comparisonEvents: profileComparisonEvents, overflowEvents, duplicateEvents, strategy: comparisonStrategy } = comparisonEventsForSummary(events, summary);
     // 요약 비교는 프로필 Cashes 수에 맞춘다.
@@ -3416,14 +3530,14 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
 
     // ALL 탭 기반 지표별 계산 수량과 개별 지표 탭 수집 수량 교차 정합성 검증 (Cross-Tab Validation)
     if (tabEventsByKey && Object.keys(tabEventsByKey).length > 0) {
-      const keys = ["titles", "bracelets", "rings", "finalTables"];
+      const keys = ["titles", "finalTables"];
       for (const key of keys) {
         const tabEvents = tabEventsByKey[key] || [];
         const allTabMatching = events.filter(e => eventContributesToProfileTab(e, key));
-        
+
         const dedupedTab = deduplicateComparisonEvents(tabEvents).uniqueEvents.length;
         const dedupedAll = deduplicateComparisonEvents(allTabMatching).uniqueEvents.length;
-        
+
         if (dedupedTab !== dedupedAll) {
           const detail = `${key.toUpperCase()} 탭의 고유 데이터 수(${dedupedTab})와 ALL 탭에서 분류 계산한 수(${dedupedAll})가 일치하지 않습니다. (사이트 데이터 누락/불일치 의심)`;
           warnings.push(detail);
@@ -3446,6 +3560,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       url,
       standingsSources,
       summary,
+      badgeCounts,
       summaryForComparison,
       summaryAdjustment: null,
       events,
@@ -3461,8 +3576,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       status: "fail"
     };
 
-    player.comparisons = compareSummary(player.summaryForComparison || player.summary, player.calculated);
-
+    player.comparisons = compareSummary(player.summaryForComparison || player.summary, player.calculated, player.badgeCounts);
     for (const event of unavailableResultEvents) {
       // 비활성 Result 컨트롤도 프로필 요약 계산에는 포함한다.
       // Result 결함으로 볼지는 disabledResultMode 설정에 따른다.
@@ -3554,7 +3668,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       error: error.message
     };
   } finally {
-    await page.close().catch(() => {});
+    await page.close().catch(() => { });
   }
 }
 
@@ -3606,7 +3720,7 @@ async function crawlSnapshotPlayerResults(context, snapshotPlayer, timeout, resu
   const player = snapshotPlayerForResultOnly(snapshotPlayer);
   player.summary = player.summary || {};
   player.events = player.events || [];
-  player.comparisons = player.comparisons || compareSummary(player.summaryForComparison || player.summary, player.calculated || {});
+  player.comparisons = player.comparisons || compareSummary(player.summaryForComparison || player.summary, player.calculated || {}, player.badgeCounts);
   player.tabChecks = player.tabChecks || [];
   player.warnings = player.warnings || [];
   player.defects = [];
@@ -3872,6 +3986,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     noReviewNotes: isKo ? "표시할 주의/건너뜀 항목이 없습니다." : "No warnings or skipped checks found.",
     profileStat: isKo ? "프로필 표시값" : "Profile Stat",
     calculatedValue: isKo ? "ALL 탭 계산값" : "Calculated From ALL Tab",
+    comparisonValue: isKo ? "비교값" : "Comparison Value",
     statusText: isKo ? "상태" : "Status",
     tabHeader: isKo ? "탭" : "Tab",
     selectedTabLabel: isKo ? "클릭한 탭 라벨" : "Selected Label",
@@ -3889,8 +4004,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     rulesData: isKo ? [
       ["Standings 카테고리", `${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}에서 상위 선수를 수집합니다.`],
       ["Title", "ALL 탭 이벤트 중 Rank가 1인 row를 계산합니다."],
-      ["Bracelets", "Rank 1 이벤트 중 WSOP 브레이슬릿 이벤트로 분류되는 row를 계산합니다."],
-      ["Rings", "Rank 1 이벤트 중 Circuit/Ring 이벤트로 분류되는 row를 계산합니다."],
+      ["Bracelets Badge", "뱃지의 표시 개수를 프로필 상단 Bracelets 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
+      ["Rings Badge", "뱃지의 표시 개수를 프로필 상단 Rings 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
       ["Final Tables", "ALL 탭 이벤트 중 Rank가 1~9인 row를 계산합니다."],
       ["Cashes", "Load more로 펼친 ALL 탭 row 중 프로필 Cashes 개수까지만 비교 계산에 사용합니다."],
       ["Total Earnings", "프로필 Total Earnings와 ALL 탭 계산 합계가 다르면 환율/통화/원본값 차이 가능성이 있어 주의로 표시하고 실패 집계에서는 제외합니다."],
@@ -3899,8 +4014,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     ] : [
       ["Standings categories", `Collect top players from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
       ["Title", "Count ALL-tab events where Rank is 1."],
-      ["Bracelets", "Count Rank 1 events classified as WSOP bracelet events."],
-      ["Rings", "Count Rank 1 events classified as Circuit/Ring events."],
+      ["Bracelets Badge", "Compare the displayed count with the profile Bracelets value, and report mismatches as defect candidates."],
+      ["Rings Badge", "Compare the displayed count with the profile Rings value, and report mismatches as defect candidates."],
       ["Final Tables", "Count ALL-tab events where Rank is 1 through 9."],
       ["Cashes", "Count ALL-tab rows only up to the profile Cashes count for comparison."],
       ["Total Earnings", "If profile Total Earnings differs from the ALL-tab calculated total, mark it as Warn because currency/rate/source differences can occur, and exclude it from failure totals."],
@@ -4216,10 +4331,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <h2>${isKo ? "먼저 볼 내용" : "Read Me First"}</h2>
         <div class="panel-body">
           <div class="note">
-            ${isKo ? 
-              (summary.defects > 0 ? "데이터 무결성 검증 결과 일부 결함 후보가 검출되었습니다. 아래 결함 후보 목록에서 상세 비교 데이터를 확인하세요." : "모든 수집 대상 플레이어의 데이터 정합성 검증을 완료했으며, 검출된 결함 후보가 없습니다.") : 
-              (summary.defects > 0 ? "Some data integrity defects were detected. Please review the Defect Candidates List below." : "All checked players passed the data integrity validation. No defect candidates were found.")
-            }
+            ${isKo ?
+      (summary.defects > 0 ? "데이터 무결성 검증 결과 일부 결함 후보가 검출되었습니다. 아래 결함 후보 목록에서 상세 비교 데이터를 확인하세요." : "모든 수집 대상 플레이어의 데이터 정합성 검증을 완료했으며, 검출된 결함 후보가 없습니다.") :
+      (summary.defects > 0 ? "Some data integrity defects were detected. Please review the Defect Candidates List below." : "All checked players passed the data integrity validation. No defect candidates were found.")
+    }
           </div>
         </div>
       </div>
@@ -4415,6 +4530,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       if (!isKo) return type;
       return {
         "Profile summary mismatch": "프로필 요약 불일치",
+        "Profile badge count mismatch": "프로필 뱃지 개수 불일치",
         "Profile tab count mismatch": "프로필 탭 개수 불일치",
         "Result page mismatch": "Result 페이지 불일치",
         "Result page unavailable": "Result 페이지 일시 접근 불가",
@@ -4886,9 +5002,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
                 ${report.mode === 'standings-only' ? `
                   <div style="padding: 25px 20px; text-align: center; color: var(--text-muted); background: rgba(255,255,255,0.015); border-radius: 8px; border: 1px dashed var(--border); font-size: 13px; margin-top: 10px;">
-                    ${isKo 
-                      ? "⚡ <strong>Standings Only 수집</strong>: 이 선수는 순위 목록에서 수집되었으며, 상세 프로필 분석 및 Result 검증 단계를 거치지 않았습니다." 
-                      : "⚡ <strong>Standings Only Mode</strong>: This player was collected directly from the standings list. Detailed profile analysis and Results verification were skipped."}
+                    ${isKo
+        ? "⚡ <strong>Standings Only 수집</strong>: 이 선수는 순위 목록에서 수집되었으며, 상세 프로필 분석 및 Result 검증 단계를 거치지 않았습니다."
+        : "⚡ <strong>Standings Only Mode</strong>: This player was collected directly from the standings list. Detailed profile analysis and Results verification were skipped."}
                   </div>
                 ` : `
                   <!-- Tab Headers -->
@@ -4906,14 +5022,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                     <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">Summary Metrics Check</h4>
                     <table style="width:100%;">
                       <thead>
-                        <tr><th>Stat</th><th>\${labels.profileStat}</th><th>\${labels.calculatedValue}</th><th>\${labels.statusText}</th></tr>
+                        <tr><th>Stat</th><th>\${labels.profileStat}</th><th>\${labels.comparisonValue}</th><th>\${labels.statusText}</th></tr>
                       </thead>
                       <tbody>
                         \${(player.comparisons || []).map(item => \`
                           <tr>
                             <td><strong>\${escapeHtml(formatLabel(item.label))}</strong></td>
                             <td>\${escapeHtml(formatValue(item.label, item.top))}</td>
-                            <td>\${escapeHtml(formatValue(item.label, item.calculated))}</td>
+                            <td>\${escapeHtml(formatValue(item.label, item.calculated))}\${item.sourceLabel ? \`<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">\${escapeHtml(item.sourceLabel)}</div>\` : ""}</td>
                             <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
                           </tr>
                         \`).join("")}
@@ -5359,7 +5475,7 @@ function getPastHtmlReports(htmlReportPath, isKo = false) {
   try {
     const dir = path.dirname(htmlReportPath);
     if (!fs.existsSync(dir)) return [];
-    
+
     const files = fs.readdirSync(dir);
     const reportFiles = files.filter(f => {
       if (isKo) {
@@ -5911,7 +6027,7 @@ async function main() {
         console.warn(`  [경고] 브랜드 옵션 목록 수집 실패: ${error.message}`);
       }
       playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs, args.brand);
-      await listPage.close().catch(() => {});
+      await listPage.close().catch(() => { });
     }
 
     if (!playerEntries.length) throw new Error(`No player links found at ${args.playersUrl}`);
@@ -6045,8 +6161,8 @@ async function main() {
   } finally {
     process.removeListener("SIGINT", handleStopSignal);
     process.removeListener("SIGTERM", handleStopSignal);
-    if (context) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
+    if (context) await context.close().catch(() => { });
+    if (browser) await browser.close().catch(() => { });
   }
 }
 

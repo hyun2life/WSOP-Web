@@ -3,6 +3,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import {
   checkAvatarOrPlayerImage,
   checkBadgeOrMarkVisible,
+  checkProfileBadgeSummaryConsistency,
   checkCountryOrFlagVisible,
   expectProfilePageLoaded,
   loadPlayerPresentationFixture,
@@ -81,6 +82,10 @@ test.describe('Phase 3 - legend player profile presentation', () => {
         testName: `legend-mark-${player.displayName}`,
         player: profilePlayer,
         knownException,
+      });
+      await checkProfileBadgeSummaryConsistency(page, {
+        player: profilePlayer,
+        testName: `legend-badge-summary-${player.displayName}`,
       });
       const signalResult = await expectLegendSpecialPageSignals(page, profilePlayer as LegendPlayerFixture);
       await attachLegendSpecialPageCoverage(testInfo, {

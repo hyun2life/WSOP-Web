@@ -37,6 +37,24 @@ export type ProfileImageCandidate = {
 
 export type CheckPolicy = 'fail' | 'warn';
 
+type ProfileBadgeKey = 'bracelets' | 'rings';
+
+type ProfileBadgeDef = {
+  key: ProfileBadgeKey;
+  label: 'Bracelets' | 'Rings';
+  fileName: string;
+  altPattern: RegExp;
+};
+
+type ProfileBadgeCounts = Record<ProfileBadgeKey, number> & {
+  details: Record<ProfileBadgeKey, Array<{ count: number; alt: string; src: string }>>;
+};
+
+const PROFILE_BADGE_DEFS: ProfileBadgeDef[] = [
+  { key: 'bracelets', label: 'Bracelets', fileName: 'badge_WSOPBracelet.webp', altPattern: /wsop\s+bracelet/i },
+  { key: 'rings', label: 'Rings', fileName: 'badge_WSOPRing.webp', altPattern: /wsop\s+ring/i },
+];
+
 export function loadPlayerPresentationFixture<T>(fileName: string): T {
   const fixturePath = path.join(process.cwd(), 'fixtures', 'player-presentation', fileName);
   return JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as T;
@@ -219,6 +237,114 @@ export async function checkBadgeOrMarkVisible(
   }
 
   expect(false, message).toBeTruthy();
+}
+
+export async function checkProfileBadgeSummaryConsistency(
+  page: Page,
+  options: { player: PlayerFixture; testName?: string },
+) {
+  const bodyText = await page.locator('body').innerText();
+  const badgeCounts = await collectProfileBadgeCounts(page);
+
+  for (const badgeDef of PROFILE_BADGE_DEFS) {
+    const summaryValue = parseProfileSummaryNumber(bodyText, badgeDef.label);
+    const badgeValue = badgeCounts[badgeDef.key];
+
+    if (summaryValue === null) {
+      if (badgeValue > 0) {
+        addWarning(options.testName ?? `profile-badge-${options.player.displayName}`, `${options.player.displayName} ${badgeDef.label} badge exists but summary value was not parsed`, {
+          player: options.player.displayName,
+          badge: badgeDef.label,
+          badgeValue,
+        });
+      }
+      continue;
+    }
+
+    if (summaryValue !== badgeValue) {
+      addWarning(options.testName ?? `profile-badge-${options.player.displayName}`, `${options.player.displayName} ${badgeDef.label} summary/badge count mismatch`, {
+        player: options.player.displayName,
+        badge: badgeDef.label,
+        summaryValue,
+        badgeValue,
+        badgeFile: badgeDef.fileName,
+        details: badgeCounts.details[badgeDef.key],
+      });
+    }
+  }
+}
+
+export async function collectProfileBadgeCounts(page: Page): Promise<ProfileBadgeCounts> {
+  return page.evaluate((badgeDefs) => {
+    const normalize = (value: unknown) => String(value || '').replace(/\s+/g, ' ').trim();
+    const parseCount = (value: unknown) => {
+      const match = normalize(value).match(/\d[\d,]*/);
+      return match ? Number(match[0].replace(/,/g, '')) : null;
+    };
+    const parseCountFromElement = (element: Element | null | undefined) => element ? parseCount(element.textContent) : null;
+    const isVisibleElement = (element: Element) => {
+      const style = window.getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || Number(style.opacity) === 0) return false;
+      return Array.from(element.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
+    };
+    const readBadgeCount = (image: HTMLImageElement) => {
+      const container = image.closest('li') || image.parentElement;
+      const candidates = [
+        container?.querySelector?.('.count'),
+        image.nextElementSibling,
+        image.previousElementSibling,
+        container,
+        image.parentElement?.nextElementSibling,
+        image.parentElement?.previousElementSibling,
+        image.parentElement?.parentElement,
+      ];
+      for (const candidate of candidates) {
+        const count = parseCountFromElement(candidate);
+        if (count !== null) return count;
+      }
+      return 1;
+    };
+    const counts = {
+      bracelets: 0,
+      rings: 0,
+      details: {
+        bracelets: [] as Array<{ count: number; alt: string; src: string }>,
+        rings: [] as Array<{ count: number; alt: string; src: string }>,
+      },
+    };
+
+    for (const image of Array.from(document.images)) {
+      if (!isVisibleElement(image)) continue;
+      const sourceText = normalize([
+        image.getAttribute('src'),
+        image.getAttribute('srcset'),
+        image.getAttribute('alt'),
+        image.currentSrc,
+      ].filter(Boolean).join(' '));
+      const badgeDef = badgeDefs.find((def) => sourceText.includes(def.fileName) || new RegExp(def.altPatternSource, 'i').test(sourceText));
+      if (!badgeDef) continue;
+
+      const count = readBadgeCount(image);
+      counts[badgeDef.key] += count;
+      counts.details[badgeDef.key].push({
+        count,
+        alt: image.getAttribute('alt') || '',
+        src: image.getAttribute('src') || image.currentSrc || '',
+      });
+    }
+
+    return counts;
+  }, PROFILE_BADGE_DEFS.map((badgeDef) => ({
+    key: badgeDef.key,
+    fileName: badgeDef.fileName,
+    altPatternSource: badgeDef.altPattern.source,
+  })));
+}
+
+function parseProfileSummaryNumber(bodyText: string, label: string) {
+  const compact = bodyText.replace(/\s+/g, ' ').trim();
+  const match = compact.match(new RegExp(`${escapeRegExp(label)}\\s+([\\d,]+)`, 'i'));
+  return match ? Number(match[1].replace(/,/g, '')) : null;
 }
 
 export async function collectProfileImageCandidates(page: Page): Promise<ProfileImageCandidate[]> {

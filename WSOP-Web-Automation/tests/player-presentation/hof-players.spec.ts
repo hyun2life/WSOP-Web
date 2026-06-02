@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import {
   checkBadgeOrMarkVisible,
+  checkProfileBadgeSummaryConsistency,
   expectProfilePageLoaded,
   expectPlayerNameVisible,
   loadPlayerPresentationFixture,
@@ -120,6 +121,10 @@ test.describe('Phase 3 - Hall of Fame player presentation', () => {
           testName: `hof-mark-${player.displayName}`,
           player,
           knownException: exception,
+        });
+        await checkProfileBadgeSummaryConsistency(page, {
+          player,
+          testName: `hof-badge-summary-${player.displayName}`,
         });
       } catch (err: any) {
         if (exception?.warningOnly) {

@@ -311,6 +311,7 @@ automation/output/
 - Player Standings UI는 기존 크롤러의 `--standings-only` 모드로 빠르게 추출한 최신 standings 대상자를 기준으로 이름, profile link, 국가/국기 후보로 보이는지 확인
 - Player Search에서 모든 플레이어를 전수 입력하지 않고, fixture에 정의한 대표 탑랭커 중심으로 이름 입력 시 검색창 하단 자동완성 row와 검색 결과에 해당 인물이 노출되는지 확인
 - Player Profile의 이름, 국가/국기, avatar/profile image 후보 확인
+- Player Profile 요약 영역의 `badge_WSOPBracelet.webp`, `badge_WSOPRing.webp` 표시 개수와 Bracelets/Rings 요약값 일치 여부 확인
 - Hall of Fame, Player of the Year, Legend 10인 특수 프로필 페이지 표현 확인
 - stage 환경의 avatar/image 미노출, optional badge/mark 미노출은 warning으로 수집
 
