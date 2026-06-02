@@ -277,29 +277,42 @@ export async function checkProfileBadgeSummaryConsistency(
 export async function collectProfileBadgeCounts(page: Page): Promise<ProfileBadgeCounts> {
   return page.evaluate((badgeDefs) => {
     const normalize = (value: unknown) => String(value || '').replace(/\s+/g, ' ').trim();
-    const parseCount = (value: unknown) => {
-      const match = normalize(value).match(/\d[\d,]*/);
+    const parseCount = (value: unknown, strict = false) => {
+      const text = normalize(value);
+      const exactMatch = text.match(/^(?:#\s*)?(\d[\d,]*)$/);
+      if (exactMatch) return Number(exactMatch[1].replace(/,/g, ''));
+      if (strict) return null;
+      const match = text.match(/\d[\d,]*/);
       return match ? Number(match[0].replace(/,/g, '')) : null;
     };
-    const parseCountFromElement = (element: Element | null | undefined) => element ? parseCount(element.textContent) : null;
+    const parseCountFromElement = (element: Element | null | undefined, strict = true) => element ? parseCount(element.textContent, strict) : null;
     const isVisibleElement = (element: Element) => {
       const style = window.getComputedStyle(element);
       if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || Number(style.opacity) === 0) return false;
       return Array.from(element.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
     };
+    const findExplicitCountElement = (root: Element | null | undefined) => {
+      if (!root) return null;
+      const elements = Array.from(root.querySelectorAll?.('*') || []);
+      return elements.find((element) => {
+        const className = String(element.getAttribute('class') || '');
+        if (!/(^|[-_\s])(count|qty|quantity|number|badge-count)([-_\s]|$)/i.test(className)) return false;
+        if (!isVisibleElement(element)) return false;
+        return parseCountFromElement(element, true) !== null;
+      }) || null;
+    };
     const readBadgeCount = (image: HTMLImageElement) => {
       const container = image.closest('li') || image.parentElement;
+      const explicitCountElement = findExplicitCountElement(image.parentElement) || findExplicitCountElement(container) || findExplicitCountElement(image.parentElement?.parentElement);
       const candidates = [
-        container?.querySelector?.('.count'),
+        explicitCountElement,
         image.nextElementSibling,
         image.previousElementSibling,
-        container,
         image.parentElement?.nextElementSibling,
         image.parentElement?.previousElementSibling,
-        image.parentElement?.parentElement,
       ];
       for (const candidate of candidates) {
-        const count = parseCountFromElement(candidate);
+        const count = parseCountFromElement(candidate, true);
         if (count !== null) return count;
       }
       return 1;

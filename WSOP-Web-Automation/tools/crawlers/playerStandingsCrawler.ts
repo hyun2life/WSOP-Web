@@ -661,29 +661,42 @@ async function extractProfileBadgeCounts(page) {
   try {
     return await page.evaluate((badgeDefs) => {
       const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
-      const parseCount = (value) => {
-        const match = normalize(value).match(/\d[\d,]*/);
+      const parseCount = (value, strict = false) => {
+        const text = normalize(value);
+        const exactMatch = text.match(/^(?:#\s*)?(\d[\d,]*)$/);
+        if (exactMatch) return Number(exactMatch[1].replace(/,/g, ""));
+        if (strict) return null;
+        const match = text.match(/\d[\d,]*/);
         return match ? Number(match[0].replace(/,/g, "")) : null;
       };
-      const parseCountFromElement = (element) => element ? parseCount(element.textContent) : null;
+      const parseCountFromElement = (element, strict = true) => element ? parseCount(element.textContent, strict) : null;
       const isVisibleElement = (element) => {
         const style = window.getComputedStyle(element);
         if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || Number(style.opacity) === 0) return false;
         return Array.from(element.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
       };
+      const findExplicitCountElement = (root) => {
+        if (!root) return null;
+        const elements = Array.from(root.querySelectorAll?.("*") || []);
+        return elements.find((element) => {
+          const className = String(element.getAttribute("class") || "");
+          if (!/(^|[-_\s])(count|qty|quantity|number|badge-count)([-_\s]|$)/i.test(className)) return false;
+          if (!isVisibleElement(element)) return false;
+          return parseCountFromElement(element, true) !== null;
+        }) || null;
+      };
       const readBadgeCount = (img) => {
         const container = img.closest("li") || img.parentElement;
+        const explicitCountElement = findExplicitCountElement(img.parentElement) || findExplicitCountElement(container) || findExplicitCountElement(img.parentElement?.parentElement);
         const candidates = [
-          container?.querySelector?.(".count"),
+          explicitCountElement,
           img.nextElementSibling,
           img.previousElementSibling,
-          container,
           img.parentElement?.nextElementSibling,
-          img.parentElement?.previousElementSibling,
-          img.parentElement?.parentElement
+          img.parentElement?.previousElementSibling
         ];
         for (const candidate of candidates) {
-          const count = parseCountFromElement(candidate);
+          const count = parseCountFromElement(candidate, true);
           if (count !== null) return count;
         }
         return 1;
@@ -1005,6 +1018,42 @@ function compareSummary(summary, calculated, badgeCounts = null) {
   });
 }
 
+function reconcileSummaryComparisons(comparisons = [], tabChecks = [], expansion = {}) {
+  return (comparisons || []).map((comparison) => {
+    if ((comparison.key === "titles" || comparison.key === "finalTables") && comparison.source === "all-tab") {
+      const tabCheck = (tabChecks || []).find((check) => check?.key === comparison.key);
+      if (tabCheck?.selectedTab && Number.isFinite(tabCheck.actual)) {
+        return {
+          ...comparison,
+          calculated: tabCheck.actual,
+          allCalculated: comparison.calculated,
+          source: "profile-tab",
+          sourceLabel: "Profile Tab Visible Rows",
+          status: comparison.top === tabCheck.actual ? "pass" : "fail"
+        };
+      }
+    }
+
+    if (
+      comparison.key === "cashes"
+      && comparison.status === "fail"
+      && expansion?.expectedCashes
+      && !expansion?.reachedExpectedCashes
+      && Number.isFinite(expansion?.finalEventCount)
+      && expansion.finalEventCount < expansion.expectedCashes
+    ) {
+      return {
+        ...comparison,
+        sourceLabel: "Calculated From ALL Tab (collection incomplete)",
+        collectionIncomplete: true,
+        status: "warn"
+      };
+    }
+
+    return comparison;
+  });
+}
+
 function standingsMetricDef(category) {
   if (/all-time earnings/i.test(category || "")) {
     return { key: "totalEarnings", label: "Total Earnings", type: "money" };
@@ -1107,6 +1156,9 @@ function buildDefects(player) {
         : `${comparison.label}: top=${formatValue(comparison.label, comparison.top)}, calculated=${formatValue(comparison.label, comparison.calculated)}`
     ];
     if (isBadgeComparison && Number.isFinite(comparison.allCalculated)) {
+      detailParts.push(`ALL tab calculated=${formatValue(comparison.label, comparison.allCalculated)}`);
+    }
+    if (comparison.source === "profile-tab" && Number.isFinite(comparison.allCalculated)) {
       detailParts.push(`ALL tab calculated=${formatValue(comparison.label, comparison.allCalculated)}`);
     }
     if (player.expansion?.expectedCashes && !player.expansion?.reachedExpectedCashes) {
@@ -2168,7 +2220,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 }
 
 // 단일 지표 탭을 펼친 뒤 ALL과 같은 규칙으로 해당 지표를 계산한다.
-// 탭을 보정값으로 쓰지 않고 독립 검증 대상으로 둔다.
+// Title/Final Tables는 프로필 요약 비교의 우선 비교값으로도 사용한다.
 async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   let events = await extractEventRows(page);
   const expected = Number.isFinite(expectedRows) && expectedRows > 0 ? expectedRows : null;
@@ -3531,7 +3583,11 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       status: "fail"
     };
 
-    player.comparisons = compareSummary(player.summaryForComparison || player.summary, player.calculated, player.badgeCounts);
+    player.comparisons = reconcileSummaryComparisons(
+      compareSummary(player.summaryForComparison || player.summary, player.calculated, player.badgeCounts),
+      player.tabChecks,
+      player.expansion
+    );
     player.standingsChecks = compareStandingsSourcesToSummary(player.standingsSources, player.summary);
     for (const standingCheck of player.standingsChecks) {
       if (standingCheck.status === "warn") warnings.push(standingCheck.detail);
@@ -3852,22 +3908,22 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     rulesData: isKo ? [
       ["Standings/Profile", "All-Time Earnings - Men/Women의 Earnings, All-Time Bracelets의 Bracelets, All-Time Rings의 Rings를 프로필 요약값과 비교합니다."],
       ["Standings 카테고리", `${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}에서 상위 선수를 수집합니다.`],
-      ["Title", "ALL 탭 이벤트 중 Rank가 1인 row를 계산합니다."],
+      ["Title", "프로필 요약값을 기준으로 Title 전용 탭의 표시 row 수를 비교합니다. ALL 탭 계산값은 참고값으로 남깁니다."],
       ["Bracelets Badge", "`badge_WSOPBracelet.webp` 뱃지의 표시 개수를 프로필 상단 Bracelets 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
       ["Rings Badge", "`badge_WSOPRing.webp` 뱃지의 표시 개수를 프로필 상단 Rings 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
-      ["Final Tables", "ALL 탭 이벤트 중 Rank가 1~9인 row를 계산합니다."],
-      ["Cashes", "Load more로 펼친 ALL 탭 row 중 프로필 Cashes 개수까지만 비교 계산에 사용합니다."],
+      ["Final Tables", "프로필 요약값을 기준으로 Final Tables 전용 탭의 표시 row 수를 비교합니다. ALL 탭 계산값은 참고값으로 남깁니다."],
+      ["Cashes", "Load more로 펼친 ALL 탭 row를 프로필 Cashes와 비교합니다. 프로필 Cashes까지 수집하지 못하면 수집 미완료 주의로 표시합니다."],
       ["Total Earnings", "프로필 Total Earnings와 ALL 탭 계산 합계가 다르면 환율/통화/원본값 차이 가능성이 있어 주의로 표시하고 실패 집계에서는 제외합니다."],
       ["Profile tabs", "Title, Bracelets, Rings, Final Tables 탭을 눌러 표시 row 수와 프로필 요약값을 비교합니다."],
       ["Result", "Result 페이지를 열어 최종 결과표에서 No, 선수명, 상금이 모두 정확히 맞는지 확인합니다."]
     ] : [
       ["Standings categories", `Collect top players from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
       ["Standings/Profile", "Compare All-Time Earnings - Men/Women Earnings, All-Time Bracelets Bracelets, and All-Time Rings Rings against the profile summary values."],
-      ["Title", "Count ALL-tab events where Rank is 1."],
+      ["Title", "Compare the Title profile tab visible row count against the profile summary value. Keep the ALL-tab calculated value as reference only."],
       ["Bracelets Badge", "Compare the displayed `badge_WSOPBracelet.webp` count with the profile Bracelets value, and report mismatches as defect candidates."],
       ["Rings Badge", "Compare the displayed `badge_WSOPRing.webp` count with the profile Rings value, and report mismatches as defect candidates."],
-      ["Final Tables", "Count ALL-tab events where Rank is 1 through 9."],
-      ["Cashes", "Count ALL-tab rows only up to the profile Cashes count for comparison."],
+      ["Final Tables", "Compare the Final Tables profile tab visible row count against the profile summary value. Keep the ALL-tab calculated value as reference only."],
+      ["Cashes", "Compare ALL-tab rows against profile Cashes. If collection stops before the profile Cashes count, mark it as an incomplete-collection warning."],
       ["Total Earnings", "If profile Total Earnings differs from the ALL-tab calculated total, mark it as Warn because currency/rate/source differences can occur, and exclude it from failure totals."],
       ["Profile tabs", "Click Title, Bracelets, Rings, and Final Tables tabs and compare visible row counts with profile stats."],
       ["Result", "Open Results and verify that No, Player, and Earnings all match exactly."]
@@ -4315,6 +4371,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     const labels = {
       profileStat: "${escapeHtml(t.profileStat)}",
       calculatedValue: "${escapeHtml(t.calculatedValue)}",
+      comparisonValue: "${escapeHtml(t.comparisonValue)}",
       statusText: "${escapeHtml(t.statusText)}",
       tabHeader: "${escapeHtml(t.tabHeader)}",
       selectedTabLabel: "${escapeHtml(t.selectedTabLabel)}",
@@ -5581,6 +5638,26 @@ function runSelfTest() {
   if (earningsComparison?.status !== "warn" || buildDefects({ name: "Sample", url: "https://example.test/player", comparisons: [earningsComparison] }).length) {
     throw new Error("Total Earnings mismatch should warn without creating a failure defect");
   }
+  const titleTabBackedComparison = reconcileSummaryComparisons(
+    compareSummary({ titles: 13 }, { titles: 12 }),
+    [{ key: "titles", label: "Title", expected: 13, actual: 13, selectedTab: "TITLES", status: "pass" }],
+    {}
+  ).find((item) => item.key === "titles");
+  if (titleTabBackedComparison?.status !== "pass" || titleTabBackedComparison.source !== "profile-tab" || titleTabBackedComparison.allCalculated !== 12) {
+    throw new Error("Title summary comparison should prefer the profile tab count over ALL-tab false positives");
+  }
+  const incompleteCashesComparison = reconcileSummaryComparisons(
+    compareSummary({ cashes: 248 }, { cashes: 247 }),
+    [],
+    { expectedCashes: 248, reachedExpectedCashes: false, finalEventCount: 247 }
+  ).find((item) => item.key === "cashes");
+  if (incompleteCashesComparison?.status !== "warn" || buildDefects({ name: "Incomplete Cashes", url: "https://example.test/cashes", comparisons: [incompleteCashesComparison], tabChecks: [], events: [] }).length) {
+    throw new Error("Incomplete ALL-tab Cashes collection should warn without creating a failure defect");
+  }
+  const braceletBadgeMismatch = compareSummary({ bracelets: 3 }, { bracelets: 3 }, { bracelets: 2, rings: 0 }).find((item) => item.key === "bracelets");
+  if (braceletBadgeMismatch?.status !== "fail" || !buildDefects({ name: "Bracelet Mismatch", url: "https://example.test/bracelet", comparisons: [braceletBadgeMismatch], tabChecks: [], events: [] }).length) {
+    throw new Error("Bracelet badge mismatch should fail against the profile summary value");
+  }
   const standingsEarningsSource = buildStandingMetricSource("All-Time Earnings - Men", "1 Alex Kulev Bulgaria $12,361,923");
   if (standingsEarningsSource.metricValue !== 12361923 || standingsEarningsSource.metricKey !== "totalEarnings") {
     throw new Error("All-Time Earnings standings row should extract Total Earnings");
@@ -5677,6 +5754,7 @@ function runSelfTest() {
   const sampleReport = { playersUrl: DEFAULT_PLAYERS_URL, players: [{ name: "Sample", url: "https://example.test/player", summary, events, expansion: {}, tabChecks, calculated, comparisons, defects: [], warnings: [], status: "pass" }] };
   const html = renderHtml(sampleReport);
   if (!html.includes("WSOP Player Standings Dashboard")) throw new Error("HTML render failed");
+  if (!html.includes('comparisonValue: "Comparison Value"')) throw new Error("Summary comparison value label render failed");
   const koreanHtml = renderKoreanHtml(sampleReport);
   if (!koreanHtml.includes("WSOP 선수 순위 크롤러 대시보드")) throw new Error("Korean HTML render failed");
   const partialReport = buildCrawlerReport({

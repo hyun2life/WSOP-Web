@@ -267,9 +267,15 @@ set "DISABLED_RESULT_MODE=fail"
 
 ALL 탭에서는 `MAX_LOAD_MORE` 값만큼 `Load more`를 눌러 더 많은 row를 펼칩니다. 프로필 상단 `Cashes` 값에 도달하면 더 누르지 않고 멈춥니다.
 
+`Title`과 `Final Tables`는 프로필 요약값을 기준으로 전용 프로필 탭의 표시 row 수를 우선 비교합니다. ALL 탭 분류 계산값은 참고값으로 남기며, 전용 탭이 프로필 요약값과 일치하면 ALL 탭 계산 차이만으로는 결함 처리하지 않습니다.
+
+`Cashes`는 별도 프로필 탭이 없으므로 ALL 탭 수집 row 수로 검증합니다. 단, `Load more`가 더 이상 없어 프로필 요약 `Cashes` 개수까지 수집하지 못한 경우에는 실제 데이터 불일치가 아니라 수집 미완료 `주의`로 표시하고 실패 집계에서는 제외합니다.
+
+
+
 `Total Earnings` 합계는 환율 변환, 통화 표기, 사이트 원본값 차이로 profile 상단 값과 ALL 탭 계산값이 다를 수 있습니다. 따라서 `Total Earnings` 불일치는 리포트에서 `주의`로 표시하고 실패 집계에서는 제외합니다. 단, Result 상세 페이지 검증의 상금 불일치는 정확성 검증 대상이므로 실패입니다.
 
-`Bracelets`와 `Rings`는 ALL 탭 이벤트 분류 계산값을 실패 기준으로 사용하지 않고, 프로필 요약 영역에 표시되는 `badge_WSOPBracelet.webp`, `badge_WSOPRing.webp` 뱃지의 `.count` 값을 프로필 탭의 `Bracelets`, `Rings` 값과 비교합니다. 불일치하면 결함 후보로 리포트에 노출합니다. `.count`가 없으면 해당 뱃지 이미지 1개를 1개로 계산합니다.
+`Bracelets`와 `Rings`는 ALL 탭 이벤트 분류 계산값을 실패 기준으로 사용하지 않고, 프로필 요약값을 기준으로 프로필 요약 영역에 표시되는 `badge_WSOPBracelet.webp`, `badge_WSOPRing.webp` 뱃지의 `.count` 값을 비교합니다. 불일치하면 결함 후보로 리포트에 노출합니다. `.count`가 없으면 해당 뱃지 이미지 1개를 1개로 계산합니다.
 
 스탠딩 카테고리에서 수집된 row 값도 프로필 요약값과 교차 검증합니다. `All-Time Earnings - Men/Women`의 `Earnings`는 프로필 `Total Earnings`와, `All-Time Bracelets`의 `Bracelets`는 프로필 `Bracelets`와, `All-Time Rings`의 `Rings`는 프로필 `Rings`와 일치해야 합니다. 불일치하면 `Standings/profile summary mismatch` 결함으로 리포트에 노출합니다.
 
@@ -331,6 +337,8 @@ Result 페이지가 `1 2 3 ... 10`처럼 페이지 그룹을 나누는 경우에
 - 각 이벤트의 Result 페이지를 열어 최종 결과표에서 선수명, 순위, 상금이 맞는지 확인합니다.
 
 다른 탭들은 일반적으로 row 수가 많지 않기 때문에 `Load more`를 반복하지 않고, 탭 클릭 직후 표시된 row 수를 기준으로 빠르게 검증합니다. ALL 탭은 `Cashes`와 `Total Earnings` 계산에 필요하므로 `MAX_LOAD_MORE` 설정에 따라 더 많이 펼칩니다.
+
+
 
 ## 출력물
 
@@ -432,9 +440,15 @@ set "DISABLED_RESULT_MODE=fail"
 
 ALL 탭에서는 `MAX_LOAD_MORE` 값만큼 `Load more`를 눌러 더 많은 row를 펼칩니다. 프로필 상단 `Cashes` 값에 도달하면 더 누르지 않고 멈춥니다.
 
+`Title`과 `Final Tables`는 프로필 요약값을 기준으로 전용 프로필 탭의 표시 row 수를 우선 비교합니다. ALL 탭 분류 계산값은 참고값으로 남기며, 전용 탭이 프로필 요약값과 일치하면 ALL 탭 계산 차이만으로는 결함 처리하지 않습니다.
+
+`Cashes`는 별도 프로필 탭이 없으므로 ALL 탭 수집 row 수로 검증합니다. 단, `Load more`가 더 이상 없어 프로필 요약 `Cashes` 개수까지 수집하지 못한 경우에는 실제 데이터 불일치가 아니라 수집 미완료 `주의`로 표시하고 실패 집계에서는 제외합니다.
+
+
+
 `Total Earnings` 합계는 환율 변환, 통화 표기, 사이트 원본값 차이로 profile 상단 값과 ALL 탭 계산값이 다를 수 있습니다. 따라서 `Total Earnings` 불일치는 리포트에서 `주의`로 표시하고 실패 집계에서는 제외합니다. 단, Result 상세 페이지 검증의 상금 불일치는 정확성 검증 대상이므로 실패입니다.
 
-`Bracelets`와 `Rings`는 ALL 탭 이벤트 분류 계산값을 실패 기준으로 사용하지 않고, 프로필 요약 영역에 표시되는 `badge_WSOPBracelet.webp`, `badge_WSOPRing.webp` 뱃지의 `.count` 값을 프로필 탭의 `Bracelets`, `Rings` 값과 비교합니다. 불일치하면 결함 후보로 리포트에 노출합니다. `.count`가 없으면 해당 뱃지 이미지 1개를 1개로 계산합니다.
+`Bracelets`와 `Rings`는 ALL 탭 이벤트 분류 계산값을 실패 기준으로 사용하지 않고, 프로필 요약값을 기준으로 프로필 요약 영역에 표시되는 `badge_WSOPBracelet.webp`, `badge_WSOPRing.webp` 뱃지의 `.count` 값을 비교합니다. 불일치하면 결함 후보로 리포트에 노출합니다. `.count`가 없으면 해당 뱃지 이미지 1개를 1개로 계산합니다.
 
 스탠딩 카테고리에서 수집된 row 값도 프로필 요약값과 교차 검증합니다. `All-Time Earnings - Men/Women`의 `Earnings`는 프로필 `Total Earnings`와, `All-Time Bracelets`의 `Bracelets`는 프로필 `Bracelets`와, `All-Time Rings`의 `Rings`는 프로필 `Rings`와 일치해야 합니다. 불일치하면 `Standings/profile summary mismatch` 결함으로 리포트에 노출합니다.
 
@@ -496,6 +510,8 @@ Result 페이지가 `1 2 3 ... 10`처럼 페이지 그룹을 나누는 경우에
 - 각 이벤트의 Result 페이지를 열어 최종 결과표에서 선수명, 순위, 상금이 맞는지 확인합니다.
 
 다른 탭들은 일반적으로 row 수가 많지 않기 때문에 `Load more`를 반복하지 않고, 탭 클릭 직후 표시된 row 수를 기준으로 빠르게 검증합니다. ALL 탭은 `Cashes`와 `Total Earnings` 계산에 필요하므로 `MAX_LOAD_MORE` 설정에 따라 더 많이 펼칩니다.
+
+
 
 ## 출력물
 
