@@ -3588,6 +3588,9 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       return /cashes/i.test(text) || /earnings/i.test(text);
     }, null, { timeout: 10000 }).catch(() => {});
 
+    // Hydration 안정화 대기 (캐러셀 탭 버튼의 클릭 이벤트 리스너 바인딩 보장)
+    await page.waitForTimeout(3000);
+
     const profileName = await extractPlayerName(page);
     const name = canonicalPlayerName(profileName, standingsSources);
     const bodyText = await page.locator("body").innerText({ timeout });
