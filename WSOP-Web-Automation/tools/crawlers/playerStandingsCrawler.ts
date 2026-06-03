@@ -2300,6 +2300,15 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 // Title/Final Tables는 프로필 요약 비교의 우선 비교값으로도 사용한다.
 async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   let visibleEvents = await extractEventRows(page);
+
+  // 탭 전환 직후 렌더링 지연에 대한 방어 로직 (이벤트가 0개면 최대 5초간 폴링)
+  if (visibleEvents.length === 0 && Number.isFinite(expectedRows) && expectedRows > 0) {
+    for (let wait = 0; wait < 5; wait++) {
+      await page.waitForTimeout(1000);
+      visibleEvents = await extractEventRows(page);
+      if (visibleEvents.length > 0) break;
+    }
+  }
   let events = visibleEvents;
   const expected = Number.isFinite(expectedRows) && expectedRows > 0 ? expectedRows : null;
   const expansion = {

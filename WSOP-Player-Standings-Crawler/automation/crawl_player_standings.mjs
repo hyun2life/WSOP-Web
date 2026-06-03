@@ -2336,9 +2336,9 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   let visibleEvents = await extractEventRows(page);
 
-  // 탭 전환 직후 렌더링 지연에 대한 방어 로직 (이벤트가 0개면 최대 3초간 폴링)
+  // 탭 전환 직후 렌더링 지연에 대한 방어 로직 (이벤트가 0개면 최대 5초간 폴링)
   if (visibleEvents.length === 0 && Number.isFinite(expectedRows) && expectedRows > 0) {
-    for (let wait = 0; wait < 3; wait++) {
+    for (let wait = 0; wait < 5; wait++) {
       await page.waitForTimeout(1000);
       visibleEvents = await extractEventRows(page);
       if (visibleEvents.length > 0) break;
