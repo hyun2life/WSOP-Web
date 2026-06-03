@@ -703,6 +703,33 @@ function parseSummary(bodyText) {
   return summary;
 }
 
+function isZeroProfileSummary(summary) {
+  return STAT_DEFS.every((stat) => summary?.[stat.key] === 0);
+}
+
+function profileDataUnavailableWarningPlayer({ name, url, standingsSources = [], summary = {}, bodyText = "" }) {
+  const warning = "Profile data was not available: summary values and collected event rows were both zero. Check whether the profile URL is a legacy or unavailable page before treating this as a valid zero profile.";
+  return {
+    name: name || playerNameFromUrl(url) || url,
+    url,
+    standingsSources,
+    summary,
+    events: [],
+    calculated: {},
+    comparisons: [],
+    tabChecks: [],
+    tabEventsByKey: {},
+    warnings: [warning],
+    defects: [],
+    status: "warn",
+    profilePage: {
+      status: "warn",
+      error: warning,
+      extractedTextSample: normalizeText(bodyText).slice(0, 1000)
+    }
+  };
+}
+
 async function extractProfileBadgeCounts(page) {
   const emptyCounts = PROFILE_BADGE_DEFS.reduce((counts, badgeDef) => {
     counts[badgeDef.key] = 0;
@@ -1113,7 +1140,7 @@ function reconcileSummaryComparisons(comparisons = [], tabChecks = [], expansion
   return (comparisons || []).map((comparison) => {
     if ((comparison.key === "titles" || comparison.key === "finalTables") && comparison.source === "all-tab") {
       const tabCheck = (tabChecks || []).find((check) => check?.key === comparison.key);
-      if (tabCheck?.selectedTab && Number.isFinite(tabCheck.actual)) {
+      if (tabCheck?.selectedTab && tabCheck.status === "pass" && Number.isFinite(tabCheck.actual)) {
         return {
           ...comparison,
           calculated: tabCheck.actual,
@@ -2299,6 +2326,12 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
     visibleEvents = update.visibleEvents;
 
     if (events.length <= beforeCount) {
+      // 가상 스크롤: row 수는 그대로지만 내용이 교체된 경우는 stall이 아님
+      if (update.changed) {
+        stalledClicks = 0;
+        await page.waitForTimeout(500);
+        continue;
+      }
       stalledClicks += 1;
       if (stalledClicks >= 3) {
         await page.waitForTimeout(3000);
@@ -2411,7 +2444,7 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
 
 // 모든 지표 탭을 열어 각 탭 자체의 조건 계산값을 구한다.
 // 이후 프로필 요약값 및 ALL 탭 계산값과 각각 비교한다.
-async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResultMode, skippedComparisonEvents = []) {
+async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResultMode, skippedComparisonEvents = [], allEvents = []) {
   const checks = [];
   const tabEventsByKey = {};
   const skippedEvents = disabledResultMode === "skip" ? skippedComparisonEvents || [] : [];
@@ -2453,7 +2486,12 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
     const dedupedComparableTabEvents = skippedKeys.size
       ? dedupedTabEvents.uniqueEvents.filter((event) => !skippedKeys.has(eventComparisonKey(event)))
       : dedupedTabEvents.uniqueEvents;
-    tabEventsByKey[tabCheck.key] = tabEvents;
+    const allTabConditionalEvents = (allEvents || []).filter((event) => eventContributesToProfileTab(event, tabCheck.key));
+    const dedupedAllTabConditionalEvents = deduplicateComparisonEvents(allTabConditionalEvents);
+    const shouldUseAllTabFallback = Number.isFinite(expected)
+      && expected > 0
+      && tabEvents.length === 0
+      && dedupedAllTabConditionalEvents.uniqueEvents.length > 0;
     const adjustedExpected = Number.isFinite(expected)
       ? Math.max(0, expected - skippedForTab.length)
       : expected;
@@ -2465,13 +2503,19 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
       { name: "disabled-skipped", priority: 2, actual: rawComparableTabEvents.length, expected, duplicateCount: 0, skippedCount: skippedForTab.length },
       { name: "disabled-skipped-adjusted", priority: 3, actual: rawComparableTabEvents.length, expected: adjustedExpected, duplicateCount: 0, skippedCount: skippedForTab.length },
       { name: "deduped-disabled-skipped", priority: 4, actual: dedupedComparableTabEvents.length, expected, duplicateCount: dedupedTabEvents.duplicateEvents.length, skippedCount: skippedForTab.length },
-      { name: "deduped-disabled-skipped-adjusted", priority: 5, actual: dedupedComparableTabEvents.length, expected: adjustedExpected, duplicateCount: dedupedTabEvents.duplicateEvents.length, skippedCount: skippedForTab.length }
+      { name: "deduped-disabled-skipped-adjusted", priority: 5, actual: dedupedComparableTabEvents.length, expected: adjustedExpected, duplicateCount: dedupedTabEvents.duplicateEvents.length, skippedCount: skippedForTab.length },
+      ...(shouldUseAllTabFallback
+        ? [{ name: "all-tab-conditional-fallback", priority: -1, actual: dedupedAllTabConditionalEvents.uniqueEvents.length, expected, duplicateCount: dedupedAllTabConditionalEvents.duplicateEvents.length, skippedCount: 0 }]
+        : [])
     ].map((variant) => ({
       ...variant,
       expected: variantExpected(variant.expected),
       difference: variantDifference(variant.actual, variantExpected(variant.expected))
     }));
     const selectedVariant = pickClosestCountVariant(variants);
+    tabEventsByKey[tabCheck.key] = selectedVariant.name === "all-tab-conditional-fallback"
+      ? dedupedAllTabConditionalEvents.uniqueEvents
+      : tabEvents;
     check.expected = selectedVariant.expected;
     check.actual = selectedVariant.actual;
     check.status = Number.isFinite(selectedVariant.expected) && selectedVariant.expected === check.actual ? "pass" : "fail";
@@ -2488,6 +2532,7 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
     if (check.duplicates) detailParts.push(`duplicates ignored=${check.duplicates}`);
     if (selectedVariant.skippedCount) detailParts.push(`disabled skipped=${selectedVariant.skippedCount}`);
     if (selectedVariant.name !== "raw" && check.rawRows !== check.actual) detailParts.push(`raw=${check.rawRows}`);
+    if (selectedVariant.name === "all-tab-conditional-fallback") detailParts.push(`fallbackFromAll=${dedupedAllTabConditionalEvents.uniqueEvents.length}`);
     if (check.expected !== expected) detailParts.push(`original=${expected ?? "-"}`);
     detailParts.push(`loadMoreClicks=${expansion.loadMoreClicks}`);
     detailParts.push(`stopped=${expansion.stoppedReason}`);
@@ -3650,6 +3695,9 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       warnings.push(`Profile badge count extraction failed: ${badgeCounts.error}`);
     }
     const { events, expansion } = await expandAllEventRows(page, summary.cashes, maxLoadMore);
+    if (!events.length && isZeroProfileSummary(summary)) {
+      return profileDataUnavailableWarningPlayer({ name, url, standingsSources, summary, bodyText });
+    }
     const { comparisonEvents: profileComparisonEvents, overflowEvents, duplicateEvents, strategy: comparisonStrategy } = comparisonEventsForSummary(events, summary);
     // 요약 비교는 프로필 Cashes 수에 맞춘다.
     // 초과 수집 row는 리포트에는 남기지만 요약 비교와 Result 검증에는 쓰지 않는다.
@@ -3665,7 +3713,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     const skippedUnavailableResultEvents = disabledResultMode === "skip" ? unavailableResultEvents : [];
     const summaryForComparison = summary;
     const rawSummaryEvents = splitEventsByExpectedCashes(events, summary).comparisonEvents;
-    const { checks: tabChecks, tabEventsByKey } = await collectProfileTabChecks(page, summary, maxLoadMore, disabledResultMode, skippedUnavailableResultEvents);
+    const { checks: tabChecks, tabEventsByKey } = await collectProfileTabChecks(page, summary, maxLoadMore, disabledResultMode, skippedUnavailableResultEvents, events);
     const calculated = calculateSummaryFromEvents(rawSummaryEvents, summary, events);
     // Summary는 ALL 탭 수집값으로, 각 탭은 자기 탭 수집값으로 독립 계산한다.
 
@@ -5827,6 +5875,15 @@ function runSelfTest() {
   }
 
   const summary = parseSummary("Title 2 Bracelets 1 Rings 1 Final Tables 3 Cashes 4 Total Earnings $165,000");
+  const zeroProfileWarning = profileDataUnavailableWarningPlayer({
+    name: "Legacy Profile",
+    url: "https://www.wsop.com/players/profile/?playerid=1",
+    summary: parseSummary("Title 0 Bracelets 0 Rings 0 Final Tables 0 Cashes 0 Total Earnings $0"),
+    bodyText: "Legacy profile body"
+  });
+  if (zeroProfileWarning.status !== "warn" || zeroProfileWarning.comparisons.length || !isZeroProfileSummary(zeroProfileWarning.summary)) {
+    throw new Error("Zero summary with zero collected events should be treated as unavailable profile data");
+  }
   const events = [
     normalizeEvent({ rowIndex: 0, text: "WSOP Bracelet #1 $100,000 Result", cells: ["WSOP Bracelet", "#1", "$100,000"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/1", hasResultControl: true }),
     normalizeEvent({ rowIndex: 1, text: "WSOP Circuit Ring #1 $50,000 Result", cells: ["WSOP Circuit Ring", "#1", "$50,000"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/2", hasResultControl: true }),
@@ -5975,6 +6032,14 @@ function runSelfTest() {
   ).find((item) => item.key === "titles");
   if (titleTabBackedComparison?.status !== "pass" || titleTabBackedComparison.source !== "profile-tab" || titleTabBackedComparison.allCalculated !== 12) {
     throw new Error("Title summary comparison should prefer the profile tab count over ALL-tab false positives");
+  }
+  const failedTabShouldNotOverrideAllComparison = reconcileSummaryComparisons(
+    compareSummary({ finalTables: 5 }, { finalTables: 5 }),
+    [{ key: "finalTables", label: "Final Tables", expected: 5, actual: 0, selectedTab: "FINAL TABLES", status: "fail" }],
+    {}
+  ).find((item) => item.key === "finalTables");
+  if (failedTabShouldNotOverrideAllComparison?.status !== "pass" || failedTabShouldNotOverrideAllComparison.source !== "all-tab" || failedTabShouldNotOverrideAllComparison.calculated !== 5) {
+    throw new Error("Failed profile tab counts should not overwrite matching ALL-tab summary calculations");
   }
   const incompleteCashesComparison = reconcileSummaryComparisons(
     compareSummary({ cashes: 248 }, { cashes: 247 }),

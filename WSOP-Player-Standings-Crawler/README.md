@@ -626,6 +626,8 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 - Use `--standings-only` when only standings target collection is needed.
 - Use `--profile-only` when standings targets should be collected and player profile summary/tab/event checks should run, but Result detail pages should be skipped.
 - With `--brand`, profile-only collection is intended to review the first-page target set from the brand-filtered categories: `All-Time Earnings - Men`, `All-Time Earnings - Women`, and `All Player Stats`.
+- If a profile sub-tab returns zero rows while the ALL tab already contains matching conditional rows, the crawler uses an `all-tab-conditional-fallback` check value instead of letting the zero tab scrape overwrite the profile summary comparison.
+- If the profile summary and collected event rows are all zero, the crawler treats the page as profile data unavailable instead of reporting a normal zero-value pass. This is intended to catch legacy or unavailable profile URLs.
 
 ## Stage/Live output tag
 
