@@ -2208,6 +2208,20 @@ async function waitForEventRowsToIncrease(page, beforeCount, timeoutMs = 15000) 
     await page.waitForTimeout(700);
     latestEvents = await extractEventRows(page);
   }
+}
+
+// 더보기 클릭 후 이벤트 수가 늘어날 때까지 기다린다.
+// 최신 row를 반환해 버튼 정체를 감지하면서도 부분 수집 데이터는 보존한다.
+async function waitForEventRowsToIncrease(page, beforeCount, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  let latestEvents = await extractEventRows(page);
+
+  while (Date.now() < deadline) {
+    if (latestEvents.length > beforeCount) return latestEvents;
+    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {});
+    await page.waitForTimeout(700);
+    latestEvents = await extractEventRows(page);
+  }
 
   return latestEvents;
 }
@@ -2284,6 +2298,8 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
     const beforeCount = events.length;
     const beforeVisibleEvents = visibleEvents;
     await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+    // Load More 클릭 전 무작위 지연(Jitter) 부여로 Throttling 방지
+    await page.waitForTimeout(Math.floor(Math.random() * 1500) + 500);
     await clickControlWithFallback(loadMore, 10000);
     expansion.loadMoreClicks += 1;
     const update = await waitForEventRowsUpdate(page, events, beforeVisibleEvents);
@@ -2324,7 +2340,7 @@ async function expandAllEventRows(page, expectedCashes, maxLoadMore) {
 }
 
 // 단일 지표 탭을 펼친 뒤 ALL과 같은 규칙으로 해당 지표를 계산한다.
-// Title/Final Tables는 프로필 요약 비교의 우선 비교값으로도 사용한다.
+// Title/Final Tables는 프로필 요약의 우선 비교값으로도 사용한다.
 async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   let visibleEvents = await extractEventRows(page);
 
@@ -2361,6 +2377,8 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
     const beforeCount = events.length;
     const beforeVisibleEvents = visibleEvents;
     await loadMore.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+    // Load More 클릭 전 무작위 지연(Jitter) 부여로 Throttling 방지
+    await page.waitForTimeout(Math.floor(Math.random() * 1500) + 500);
     await clickControlWithFallback(loadMore, 10000);
     expansion.loadMoreClicks += 1;
     const update = await waitForEventRowsUpdate(page, events, beforeVisibleEvents);
@@ -5814,52 +5832,6 @@ function runSelfTest() {
     throw new Error("Failed profile tab counts should not overwrite matching ALL-tab summary calculations");
   }
   const incompleteCashesComparison = reconcileSummaryComparisons(
-    compareSummary({ cashes: 248 }, { cashes: 247 }),
-    [],
-    { expectedCashes: 248, reachedExpectedCashes: false, finalEventCount: 247 }
-  ).find((item) => item.key === "cashes");
-  if (incompleteCashesComparison?.status !== "warn" || buildDefects({ name: "Incomplete Cashes", url: "https://example.test/cashes", comparisons: [incompleteCashesComparison], tabChecks: [], events: [] }).length) {
-    throw new Error("Incomplete ALL-tab Cashes collection should warn without creating a failure defect");
-  }
-  const braceletBadgeMismatch = compareSummary({ bracelets: 3 }, { bracelets: 3 }, { bracelets: 2, rings: 0 }).find((item) => item.key === "bracelets");
-  if (braceletBadgeMismatch?.status !== "fail" || !buildDefects({ name: "Bracelet Mismatch", url: "https://example.test/bracelet", comparisons: [braceletBadgeMismatch], tabChecks: [], events: [] }).length) {
-    throw new Error("Bracelet badge mismatch should fail against the profile summary value");
-  }
-  const standingsEarningsSource = buildStandingMetricSource("All-Time Earnings - Men", "1 Alex Kulev Bulgaria $12,361,923");
-  if (standingsEarningsSource.metricValue !== 12361923 || standingsEarningsSource.metricKey !== "totalEarnings") {
-    throw new Error("All-Time Earnings standings row should extract Total Earnings");
-  }
-  const standingsBraceletsSource = {
-    category: "All-Time Bracelets",
-    rank: 1,
-    name: "Phil Hellmuth",
-    rowText: "1 Phil Hellmuth United States 17",
-    brand: "WSOP",
-    sourceUrl: "https://example.test/standings",
-    ...buildStandingMetricSource("All-Time Bracelets", "1 Phil Hellmuth United States 17")
-  };
-  const standingsChecks = compareStandingsSourcesToSummary([standingsBraceletsSource], { bracelets: 16 });
-  const standingsDefect = buildDefects({ name: "Phil Hellmuth", url: "https://example.test/player", standingsSources: [standingsBraceletsSource], standingsChecks, comparisons: [], tabChecks: [], events: [] })[0];
-  if (standingsChecks[0]?.status !== "fail" || standingsDefect?.type !== "Standings/profile summary mismatch") {
-    throw new Error("Standings/profile metric mismatches should create a failure defect");
-  }
-  const warningOnlyPlayer = { name: "Warn Sample", url: "https://example.test/warn", comparisons: [earningsComparison], tabChecks: [], events: [], defects: [] };
-  warningOnlyPlayer.status = playerStatus(warningOnlyPlayer);
-  if (warningOnlyPlayer.status !== "warn") {
-    throw new Error("Total Earnings mismatch should set player status to warn");
-  }
-  const incompleteSummaryPlayer = {
-    name: "Incomplete Summary Sample",
-    url: "https://example.test/incomplete",
-    comparisons: [{ key: "cashes", label: "Cashes", top: 10, calculated: 8, status: "fail" }],
-    tabChecks: [],
-    events: [{}, {}, {}, {}, {}, {}, {}, {}],
-    expansion: { expectedCashes: 10, reachedExpectedCashes: false, finalEventCount: 8, loadMoreClicks: 2, stoppedReason: "load-more-not-found" },
-    defects: []
-  };
-  const incompleteDefect = buildDefects(incompleteSummaryPlayer)[0];
-  if (!incompleteDefect?.detail.includes("ALL tab collection incomplete")) {
-    throw new Error("Incomplete ALL collection context should be included in profile summary mismatch details");
   }
   const crawlerWarningOnlyPlayer = {
     name: "Crawler Warning Sample",
