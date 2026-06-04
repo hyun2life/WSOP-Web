@@ -94,6 +94,13 @@ document.addEventListener('DOMContentLoaded', () => {
       stepsKo: ['브랜드와 환경 선택', '실제 화면 브랜드 옵션 수집', 'standings 대상 수집', '선택 모드에 따라 프로필 또는 Result 검증', 'JSON/HTML/CSV 산출물 생성'],
       passCriteriaKo: ['실제 화면의 브랜드 옵션 목록이 JSON에 저장되어야 합니다.', '지정한 조건의 대상 선수가 수집되어야 합니다.', '선택한 모드에 맞는 리포트가 생성되어야 합니다.'],
     },
+    'tournament-crawler': {
+      nameKo: '토너먼트 크롤러',
+      shortSummaryKo: '과거 대회 목록과 일정을 수집하고 헤더 및 개별 이벤트 데이터 정합성을 검증합니다.',
+      descriptionKo: '특정 연도의 과거 대회 목록에서 이미지, 브랜드, 시리즈명 등을 수집하고 헤더 정합성 및 개별 결과(Payout)와의 교차 데이터 정합성을 검증합니다.',
+      stepsKo: ['과거 대회 목록 페이지 수집', '상세 대회 헤더 데이터와 카드 정보 1:1 비교 검증', 'Case A: 결과 있음 상세 데이터 추출 및 Payout 페이지와 교차 정합성 대조', 'Case B: 결과 없음 상세 일정 데이터 포맷 누락 여부 검사', '토너먼트 크롤러 JSON, HTML, CSV 산출물 생성'],
+      passCriteriaKo: ['토너먼트 크롤러 배치 파일 실행이 정상 완료되어야 합니다.', '상세 결과(Payout) 페이지의 데이터(우승자, 참가자, 상금)와 이벤트 리스트의 데이터가 완전히 일치해야 합니다.'],
+    },
   };
   const phaseListContainer = document.getElementById('phase-list-container');
   const detailId = document.getElementById('detail-id');
@@ -134,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingReportSelection = null;
 
   const crawlerOpts = {
+    year: { chk: document.getElementById('opt-year-check'), arg: 'year' },
     limit: { chk: document.getElementById('opt-limit-check'), input: document.getElementById('opt-limit-input'), arg: 'limit' },
     auth: { chk: document.getElementById('opt-auth-check'), input: document.getElementById('opt-auth-input'), arg: 'auth-wait-ms' },
     concurrency: { chk: document.getElementById('opt-concurrency-check'), input: document.getElementById('opt-concurrency-input'), arg: 'concurrency' },
@@ -150,10 +158,76 @@ document.addEventListener('DOMContentLoaded', () => {
     retries: { chk: document.getElementById('opt-retries-check'), input: document.getElementById('opt-retries-input'), arg: 'retries' },
   };
 
+  initializeYearOptions();
   renderBrandOptions(defaultBrandOptions, { sourceLabel: '기본 브랜드 목록' });
   setupCheckboxToggles(crawlerOpts);
   setupCheckboxToggles(pwOpts);
   setupExclusiveCrawlerModes();
+
+  function initializeYearOptions() {
+    const yearContainer = document.getElementById('opt-year-list-container');
+    if (!yearContainer) return;
+    yearContainer.innerHTML = '';
+    const currentYear = new Date().getFullYear();
+    const allItem = createYearCheckbox('ALL', 'ALL (전체)', true);
+    yearContainer.appendChild(allItem);
+
+    for (let y = currentYear; y >= 1970; y--) {
+      const item = createYearCheckbox(String(y), String(y), false);
+      yearContainer.appendChild(item);
+    }
+
+    yearContainer.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target && target.name === 'opt-year') {
+        if (target.value === 'ALL') {
+          if (target.checked) {
+            document.querySelectorAll('input[name="opt-year"]').forEach(chk => {
+              if (chk.value !== 'ALL') chk.checked = false;
+            });
+          }
+        } else {
+          if (target.checked) {
+            const allChk = yearContainer.querySelector('input[name="opt-year"][value="ALL"]');
+            if (allChk) allChk.checked = false;
+          }
+        }
+        syncYearControls();
+      }
+    });
+
+    syncYearControls();
+  }
+
+  function createYearCheckbox(value, label, checked) {
+    const div = document.createElement('div');
+    div.className = 'year-checkbox-item';
+    div.innerHTML = `
+      <label class="custom-checkbox">
+        <input type="checkbox" name="opt-year" value="${escapeHtml(value)}" ${checked ? 'checked' : ''}>
+        <span class="checkmark"></span>${escapeHtml(label)}
+      </label>
+    `;
+    return div;
+  }
+
+  function syncYearControls() {
+    const yearEnabled = Boolean(crawlerOpts.year?.chk?.checked);
+    const allChk = document.querySelector('input[name="opt-year"][value="ALL"]');
+    const isAllChecked = allChk && allChk.checked;
+
+    document.querySelectorAll('input[name="opt-year"]').forEach((chk) => {
+      if (!yearEnabled) {
+        chk.disabled = true;
+      } else {
+        if (isAllChecked && chk.value !== 'ALL') {
+          chk.disabled = true;
+        } else {
+          chk.disabled = false;
+        }
+      }
+    });
+  }
 
   envSelect.addEventListener('change', () => {
     customEnvUrlContainer.classList.toggle('hidden', envSelect.value !== 'Custom');
@@ -337,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
     appendPhaseCard(allPhase, allContent);
 
     phases.forEach((phase) => {
-      if (phase.id === 'crawler') {
+      if (phase.id === 'crawler' || phase.id === 'tournament-crawler') {
         appendPhaseCard(phase, crawlerList);
       } else if (phase.implemented) {
         appendPhaseCard(phase, activeList);
@@ -425,8 +499,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPhaseSteps(phase.stepsKo || []);
     renderPhaseCriteria(phase.passCriteriaKo || []);
 
-    crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3');
-    pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'all');
+    crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3' && phase.id !== 'tournament-crawler');
+    pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'tournament-crawler' || phase.id === 'all');
+
+    const isTournament = phase.id === 'tournament-crawler';
+    const yearRow = document.getElementById('opt-year-row');
+    if (yearRow) yearRow.classList.toggle('hidden', !isTournament);
+    if (crawlerOpts.reslimit?.chk) crawlerOpts.reslimit.chk.closest('.option-row').classList.remove('hidden');
+    if (crawlerOpts.standingsOnly?.chk) crawlerOpts.standingsOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+    if (crawlerOpts.profileOnly?.chk) crawlerOpts.profileOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+    if (crawlerOpts.brand?.chk) crawlerOpts.brand.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+
+    updateLabelsAndTooltips(isTournament);
 
     const soChk = document.getElementById('opt-standingsonly-check');
     const poChk = document.getElementById('opt-profileonly-check');
@@ -465,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnReportKo.disabled = true;
       btnReportEn.disabled = true;
       btnReportPw.disabled = true;
-    } else if (phase.id === 'crawler') {
+    } else if (phase.id === 'crawler' || phase.id === 'tournament-crawler') {
       btnReportKo.disabled = false;
       btnReportEn.disabled = false;
       btnReportPw.disabled = true;
@@ -473,6 +557,46 @@ document.addEventListener('DOMContentLoaded', () => {
       btnReportKo.disabled = false;
       btnReportEn.disabled = false;
       btnReportPw.disabled = false;
+    }
+
+    function updateLabelsAndTooltips(isTournament) {
+      const limitLabel = crawlerOpts.limit.chk.parentNode;
+      const concurrencyLabel = crawlerOpts.concurrency.chk.parentNode;
+      const resultLimitLabel = crawlerOpts.reslimit.chk.parentNode;
+      if (!limitLabel || !concurrencyLabel || !resultLimitLabel) return;
+
+      const limitHelp = limitLabel.querySelector('.help-icon');
+      const concurrencyHelp = concurrencyLabel.querySelector('.help-icon');
+      const resultLimitHelp = resultLimitLabel.querySelector('.help-icon');
+
+      if (isTournament) {
+        replaceLabelText(limitLabel, 'Limit Tournaments');
+        if (limitHelp) limitHelp.setAttribute('data-tooltip', '수집할 토너먼트(대회) 수를 제한합니다. 빠른 확인에는 2~3개를 권장합니다.');
+
+        replaceLabelText(concurrencyLabel, 'Concurrency');
+        if (concurrencyHelp) concurrencyHelp.setAttribute('data-tooltip', '동시에 처리할 토너먼트(대회) 수입니다. 값이 높을수록 빠르지만 브라우저와 메모리 사용량이 늘어납니다.');
+
+        replaceLabelText(resultLimitLabel, 'Limit Events');
+        if (resultLimitHelp) resultLimitHelp.setAttribute('data-tooltip', '대회별로 수집할 이벤트 수를 제한합니다. 체크하지 않거나 0이면 가능한 전체 이벤트를 확인합니다.');
+      } else {
+        replaceLabelText(limitLabel, 'Limit Players');
+        if (limitHelp) limitHelp.setAttribute('data-tooltip', '카테고리별로 수집할 선수 수를 제한합니다. 빠른 확인에는 5~10명을 권장합니다.');
+
+        replaceLabelText(concurrencyLabel, 'Concurrency');
+        if (concurrencyHelp) concurrencyHelp.setAttribute('data-tooltip', '동시에 처리할 선수 수입니다. 값이 높을수록 빠르지만 브라우저와 메모리 사용량이 늘어납니다.');
+
+        replaceLabelText(resultLimitLabel, 'Result Limit');
+        if (resultLimitHelp) resultLimitHelp.setAttribute('data-tooltip', '선수별로 검증할 Result 상세 페이지 수입니다. 0이면 가능한 전체 Result를 확인합니다.');
+      }
+    }
+
+    function replaceLabelText(labelEl, newText) {
+      for (let node of labelEl.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0) {
+          node.textContent = ' ' + newText + ' ';
+          break;
+        }
+      }
     }
   }
 
@@ -516,6 +640,8 @@ document.addEventListener('DOMContentLoaded', () => {
       item.chk.addEventListener('change', () => {
         if (item.arg === 'brand') {
           syncBrandControls();
+        } else if (item.arg === 'year') {
+          syncYearControls();
         } else if (item.input) {
           item.input.disabled = !item.chk.checked;
         }
@@ -721,12 +847,16 @@ document.addEventListener('DOMContentLoaded', () => {
       baseUrl = customEnvUrl.value.trim();
     }
 
-    if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3') {
+    if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3' || selectedPhase.id === 'tournament-crawler') {
       Object.values(crawlerOpts).forEach((opt) => {
         if (!opt.chk || !opt.chk.checked) return;
         if (selectedPhase.id === 'phase3' && opt.arg === 'profile-only') return;
 
-        if (opt.arg === 'brand') {
+        const argName = selectedPhase.id === 'tournament-crawler' && opt.arg === 'result-limit'
+          ? 'event-limit'
+          : opt.arg;
+
+        if (argName === 'brand') {
           const selectedBrands = [];
           const brandChks = document.querySelectorAll('input[name="opt-brand"]:checked');
           brandChks.forEach((chk) => {
@@ -739,11 +869,18 @@ document.addEventListener('DOMContentLoaded', () => {
               selectedBrands.push(chk.value);
             }
           });
-          customArgs[opt.arg] = selectedBrands.join('|');
-        } else if (opt.arg === 'standings-only' || opt.arg === 'profile-only') {
-          customArgs[opt.arg] = true;
+          customArgs[argName] = selectedBrands.join('|');
+        } else if (argName === 'year') {
+          const selectedYears = [];
+          const yearChks = document.querySelectorAll('input[name="opt-year"]:checked');
+          yearChks.forEach((chk) => {
+            selectedYears.push(chk.value);
+          });
+          customArgs[argName] = selectedYears.join('|');
+        } else if (argName === 'standings-only' || argName === 'profile-only') {
+          customArgs[argName] = true;
         } else if (opt.input) {
-          customArgs[opt.arg] = opt.input.value.trim();
+          customArgs[argName] = opt.input.value.trim();
         }
       });
     }

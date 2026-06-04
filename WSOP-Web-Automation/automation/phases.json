@@ -256,6 +256,31 @@
       ]
     },
     {
+      "id": "tournament-crawler",
+      "aliases": ["tournament-crawler", "tour-crawler"],
+      "name": "WSOP Tournament Crawler",
+      "reportSuite": "tournament-crawler",
+      "testDir": "../WSOP-Player-Standings-Crawler",
+      "implemented": true,
+      "runnerType": "batch",
+      "scriptPath": "RUN_WSOP_TOURNAMENT_CRAWLER.bat",
+      "nameKo": "토너먼트 크롤러",
+      "shortSummaryKo": "과거 대회 목록과 일정을 수집하고 헤더 및 개별 이벤트 데이터 정합성을 검증합니다.",
+      "description": "Runs past tournament crawler script to collect schedules and verify details results page.",
+      "descriptionKo": "특정 연도의 과거 대회 목록에서 이미지, 브랜드, 시리즈명 등을 수집하고 헤더 정합성 및 개별 결과(Payout)와의 교차 데이터 정합성을 검증합니다.",
+      "stepsKo": [
+        "과거 대회 목록 페이지 수집 및 브랜드 필터 적용",
+        "상세 대회 헤더 데이터와 카드 정보 1:1 비교 검증",
+        "Case A: 결과 있음 상세 데이터 추출 및 Payout 페이지와 교차 정합성 대조",
+        "Case B: 결과 없음 상세 일정 데이터 포맷 누락 여부 검사",
+        "토너먼트 크롤러 JSON, HTML, CSV 산출물 생성"
+      ],
+      "passCriteriaKo": [
+        "토너먼트 크롤러 배치 파일 실행이 정상 완료되어야 함",
+        "상세 결과(Payout) 페이지의 데이터(우승자, 참가자, 상금)와 이벤트 리스트의 데이터가 완전히 일치해야 함"
+      ]
+    },
+    {
       "id": "phase10",
       "aliases": ["notification-history", "p10"],
       "name": "CI/CD & Notification Integrations",

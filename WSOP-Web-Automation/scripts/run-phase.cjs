@@ -269,6 +269,7 @@ function setEnvVar(key, val, env) {
   const mapping = {
     'auth-wait-ms': 'AUTH_WAIT_MS',
     'limit': 'PLAYER_LIMIT',
+    'event-limit': 'EVENT_LIMIT',
     'result-limit': 'RESULT_LIMIT',
     'result-rank-limit': 'RESULT_RANK_LIMIT',
     'max-load-more': 'MAX_LOAD_MORE',
@@ -278,6 +279,7 @@ function setEnvVar(key, val, env) {
     'headed': 'HEADED',
     'ui': 'UI',
     'brand': 'BRAND',
+    'year': 'YEAR',
     'standings-only': 'STANDINGS_ONLY',
     'profile-only': 'PROFILE_ONLY',
     'result-only': 'RESULT_ONLY',
@@ -285,6 +287,10 @@ function setEnvVar(key, val, env) {
   };
   const envKey = mapping[key.toLowerCase()];
   if (envKey) {
-    env[envKey] = val;
+    let finalVal = val;
+    if (envKey === 'YEAR') {
+      finalVal = val.replace(/\|/g, '_');
+    }
+    env[envKey] = finalVal;
   }
 }
