@@ -40,7 +40,7 @@ echo WSOP Past Tournaments Crawler
 echo ==============================================
 echo.
 echo Settings:
-echo   YEAR        : %YEAR%
+echo   YEAR        : "%YEAR%"
 echo   BRAND FILTER: %BRAND% (Empty = All)
 echo   LIMIT       : %LIMIT%
 echo   CONCURRENCY : %CONCURRENCY%

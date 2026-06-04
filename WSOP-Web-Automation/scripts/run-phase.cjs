@@ -286,6 +286,10 @@ function setEnvVar(key, val, env) {
   };
   const envKey = mapping[key.toLowerCase()];
   if (envKey) {
-    env[envKey] = val;
+    let finalVal = val;
+    if (envKey === 'YEAR') {
+      finalVal = val.replace(/\|/g, '_');
+    }
+    env[envKey] = finalVal;
   }
 }

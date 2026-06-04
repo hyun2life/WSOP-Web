@@ -1647,10 +1647,10 @@ Options:
   const uniqueUrls = new Set();
 
   const currentYear = new Date().getFullYear();
-  const isAll = args.year.toUpperCase() === "ALL" || args.year.toUpperCase().split("|").includes("ALL");
+  const isAll = args.year.toUpperCase() === "ALL" || args.year.toUpperCase().split(/[|_]/).includes("ALL");
   const targetYears = isAll
     ? Array.from({ length: currentYear - 1970 + 1 }, (_, i) => String(currentYear - i))
-    : args.year.split("|").map(y => y.trim()).filter(Boolean);
+    : args.year.split(/[|_]/).map(y => y.trim()).filter(Boolean);
 
   console.log(`[1/4] 수집 대상 연도 목록: ${targetYears.join(", ")}`);
 
