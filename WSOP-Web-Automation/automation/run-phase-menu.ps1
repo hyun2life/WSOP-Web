@@ -700,11 +700,28 @@ $phaseCombo.Add_SelectedIndexChanged({
   }
 
   $extraGuide = ''
-  if ($phase.id -eq 'crawler') {
+  if ($phase.id -eq 'crawler' -or $phase.id -eq 'tournament-crawler') {
     $argsPanel.Visible = $true
     $pwArgsPanel.Visible = $false
 
-    $extraGuide = "`r`n`r`n[크롤러 옵션 설명 가이드]`r`n" +
+    if ($phase.id -eq 'tournament-crawler') {
+      $limitCheck.Text = 'Limit Tournaments'
+      $authCheck.Visible = $false
+      $authInput.Visible = $false
+      $resLimitCheck.Text = 'Limit Events'
+      $extraGuide = "`r`n`r`n[토너먼트 크롤러 옵션 설명 가이드]`r`n" +
+                    "▶ Limit Tournaments (대회 제한)`r`n" +
+                    "   - 수집할 최대 대회 수 (미선택 시 배치 기본값 사용)`r`n" +
+                    "▶ Concurrency (동시 실행 수)`r`n" +
+                    "   - 동시에 처리할 대회 수`r`n" +
+                    "▶ Limit Events (이벤트 제한)`r`n" +
+                    "   - 대회별로 수집할 최대 이벤트 수 (기본: 0 - 전체)"
+    } else {
+      $limitCheck.Text = 'Limit Players'
+      $authCheck.Visible = $true
+      $authInput.Visible = $true
+      $resLimitCheck.Text = 'Result Limit'
+      $extraGuide = "`r`n`r`n[크롤러 옵션 설명 가이드]`r`n" +
                   "▶ Limit Players (플레이어 제한)`r`n" +
                   "   - 카테고리당 수집할 최대 플레이어 수 (기본: 10)`r`n" +
                   "▶ Auth Wait (ms) (로그인 대기시간)`r`n" +
@@ -713,6 +730,7 @@ $phaseCombo.Add_SelectedIndexChanged({
                   "   - 스크랩 수행을 동시에 실행할 브라우저 스레드 수 (기본: 10)`r`n" +
                   "▶ Result Limit (결과 검사 제한)`r`n" +
                   "   - 플레이어 프로필당 검사할 최대 결과 페이지 수 (기본: 0 - 전체)"
+    }
   } elseif ($phase.id -eq 'all') {
     $argsPanel.Visible = $false
     $pwArgsPanel.Visible = $false
@@ -773,19 +791,23 @@ $runButton.Add_Click({
   }
 
   $customArgsStr = ''
-  if ($phase.id -eq 'crawler') {
+  if ($phase.id -eq 'crawler' -or $phase.id -eq 'tournament-crawler') {
     $customArgs = @()
     if ($limitCheck.Checked) {
       $customArgs += "--limit $($limitInput.Text.Trim())"
     }
-    if ($authCheck.Checked) {
+    if ($phase.id -eq 'crawler' -and $authCheck.Checked) {
       $customArgs += "--auth-wait-ms $($authInput.Text.Trim())"
     }
     if ($concurrencyCheck.Checked) {
       $customArgs += "--concurrency $($concurrencyInput.Text.Trim())"
     }
     if ($resLimitCheck.Checked) {
-      $customArgs += "--result-limit $($resLimitInput.Text.Trim())"
+      if ($phase.id -eq 'tournament-crawler') {
+        $customArgs += "--event-limit $($resLimitInput.Text.Trim())"
+      } else {
+        $customArgs += "--result-limit $($resLimitInput.Text.Trim())"
+      }
     }
     $customArgsStr = $customArgs -join ' '
   } else {

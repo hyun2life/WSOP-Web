@@ -649,12 +649,12 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 ```cmd
 RUN_WSOP_TOURNAMENT_CRAWLER.bat
 ```
-배치 파일 내부의 환경변수(`YEAR`, `BRAND`, `LIMIT`, `CONCURRENCY`, `HEADED`)를 수정하여 실행 연도나 브랜드 필터링을 쉽게 조정할 수 있습니다.
+배치 파일 내부의 환경변수(`YEAR`, `BRAND`, `LIMIT`, `EVENT_LIMIT`, `CONCURRENCY`, `HEADED`)를 수정하여 실행 연도, 대회 수, 대회별 이벤트 수, 브랜드 필터링을 쉽게 조정할 수 있습니다. `EVENT_LIMIT=0`은 대회별 이벤트를 제한하지 않는 전체 수집입니다.
 
 Node 명령어로 단독 실행:
 ```bash
-# 2024년 대회를 최대 5개 수집하여 2개 병렬로 브라우저 창을 띄워(headed) 검증
-node automation/crawl_tournaments.mjs --year 2024 --limit 5 --concurrency 2 --headed
+# 2024년 대회를 최대 5개, 대회별 이벤트를 최대 3개 수집하여 2개 병렬로 브라우저 창을 띄워(headed) 검증
+node automation/crawl_tournaments.mjs --year 2024 --limit 5 --event-limit 3 --concurrency 2 --headed
 
 # 브랜드 필터링 적용 (예: CIRCUIT)
 node automation/crawl_tournaments.mjs --year 2024 --brand CIRCUIT --limit 10
@@ -662,6 +662,13 @@ node automation/crawl_tournaments.mjs --year 2024 --brand CIRCUIT --limit 10
 # 오프라인 검증 로직 자체 테스트 (모크 데이터 기반)
 node automation/crawl_tournaments.mjs --self-test
 ```
+
+주요 제한 옵션:
+- `--limit <n>`: 수집할 대회 수 제한입니다. `0`이면 대회 수를 제한하지 않습니다.
+- `--event-limit <n>`: 대회별로 수집할 이벤트 수 제한입니다. `0`이면 이벤트 수를 제한하지 않습니다.
+- `--result-limit <n>`: 기존 대시보드/스크립트 호환용 alias이며 현재는 `--event-limit`과 동일하게 동작합니다.
+
+실행 중에는 플레이어 크롤러처럼 시작 직후와 각 대회 처리 완료 시점마다 JSON/HTML/CSV 리포트를 같은 경로에 갱신합니다. 중간에 중단되면 `runStatus=interrupted`, 완료된 대회 수/남은 대회 수가 리포트 요약에 남습니다.
 
 ### 산출물 위치
 - 크롤링 요약 데이터: `automation/output/wsop-tournament-crawler-*.json`

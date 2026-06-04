@@ -506,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isTournament = phase.id === 'tournament-crawler';
     const yearRow = document.getElementById('opt-year-row');
     if (yearRow) yearRow.classList.toggle('hidden', !isTournament);
-    if (crawlerOpts.reslimit?.chk) crawlerOpts.reslimit.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+    if (crawlerOpts.reslimit?.chk) crawlerOpts.reslimit.chk.closest('.option-row').classList.remove('hidden');
     if (crawlerOpts.standingsOnly?.chk) crawlerOpts.standingsOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
     if (crawlerOpts.profileOnly?.chk) crawlerOpts.profileOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
     if (crawlerOpts.brand?.chk) crawlerOpts.brand.chk.closest('.option-row').classList.toggle('hidden', isTournament);
@@ -563,10 +563,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateLabelsAndTooltips(isTournament) {
       const limitLabel = crawlerOpts.limit.chk.parentNode;
       const concurrencyLabel = crawlerOpts.concurrency.chk.parentNode;
-      if (!limitLabel || !concurrencyLabel) return;
+      const resultLimitLabel = crawlerOpts.reslimit.chk.parentNode;
+      if (!limitLabel || !concurrencyLabel || !resultLimitLabel) return;
 
       const limitHelp = limitLabel.querySelector('.help-icon');
       const concurrencyHelp = concurrencyLabel.querySelector('.help-icon');
+      const resultLimitHelp = resultLimitLabel.querySelector('.help-icon');
 
       if (isTournament) {
         replaceLabelText(limitLabel, 'Limit Tournaments');
@@ -574,12 +576,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         replaceLabelText(concurrencyLabel, 'Concurrency');
         if (concurrencyHelp) concurrencyHelp.setAttribute('data-tooltip', '동시에 처리할 토너먼트(대회) 수입니다. 값이 높을수록 빠르지만 브라우저와 메모리 사용량이 늘어납니다.');
+
+        replaceLabelText(resultLimitLabel, 'Limit Events');
+        if (resultLimitHelp) resultLimitHelp.setAttribute('data-tooltip', '대회별로 수집할 이벤트 수를 제한합니다. 체크하지 않거나 0이면 가능한 전체 이벤트를 확인합니다.');
       } else {
         replaceLabelText(limitLabel, 'Limit Players');
         if (limitHelp) limitHelp.setAttribute('data-tooltip', '카테고리별로 수집할 선수 수를 제한합니다. 빠른 확인에는 5~10명을 권장합니다.');
 
         replaceLabelText(concurrencyLabel, 'Concurrency');
         if (concurrencyHelp) concurrencyHelp.setAttribute('data-tooltip', '동시에 처리할 선수 수입니다. 값이 높을수록 빠르지만 브라우저와 메모리 사용량이 늘어납니다.');
+
+        replaceLabelText(resultLimitLabel, 'Result Limit');
+        if (resultLimitHelp) resultLimitHelp.setAttribute('data-tooltip', '선수별로 검증할 Result 상세 페이지 수입니다. 0이면 가능한 전체 Result를 확인합니다.');
       }
     }
 
@@ -845,7 +853,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!opt.chk || !opt.chk.checked) return;
         if (selectedPhase.id === 'phase3' && opt.arg === 'profile-only') return;
 
-        if (opt.arg === 'brand') {
+        const argName = selectedPhase.id === 'tournament-crawler' && opt.arg === 'result-limit'
+          ? 'event-limit'
+          : opt.arg;
+
+        if (argName === 'brand') {
           const selectedBrands = [];
           const brandChks = document.querySelectorAll('input[name="opt-brand"]:checked');
           brandChks.forEach((chk) => {
@@ -858,18 +870,18 @@ document.addEventListener('DOMContentLoaded', () => {
               selectedBrands.push(chk.value);
             }
           });
-          customArgs[opt.arg] = selectedBrands.join('|');
-        } else if (opt.arg === 'year') {
+          customArgs[argName] = selectedBrands.join('|');
+        } else if (argName === 'year') {
           const selectedYears = [];
           const yearChks = document.querySelectorAll('input[name="opt-year"]:checked');
           yearChks.forEach((chk) => {
             selectedYears.push(chk.value);
           });
-          customArgs[opt.arg] = selectedYears.join('|');
-        } else if (opt.arg === 'standings-only' || opt.arg === 'profile-only') {
-          customArgs[opt.arg] = true;
+          customArgs[argName] = selectedYears.join('|');
+        } else if (argName === 'standings-only' || argName === 'profile-only') {
+          customArgs[argName] = true;
         } else if (opt.input) {
-          customArgs[opt.arg] = opt.input.value.trim();
+          customArgs[argName] = opt.input.value.trim();
         }
       });
     }

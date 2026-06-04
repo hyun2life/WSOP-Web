@@ -12,6 +12,7 @@ rem -------------------------------------------------------------
 rem YEAR: Target year for past tournaments. Default is 2026.
 rem BRAND: Filter by brand (e.g. CIRCUIT, BRACELETS). Empty means no filter.
 rem LIMIT: Maximum number of tournaments to process. Default is 10.
+rem EVENT_LIMIT: Maximum events to collect per tournament. Default is 0 (unlimited).
 rem CONCURRENCY: Maximum parallel tournament crawls. Default is 3.
 rem HEADED: Run with browser window visible (true) or background (false).
 rem WSOP_NO_PAUSE: Set to true to skip pausing at the end (for CI/CD).
@@ -23,6 +24,13 @@ if "%LIMIT%"=="" (
     set "LIMIT=%PLAYER_LIMIT%"
   ) else (
     set "LIMIT=1000"
+  )
+)
+if "%EVENT_LIMIT%"=="" (
+  if not "%RESULT_LIMIT%"=="" (
+    set "EVENT_LIMIT=%RESULT_LIMIT%"
+  ) else (
+    set "EVENT_LIMIT=0"
   )
 )
 if "%CONCURRENCY%"=="" set "CONCURRENCY=10"
@@ -43,13 +51,14 @@ echo Settings:
 echo   YEAR        : "%YEAR%"
 echo   BRAND FILTER: %BRAND% (Empty = All)
 echo   LIMIT       : %LIMIT%
+echo   EVENT LIMIT : %EVENT_LIMIT% (0 = Unlimited)
 echo   CONCURRENCY : %CONCURRENCY%
 echo   HEADED      : %HEADED%
 echo.
 echo Executing crawler...
 echo.
 
-node automation\crawl_tournaments.mjs --year "%YEAR%" --limit %LIMIT% --concurrency %CONCURRENCY% %HEADED_FLAG% %BRAND_FLAG%
+node automation\crawl_tournaments.mjs --year "%YEAR%" --limit %LIMIT% --event-limit %EVENT_LIMIT% --concurrency %CONCURRENCY% %HEADED_FLAG% %BRAND_FLAG%
 set EXIT_CODE=%ERRORLEVEL%
 
 echo.

@@ -499,7 +499,7 @@ Run.bat
 - **대상 환경 실시간 스위칭**: `Target Environment` 선택 드롭다운을 통해 별도의 콘솔 타이핑이나 환경변수 수동 세팅 없이, 마우스 클릭만으로 `Live (https://www.wsop.com)` / `Stage (https://wsop-stage.ggnweb.com)` / `Custom URL` 환경을 즉각 오버라이딩하여 테스트 및 크롤러 구동 가능
 - **페이즈 카드 선택 및 실행**: 좌측 카드 목록에서 대상을 원클릭으로 선택 및 실행
 - **한글 Phase 안내**: 좌측 카드에는 한글 Phase 이름과 짧은 요약을 표시하고, 상세 패널에는 목적 설명과 검증 스텝을 한글로 표시합니다. Phase 3은 standings-only crawler로 추출한 플레이어 UI 검증 흐름을 단계별로 확인할 수 있습니다.
-- **실행 옵션 및 모드 튜닝**: Normal / Headed / UI 모드 선택 및 체크박스 기반 추가 매개변수(Limit, Concurrency, Grep, Timeout 등) 실시간 토글링 및 텍스트박스 입력. 크롤링 대시보드에서는 브랜드 필터(WSOP, GGPoker 등)를 체크박스 컨테이너를 통해 다중 선택할 수 있으며, 선택된 브랜드들은 쉼표(`,`) 구분되어 크롤러에 `--brand "WSOP,GGPoker"` 형태로 전달되어 순차 누적 수집됩니다. 수집된 결과인 CSV 및 HTML 리포트에는 brand 필터가 정상적으로 노출되며 헤더 맨 앞 컬럼에 `brand` 구분이 추가됩니다.
+- **실행 옵션 및 모드 튜닝**: Normal / Headed / UI 모드 선택 및 체크박스 기반 추가 매개변수(Limit, Concurrency, Grep, Timeout 등) 실시간 토글링 및 텍스트박스 입력. 크롤링 대시보드에서는 플레이어 크롤러의 `Limit Players`/`Result Limit`, 토너먼트 크롤러의 `Limit Tournaments`/`Limit Events`를 구분해 전달합니다. 토너먼트 구조는 `대회 > 이벤트 > Result` 계층이며, `Limit Events`는 대회별 이벤트 수를 제한하고 미선택 또는 `0`은 전체 이벤트 수집을 의미합니다. 브랜드 필터(WSOP, GGPoker 등)는 체크박스 컨테이너를 통해 다중 선택할 수 있으며, 선택된 브랜드들은 쉼표(`,`) 구분되어 크롤러에 `--brand "WSOP,GGPoker"` 형태로 전달되어 순차 누적 수집됩니다. 수집된 결과인 CSV 및 HTML 리포트에는 brand 필터가 정상적으로 노출되며 헤더 맨 앞 컬럼에 `brand` 구분이 추가됩니다.
 - **실시간 터미널 로그 스트리밍**: SSE 채널을 활용해 백그라운드 테스트 실행 콘솔 로그를 컬러풀하게 스트리밍 및 자동 스크롤
 - **원클릭 프로세스 제어**: 실행 도중 언제든지 즉시 중단 가능한 **Stop Test** 및 로그 복사/비우기 기능 제공
 - **리포트 보기**: 검은색 cmd 깜빡임이나 잔재 창 없이, 새 브라우저 탭으로 즉시 열리는 KO / EN / Playwright Trace 리포트 연동

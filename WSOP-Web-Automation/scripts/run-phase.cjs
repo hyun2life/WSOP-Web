@@ -269,6 +269,7 @@ function setEnvVar(key, val, env) {
   const mapping = {
     'auth-wait-ms': 'AUTH_WAIT_MS',
     'limit': 'PLAYER_LIMIT',
+    'event-limit': 'EVENT_LIMIT',
     'result-limit': 'RESULT_LIMIT',
     'result-rank-limit': 'RESULT_RANK_LIMIT',
     'max-load-more': 'MAX_LOAD_MORE',

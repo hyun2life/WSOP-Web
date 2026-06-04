@@ -117,7 +117,9 @@ function parseArgs(argv) {
     defects: DEFAULT_DEFECTS_PATH,
     outputPathOverrides: { out: false, html: false, defects: false },
     selfTest: false,
-    limit: 1000,
+    limit: 0,
+    eventLimit: 0,
+    resultLimit: 0,
     help: false
   };
 
@@ -128,6 +130,14 @@ function parseArgs(argv) {
     else if (arg === "--brand") args.brand = argv[++i];
     else if (arg === "--concurrency") args.concurrency = Number(argv[++i]);
     else if (arg === "--limit") args.limit = Number(argv[++i]);
+    else if (arg === "--event-limit") {
+      args.eventLimit = Number(argv[++i]);
+      args.resultLimit = args.eventLimit;
+    }
+    else if (arg === "--result-limit") {
+      args.resultLimit = Number(argv[++i]);
+      args.eventLimit = args.resultLimit;
+    }
     else if (arg === "--headed") args.headed = true;
     else if (arg === "--self-test") args.selfTest = true;
     else if (arg === "--out") {
@@ -359,6 +369,42 @@ function writeReportArtifacts(args, report) {
   return koreanHtml;
 }
 
+function buildTournamentReport({
+  args,
+  startedAt,
+  finishedAt,
+  targetCards,
+  tournamentsResult,
+  passedCount,
+  failedCount,
+  totalDefectsCount,
+  runStatus = "complete",
+  interruptedReason = ""
+}) {
+  const totalTournaments = targetCards.length;
+  const completedTournaments = tournamentsResult.length;
+  return {
+    summary: {
+      year: args.year,
+      brand: args.brand,
+      eventLimit: args.eventLimit,
+      resultLimit: args.resultLimit,
+      sourceUrl: "https://www.wsop.com/",
+      startedAt,
+      finishedAt,
+      runStatus,
+      interruptedReason,
+      totalTournaments,
+      completedTournaments,
+      pendingTournaments: Math.max(0, totalTournaments - completedTournaments),
+      passedTournaments: passedCount,
+      failedTournaments: failedCount,
+      totalDefects: totalDefectsCount
+    },
+    tournaments: tournamentsResult.filter(Boolean)
+  };
+}
+
 function renderHtml(report, pastReports = []) {
   return renderDashboardTemplate(report, false, pastReports);
 }
@@ -369,6 +415,11 @@ function renderKoreanHtml(report, pastReports = []) {
 
 function renderDashboardTemplate(report, isKo, pastReports = []) {
   const summary = report.summary;
+  const eventLimit = summary.eventLimit ?? summary.resultLimit ?? 0;
+  const runStatus = summary.runStatus || "complete";
+  const reportStatus = summary.failedTournaments > 0 ? "fail" : (runStatus !== "complete" ? "warn" : "pass");
+  const completedTournaments = summary.completedTournaments ?? (report.tournaments || []).length;
+  const totalTournaments = summary.totalTournaments ?? completedTournaments;
   const tList = report.tournaments || [];
 
   const allDefects = [];
@@ -614,7 +665,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       <div class="header-title">
         <div class="eyebrow">${isKo ? "WSOP 토너먼트 크롤러" : "WSOP TOURNAMENT CRAWLER"}</div>
         <h1>${escapeHtml(t.title)}</h1>
-        <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.source)}: <a href="${escapeHtml(summary.sourceUrl || 'https://www.wsop.com/')}" target="_blank" style="color: var(--primary); text-decoration: underline;">${escapeHtml(summary.sourceUrl || 'https://www.wsop.com/')}</a> | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.failedTournaments > 0 ? "fail" : "pass"}">${summary.failedTournaments > 0 ? t.filterFail : t.filterPass}</span></p>
+        <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.source)}: <a href="${escapeHtml(summary.sourceUrl || 'https://www.wsop.com/')}" target="_blank" style="color: var(--primary); text-decoration: underline;">${escapeHtml(summary.sourceUrl || 'https://www.wsop.com/')}</a> | ${escapeHtml(t.runStatus)}: <span class="status-badge ${reportStatus}">${escapeHtml(runStatus)}${summary.interruptedReason ? ` (${escapeHtml(summary.interruptedReason)})` : ""}</span></p>
       </div>
       <div class="header-actions">
         ${pastReports.length > 0 ? `
@@ -628,7 +679,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             </select>
           </div>
         ` : ""}
-        <span class="status-badge ${summary.failedTournaments > 0 ? "fail" : "pass"}">${summary.failedTournaments > 0 ? t.filterFail : t.filterPass}</span>
+        <span class="status-badge ${reportStatus}">${escapeHtml(runStatus)}</span>
       </div>
     </div>
   </header>
@@ -637,7 +688,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     <div class="dashboard-grid">
       <div class="kpi-card" onclick="filterByStatus('all')">
         <div class="kpi-label">${escapeHtml(t.tournamentsChecked)}</div>
-        <div class="kpi-value">${summary.totalTournaments}</div>
+        <div class="kpi-value">${completedTournaments}/${totalTournaments}</div>
       </div>
       <div class="kpi-card" onclick="filterByStatus('pass')">
         <div class="kpi-label">${isKo ? "통과한 대회" : "Passed"}</div>
@@ -658,6 +709,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       <div class="kpi-card">
         <div class="kpi-label">${isKo ? "브랜드 필터" : "Brand Filter"}</div>
         <div class="kpi-value" style="font-size:22px;">${escapeHtml(summary.brand || (isKo ? "전체" : "All"))}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">${isKo ? "이벤트 검증 제한" : "Event Limit"}</div>
+        <div class="kpi-value" style="font-size:22px;">${eventLimit > 0 ? eventLimit : (isKo ? "무제한" : "Unlimited")}</div>
       </div>
     </div>
 
@@ -693,7 +748,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           <div class="summary-line">
             <span>${isKo ? "대상 연도" : "Year"}: <strong>${escapeHtml(summary.year)}</strong></span>
             <span>${isKo ? "브랜드 필터" : "Brand Filter"}: <strong>${escapeHtml(summary.brand || (isKo ? "전체" : "All"))}</strong></span>
-            <span>${isKo ? "확인한 대회" : "Checked"}: ${summary.totalTournaments}</span>
+            <span>${isKo ? "확인한 대회" : "Checked"}: ${completedTournaments}/${totalTournaments}</span>
+            <span>${isKo ? "이벤트 제한" : "Event Limit"}: <strong>${eventLimit > 0 ? eventLimit : (isKo ? "무제한" : "Unlimited")}</strong></span>
             <span>${isKo ? "생성 시간" : "Generated"}: ${escapeHtml(new Date().toLocaleString())}</span>
           </div>
           <div class="bar" aria-label="정합성 비율">
@@ -1493,9 +1549,14 @@ function runSelfTest() {
     summary: {
       year: "2026",
       brand: "MOCK_BRAND",
+      eventLimit: 0,
+      resultLimit: 0,
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
+      runStatus: "complete",
       totalTournaments: 3,
+      completedTournaments: 3,
+      pendingTournaments: 0,
       passedTournaments: 2,
       failedTournaments: 1,
       totalDefects: 3
@@ -1690,7 +1751,9 @@ Options:
   --year <year>         Past tournaments year page. Default: 2026
   --brand <name>        Filter by brand, e.g. CIRCUIT or BRACELETS. Default: null
   --concurrency <n>     Max parallel detail page checks. Default: 3
-  --limit <n>           Max tournaments to crawl from the list. Default: 10
+  --limit <n>           Max tournaments to crawl from the list. 0 means unlimited. Default: 0
+  --event-limit <n>     Max events to collect per tournament. 0 means unlimited. Default: 0
+  --result-limit <n>    Alias of --event-limit for dashboard/backward compatibility.
   --headed              Run Playwright browser with UI visible. Default: false
   --self-test           Run offline validation logic self-tests.
   --out <path>          JSON report path.
@@ -1706,7 +1769,7 @@ Options:
   }
 
   const startedAt = new Date().toISOString();
-  console.log(`[시작] 토너먼트 크롤러 기동 (연도: ${args.year}, 브랜드 필터: ${args.brand || "전체"}, 동시성: ${args.concurrency})`);
+  console.log(`[시작] 토너먼트 크롤러 기동 (연도: ${args.year}, 브랜드 필터: ${args.brand || "전체"}, 동시성: ${args.concurrency}, 대회 제한: ${args.limit || "무제한"}, 이벤트 제한: ${args.eventLimit || "무제한"})`);
 
   const browser = await chromium.launch({ headless: !args.headed });
   const context = await browser.newContext({
@@ -1800,13 +1863,48 @@ Options:
     }
   }
 
-  const targetCards = collectedCards.slice(0, args.limit);
+  const targetCards = (args.limit && args.limit > 0) ? collectedCards.slice(0, args.limit) : collectedCards;
   console.log(`필터링 적용 후 수집 완료된 대상 대회 수: ${targetCards.length}개 (전체: ${collectedCards.length}개)`);
 
   const tournamentsResult = [];
   let passedCount = 0;
   let failedCount = 0;
   let totalDefectsCount = 0;
+  let stopRequested = false;
+  let interruptedReason = "";
+  let writeProgressReport = null;
+
+  const handleStopSignal = (signal) => {
+    if (stopRequested) {
+      console.warn(`Second ${signal} received. Exiting immediately.`);
+      process.exit(130);
+    }
+    stopRequested = true;
+    interruptedReason = `Interrupted by ${signal}`;
+    console.warn(`${interruptedReason}. No new tournaments will start; writing partial report.`);
+    if (writeProgressReport) writeProgressReport("interrupted");
+  };
+
+  writeProgressReport = (runStatus = "running") => {
+    const report = buildTournamentReport({
+      args,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      targetCards,
+      tournamentsResult,
+      passedCount,
+      failedCount,
+      totalDefectsCount,
+      runStatus,
+      interruptedReason
+    });
+    const koreanHtml = writeReportArtifacts(args, report);
+    return { report, koreanHtml };
+  };
+
+  process.on("SIGINT", handleStopSignal);
+  process.on("SIGTERM", handleStopSignal);
+  writeProgressReport("running");
 
   // Process details with concurrency limit
   console.log(`[4/4] 개별 대회 상세 페이지 검증 시작 (동시성: ${args.concurrency})...`);
@@ -1870,9 +1968,11 @@ Options:
           // The first row is headers if 'tbody' was not strictly defined, skip index 0 if header matches
           const startIndex = (await rows[0].locator("th").count()) > 0 ? 1 : 0;
 
+          let crossCheckCount = 0;
           for (let rIdx = startIndex; rIdx < rows.length; rIdx++) {
             const cells = await rows[rIdx].locator("td").allInnerTexts();
             if (cells.length < 5) continue; // Invalid row
+            if (args.eventLimit > 0 && events.length >= args.eventLimit) break;
 
             // Mapping Case A: Date | Event | Buy-in | Entries | ITM | Prize | Winner | Payout
             const rawDate = cells[0] || "";
@@ -1924,6 +2024,13 @@ Options:
 
             // Cross check detail results page if payout url exists
             if (eventObj.payoutUrl) {
+              if (args.eventLimit > 0 && crossCheckCount >= args.eventLimit) {
+                eventObj.crossCheck = { status: "skipped", errors: [] };
+                events.push(eventObj);
+                continue;
+              }
+              crossCheckCount++;
+
               const crossPage = await context.newPage();
               try {
                 await retryWithBackoff(async () => {
@@ -2009,6 +2116,7 @@ Options:
           for (let rIdx = startIndex; rIdx < rows.length; rIdx++) {
             const cells = await rows[rIdx].locator("td").allInnerTexts();
             if (cells.length < 5) continue;
+            if (args.eventLimit > 0 && events.length >= args.eventLimit) break;
 
             // Mapping Case B: Date | Event | Buy-in | Chips | Clock(min) | Late Reg
             const rawDate = cells[0] || "";
@@ -2088,11 +2196,14 @@ Options:
       events,
       defects
     });
+
+    if (writeProgressReport) writeProgressReport(stopRequested ? "interrupted" : "running");
   };
 
   // Perform parallel checks based on concurrency
   const workers = [];
   for (let i = 0; i < targetCards.length; i++) {
+    if (stopRequested) break;
     workers.push(chunk(targetCards[i], i));
     if (workers.length >= args.concurrency || i === targetCards.length - 1) {
       await Promise.all(workers);
@@ -2101,27 +2212,11 @@ Options:
   }
 
   await browser.close();
-
-  const finishedAt = new Date().toISOString();
-
-  // Consolidate final report
-  const finalReport = {
-    summary: {
-      year: args.year,
-      brand: args.brand,
-      sourceUrl: "https://www.wsop.com/",
-      startedAt,
-      finishedAt,
-      totalTournaments: targetCards.length,
-      passedTournaments: passedCount,
-      failedTournaments: failedCount,
-      totalDefects: totalDefectsCount
-    },
-    tournaments: tournamentsResult
-  };
+  process.removeListener("SIGINT", handleStopSignal);
+  process.removeListener("SIGTERM", handleStopSignal);
 
   // Write outputs
-  const koreanHtml = writeReportArtifacts(args, finalReport);
+  const { koreanHtml } = writeProgressReport(stopRequested ? "interrupted" : "complete");
   console.log(`[완료] JSON 데이터 저장 완료: ${args.out}`);
   console.log(`[완료] 영문 HTML 리포트 저장 완료: ${args.html}`);
   console.log(`[완료] 국문 HTML 리포트 저장 완료: ${koreanHtml}`);
@@ -2132,6 +2227,7 @@ Options:
   console.log(`- 통과(Pass): ${passedCount}`);
   console.log(`- 실패(Fail): ${failedCount}`);
   console.log(`- 결함 수: ${totalDefectsCount}`);
+  if (stopRequested) process.exitCode = 130;
 }
 
 main().catch(err => {
