@@ -22,7 +22,7 @@ if "%LIMIT%"=="" (
   if not "%PLAYER_LIMIT%"=="" (
     set "LIMIT=%PLAYER_LIMIT%"
   ) else (
-    set "LIMIT=10"
+    set "LIMIT=1000"
   )
 )
 if "%CONCURRENCY%"=="" set "CONCURRENCY=10"

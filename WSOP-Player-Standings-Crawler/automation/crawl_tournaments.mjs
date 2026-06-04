@@ -117,7 +117,7 @@ function parseArgs(argv) {
     defects: DEFAULT_DEFECTS_PATH,
     outputPathOverrides: { out: false, html: false, defects: false },
     selfTest: false,
-    limit: 10,
+    limit: 1000,
     help: false
   };
 
