@@ -79,6 +79,114 @@ function parseMoney(value) {
   return Number.isFinite(parsed) ? Math.round(parsed) : null;
 }
 
+const MONTH_INDEX = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11
+};
+
+function utcDay(year, monthIndex, day) {
+  return Math.floor(Date.UTC(year, monthIndex, day) / 86400000);
+}
+
+function parseMonthDay(value, fallbackYear, fallbackMonthIndex = null) {
+  const text = normalizeText(value).replace(/\b\d{4}\b/g, " ");
+  const monthMatch = text.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i);
+  const monthIndex = monthMatch ? MONTH_INDEX[monthMatch[1].toLowerCase()] : fallbackMonthIndex;
+  const dayMatches = [...text.matchAll(/\b(\d{1,2})(?:st|nd|rd|th)?\b/gi)]
+    .map(match => Number(match[1]))
+    .filter(day => Number.isInteger(day) && day >= 1 && day <= 31);
+  const day = dayMatches[0];
+  if (monthIndex === null || monthIndex === undefined || !day || !Number.isFinite(Number(fallbackYear))) return null;
+  const year = Number(fallbackYear);
+  return { year, monthIndex, day, dayNumber: utcDay(year, monthIndex, day) };
+}
+
+function parseTournamentDateRange(dateRange, fallbackYear) {
+  const text = normalizeText(dateRange);
+  const yearMatches = text.match(/\b(20\d{2}|19\d{2})\b/g);
+  const rangeYear = yearMatches ? Number(yearMatches[yearMatches.length - 1]) : Number(fallbackYear);
+  if (!Number.isFinite(rangeYear)) return null;
+
+  const parts = text.split(/\s*(?:-|–|—)\s*/);
+  if (parts.length < 2) {
+    const single = parseMonthDay(text, rangeYear);
+    return single ? { start: single, end: single } : null;
+  }
+
+  const start = parseMonthDay(parts[0], rangeYear);
+  const end = parseMonthDay(parts.slice(1).join(" - "), rangeYear, start?.monthIndex ?? null);
+  if (!start || !end) return null;
+
+  let endDayNumber = end.dayNumber;
+  if (start.dayNumber > end.dayNumber) {
+    endDayNumber = utcDay(end.year + 1, end.monthIndex, end.day);
+  }
+
+  return {
+    start,
+    end: { ...end, dayNumber: endDayNumber }
+  };
+}
+
+function validateEventDateInTournamentRange(eventDate, tournamentDateRange, fallbackYear) {
+  if (!eventDate) return { status: "fail", errors: ["Missing Date"], warnings: [] };
+
+  const range = parseTournamentDateRange(tournamentDateRange, fallbackYear);
+  if (!range) {
+    return { status: "warn", errors: [], warnings: [`Tournament date range could not be parsed: ${tournamentDateRange || "-"}`] };
+  }
+
+  const parsedEventDate = parseMonthDay(eventDate, range.start.year);
+  if (!parsedEventDate) {
+    return { status: "fail", errors: [`Event Date could not be parsed: ${eventDate}`], warnings: [] };
+  }
+
+  let eventDayNumber = parsedEventDate.dayNumber;
+  if (eventDayNumber < range.start.dayNumber && range.end.year > range.start.year) {
+    eventDayNumber = utcDay(parsedEventDate.year + 1, parsedEventDate.monthIndex, parsedEventDate.day);
+  }
+
+  if (eventDayNumber < range.start.dayNumber || eventDayNumber > range.end.dayNumber) {
+    return {
+      status: "fail",
+      errors: [`Event Date out of tournament range: ${eventDate} not within ${tournamentDateRange}`],
+      warnings: []
+    };
+  }
+
+  return { status: "pass", errors: [], warnings: [] };
+}
+
+function isDashPlaceholder(value) {
+  return /^[-–—]+$/.test(normalizeText(value));
+}
+
+function isOnlineScheduleEvent(event) {
+  return /online|flight\s+[a-z]/i.test(`${event.eventName || ""} ${event.lateRegText || ""}`);
+}
+
 function formatRunTimestamp(date = new Date()) {
   const pad = (value) => String(value).padStart(2, "0");
   return [
@@ -211,25 +319,52 @@ function verifyHeader(card, headerLines) {
   };
 }
 
-function validateCaseBEvent(event) {
+function validationStatus(errors, warnings) {
+  if (errors.length > 0) return "fail";
+  if (warnings.length > 0) return "warn";
+  return "pass";
+}
+
+function validateCaseBEvent(event, tournament = {}) {
   // Validate fields for schedule: Date, Event, Buy-in, Chips, Clock, Late Reg
   const errors = [];
-  if (!event.date) errors.push("Missing Date");
+  const warnings = [];
+  const dateCheck = validateEventDateInTournamentRange(event.date, tournament.dateRange, tournament.year);
+  errors.push(...dateCheck.errors);
+  warnings.push(...dateCheck.warnings);
   if (!event.eventName) errors.push("Missing Event Name");
   if (event.buyIn === null || event.buyIn === undefined) errors.push("Invalid or missing Buy-in");
-  if (event.chips === null || event.chips === undefined || event.chips <= 0) errors.push(`Invalid Chips: ${event.chipsText}`);
-  if (event.clock === null || event.clock === undefined || event.clock <= 0) errors.push(`Invalid Clock: ${event.clockText}`);
+
+  const onlineEvent = isOnlineScheduleEvent(event);
+  if (event.chips === null || event.chips === undefined || event.chips <= 0) {
+    if (onlineEvent && isDashPlaceholder(event.chipsText)) {
+      warnings.push(`Online/Flight event has no Chips value: ${event.chipsText || "-"}`);
+    } else {
+      errors.push(`Invalid Chips: ${event.chipsText}`);
+    }
+  }
+  if (event.clock === null || event.clock === undefined || event.clock <= 0) {
+    if (onlineEvent && isDashPlaceholder(event.clockText)) {
+      warnings.push(`Online/Flight event has no Clock value: ${event.clockText || "-"}`);
+    } else {
+      errors.push(`Invalid Clock: ${event.clockText}`);
+    }
+  }
 
   return {
-    status: errors.length > 0 ? "fail" : "pass",
-    errors
+    status: validationStatus(errors, warnings),
+    errors,
+    warnings
   };
 }
 
-function validateCaseAEvent(event) {
+function validateCaseAEvent(event, tournament = {}) {
   // Validate fields for results list: Date, Event, Buy-in, Entries, ITM, Prize, Winner
   const errors = [];
-  if (!event.date) errors.push("Missing Date");
+  const warnings = [];
+  const dateCheck = validateEventDateInTournamentRange(event.date, tournament.dateRange, tournament.year);
+  errors.push(...dateCheck.errors);
+  warnings.push(...dateCheck.warnings);
   if (!event.eventName) errors.push("Missing Event Name");
   if (event.buyIn === null || event.buyIn === undefined) errors.push("Invalid or missing Buy-in");
   if (event.entries === null || event.entries === undefined || event.entries <= 0) errors.push(`Invalid Entries count: ${event.entriesText}`);
@@ -239,8 +374,9 @@ function validateCaseAEvent(event) {
   if (!event.payoutUrl) errors.push("Missing Payout/Results Link");
 
   return {
-    status: errors.length > 0 ? "fail" : "pass",
-    errors
+    status: validationStatus(errors, warnings),
+    errors,
+    warnings
   };
 }
 
@@ -463,12 +599,12 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     searchEventsPlaceholder: isKo ? "이벤트명 검색..." : "Search events...",
     rulesData: isKo ? [
       ["시나리오 1: 헤더 검증", "과거 대회 목록 카드 정보(브랜드, 시리즈명, 시간, 장소, 국가)와 대회 상세 페이지 상단 비주얼 영역(.kv-contents)의 데이터를 1:1로 비교합니다. 불일치 시 Fail 판정합니다."],
-      ["시나리오 2: Case A (결과 있음)", "개별 이벤트 목록에서 Date, Event, Buy-in, Entries, ITM, Prize, Winner 데이터를 수집하고, Payout 페이지로 이동하여 실제 총참가자 수(Entries), 총상금(Prize Pool), 우승자(Winner)와 1:1 대조 교차 검증을 수행합니다."],
-      ["시나리오 3: Case B (결과 없음/일정)", "이벤트의 Date, Event, Buy-in, Chips, Clock, Late Reg. 정보를 수집하며 포맷(Chips/Clock이 양수인지, 필수 필드가 비어있지 않은지 등)에 오류가 없는지 유효성을 검증합니다."]
+      ["시나리오 2: Case A (결과 있음)", "개별 이벤트 목록에서 Date, Event, Buy-in, Entries, ITM, Prize, Winner 데이터를 수집하고, 이벤트 Date가 대회 기간 안에 포함되는지 검증합니다. Payout 페이지로 이동하여 실제 총참가자 수(Entries), 총상금(Prize Pool), 우승자(Winner)와 1:1 대조 교차 검증을 수행합니다."],
+      ["시나리오 3: Case B (결과 없음/일정)", "이벤트의 Date, Event, Buy-in, Chips, Clock, Late Reg. 정보를 수집하며, 이벤트 Date가 대회 기간 안에 포함되는지와 필수 필드 포맷을 검증합니다. 일반 오프라인 일정은 Chips/Clock이 양수여야 하며, Online/Flight 이벤트에서 Chips/Clock이 '-'인 경우는 Fail이 아닌 Warn으로 처리합니다."]
     ] : [
       ["Scenario 1: Header Check", "Compares listing card data (Brand, Series Name, Dates, Venue, Country) with detail page visual header layout (.kv-contents) 1:1. Reports defects on mismatch."],
-      ["Scenario 2: Case A (Results)", "Collects Event, Date, Buy-in, Entries, ITM, Prize, Winner, and navigates to the detailed Results/Payout page. Cross-checks Entries, Prize Pool, and Winner with collected rows."],
-      ["Scenario 3: Case B (Schedule)", "Collects Event, Date, Buy-in, Chips, Clock, Late Reg, and validates formats (e.g. Chips/Clock must be positive, no missing essential fields)."]
+      ["Scenario 2: Case A (Results)", "Collects Event, Date, Buy-in, Entries, ITM, Prize, Winner, and validates that each event Date falls within the tournament date range. Navigates to the detailed Results/Payout page and cross-checks Entries, Prize Pool, and Winner with collected rows."],
+      ["Scenario 3: Case B (Schedule)", "Collects Event, Date, Buy-in, Chips, Clock, Late Reg, and validates that each event Date falls within the tournament date range. Offline schedule rows require positive Chips/Clock values; Online/Flight rows with '-' Chips/Clock are reported as Warn instead of Fail."]
     ]
   };
 
@@ -1117,6 +1253,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         tbody.innerHTML = paged.map(event => {
           const evStatus = event.status || "pass";
           const errorsDetail = (event.errors || []).join(", ");
+          const warningsDetail = (event.warnings || []).join(", ");
           
           if (isCaseA) {
             const crossStatus = event.crossCheck ? event.crossCheck.status : "pending";
@@ -1138,6 +1275,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                 <td>
                   <span class="status-badge \${evStatus}">\${escapeHtml(formatStatus(evStatus))}</span>
                   \${errorsDetail ? \`<div class="error-detail" style="color:var(--danger); font-size:10px; margin-top:2px;">\${escapeHtml(errorsDetail)}</div>\` : ""}
+                  \${warningsDetail ? \`<div class="warning-detail" style="color:var(--warning); font-size:10px; margin-top:2px;">\${escapeHtml(warningsDetail)}</div>\` : ""}
                 </td>
               </tr>
             \`;
@@ -1153,6 +1291,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                 <td>
                   <span class="status-badge \${evStatus}">\${escapeHtml(formatStatus(evStatus))}</span>
                   \${errorsDetail ? \`<div class="error-detail" style="color:var(--danger); font-size:10px; margin-top:2px;">\${escapeHtml(errorsDetail)}</div>\` : ""}
+                  \${warningsDetail ? \`<div class="warning-detail" style="color:var(--warning); font-size:10px; margin-top:2px;">\${escapeHtml(warningsDetail)}</div>\` : ""}
                 </td>
               </tr>
             \`;
@@ -1678,7 +1817,7 @@ function runSelfTest() {
     chipsText: "30,000",
     clock: 30,
     clockText: "30"
-  });
+  }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
   if (scheduleTest1.status !== "pass") throw new Error("Self-test: validateCaseBEvent failed on normal schedule");
 
   const scheduleTest2 = validateCaseBEvent({
@@ -1689,8 +1828,34 @@ function runSelfTest() {
     chipsText: "0",
     clock: 30,
     clockText: "30"
-  });
+  }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
   if (scheduleTest2.status !== "fail") throw new Error("Self-test: validateCaseBEvent failed to catch 0 chips");
+
+  const onlineScheduleTest = validateCaseBEvent({
+    date: "Oct 25",
+    eventName: "Event #10: €250 No-Limit Hold'em PMU.fr (Online) - Flight A",
+    buyIn: 250,
+    chips: null,
+    chipsText: "-",
+    clock: null,
+    clockText: "-"
+  }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
+  if (onlineScheduleTest.status !== "warn" || onlineScheduleTest.warnings.length !== 2) {
+    throw new Error("Self-test: online/flight schedule dash Chips/Clock should warn");
+  }
+
+  const outOfRangeScheduleTest = validateCaseBEvent({
+    date: "Nov 21",
+    eventName: "Event #99",
+    buyIn: 400,
+    chips: 30000,
+    chipsText: "30,000",
+    clock: 30,
+    clockText: "30"
+  }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
+  if (outOfRangeScheduleTest.status !== "fail") {
+    throw new Error("Self-test: schedule event date outside tournament range should fail");
+  }
 
   const resultTest1 = validateCaseAEvent({
     date: "Oct 24",
@@ -1704,8 +1869,25 @@ function runSelfTest() {
     prizeText: "€44,850",
     winner: "Daniel Dodet",
     payoutUrl: "/tournaments/result/99489/"
-  });
+  }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
   if (resultTest1.status !== "pass") throw new Error("Self-test: validateCaseAEvent failed on normal results");
+
+  const outOfRangeResultTest = validateCaseAEvent({
+    date: "Nov 21",
+    eventName: "Event #1",
+    buyIn: 550,
+    entries: 138,
+    entriesText: "138",
+    itm: 15,
+    itmText: "15",
+    prize: 44850,
+    prizeText: "€44,850",
+    winner: "Daniel Dodet",
+    payoutUrl: "/tournaments/result/99489/"
+  }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
+  if (outOfRangeResultTest.status !== "fail") {
+    throw new Error("Self-test: result event date outside tournament range should fail");
+  }
 
   const crossTest1 = verifyPayoutDetails(
     { entries: 138, prize: 44850, winner: "Daniel Dodet" },
@@ -2001,15 +2183,17 @@ Options:
               payoutUrl: payoutHref ? (payoutHref.startsWith("http") ? payoutHref : `https://www.wsop.com${payoutHref}`) : "",
               status: "pass",
               errors: [],
+              warnings: [],
               crossCheck: null
             };
 
             // Validate fields [Scenario 2]
-            const eventVal = validateCaseAEvent(eventObj);
+            const eventVal = validateCaseAEvent(eventObj, card);
             if (eventVal.status === "fail") {
               eventObj.status = "fail";
               status = "fail";
               eventObj.errors = eventVal.errors;
+              eventObj.warnings = eventVal.warnings;
               eventVal.errors.forEach(err => {
                 defects.push({
                   type: "Event metadata invalid",
@@ -2020,6 +2204,10 @@ Options:
                   detail: `Event list metadata validation failed: ${err}`
                 });
               });
+            } else if (eventVal.status === "warn") {
+              eventObj.status = "warn";
+              if (status === "pass") status = "warn";
+              eventObj.warnings = eventVal.warnings;
             }
 
             // Cross check detail results page if payout url exists
@@ -2137,15 +2325,17 @@ Options:
               clock: parseNumber(rawClock),
               lateRegText: normalizeText(rawLateReg),
               status: "pass",
-              errors: []
+              errors: [],
+              warnings: []
             };
 
             // Validate fields [Scenario 3]
-            const eventVal = validateCaseBEvent(eventObj);
+            const eventVal = validateCaseBEvent(eventObj, card);
             if (eventVal.status === "fail") {
               eventObj.status = "fail";
               status = "fail";
               eventObj.errors = eventVal.errors;
+              eventObj.warnings = eventVal.warnings;
               eventVal.errors.forEach(err => {
                 defects.push({
                   type: "Schedule data invalid",
@@ -2156,6 +2346,10 @@ Options:
                   detail: `Schedule column validation failed: ${err}`
                 });
               });
+            } else if (eventVal.status === "warn") {
+              eventObj.status = "warn";
+              if (status === "pass") status = "warn";
+              eventObj.warnings = eventVal.warnings;
             }
 
             events.push(eventObj);

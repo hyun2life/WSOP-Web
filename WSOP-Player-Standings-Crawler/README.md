@@ -640,8 +640,9 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 ### 주요 기능
 - **메인 목록-상세 헤더 검증**: 목록 카드 정보(이미지, 브랜드, 시리즈명, 시간, 장소, 국가)와 상세 페이지 비주얼 헤더(.kv-contents) 정보의 1:1 일치 여부 검증
 - **결과 유무에 따른 동적 케이스 분류 및 검증**:
-  - **Case A (결과가 있는 대회)**: 개별 이벤트 목록의 데이터(`Date`, `Event`, `Buy-in`, `Entries`, `ITM`, `Prize`, `Winner`) 포맷 검증 및 Payout 링크로 이동하여 우승자/참가자수/총상금 교차 정합성 검증
-  - **Case B (결과가 없는 대회 / 일정 전용)**: 일정 목록의 데이터(`Date`, `Event`, `Buy-in`, `Chips`, `Clock`, `Late Reg`) 유효성 및 누락 검증
+  - **Case A (결과가 있는 대회)**: 개별 이벤트 목록의 데이터(`Date`, `Event`, `Buy-in`, `Entries`, `ITM`, `Prize`, `Winner`) 포맷 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증, Payout 링크로 이동하여 우승자/참가자수/총상금 교차 정합성 검증
+  - **Case B (결과가 없는 대회 / 일정 전용)**: 일정 목록의 데이터(`Date`, `Event`, `Buy-in`, `Chips`, `Clock`, `Late Reg`) 유효성 및 누락 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증
+  - **온라인/Flight 일정 예외**: 일반 오프라인 일정은 `Chips`와 `Clock`이 양수여야 하지만, 이벤트명이 `Online` 또는 `Flight A/B/C` 등으로 식별되고 `Chips`/`Clock` 값이 `-`인 경우는 의도적 미표기 가능성으로 보고 Fail이 아닌 Warn으로 처리
 
 ### 실행 방법
 
