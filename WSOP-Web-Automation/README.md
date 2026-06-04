@@ -643,6 +643,17 @@ RUN_BRAND_COMPARE_LATEST.bat "LIVE_DATA_JSON" "STAGE_DATA_JSON"
 - When Brand Filter is enabled with `profile-only`, the crawler reviews the first-page target set from the three brand-filtered standings categories: `All-Time Earnings - Men`, `All-Time Earnings - Women`, and `All Player Stats`.
 - Keep the crawler's Playwright `__name` init helper in place when running through `tsx`; esbuild can wrap `page.evaluate` functions with `__name(...)`, and profile summary/tab extraction will fail before DOM collection if the helper is missing.
 
+## Country flag validation
+
+- The crawler treats country/flag consistency as a validation item, not just display metadata.
+- `standings-only` collects and validates only the country flag code exposed by standings rows.
+- `profile-only` compares standings country flag codes against the profile flag code.
+- Full crawler mode compares country flag codes across Standings, Profile, and Result rows when Result rows are collected.
+- The normalized storage key is `countryCode`; missing or unparsable flags are stored as `UNKNOWN` and shown as `Unknown Country`. Country name text is intentionally not collected or validated because each category can expose different display data.
+- Country code mismatch or missing country code is reported as `minor`, not `fail`, because some pages can legitimately omit flag metadata.
+- JSON/HTML reports include player-level `countryChecks`, a country summary, an `Unknown Country` list, country minor issue list, and a country filter in the player directory.
+- Defect CSV rows include `countryCode` for context; country minor issues remain in the HTML/JSON review notes rather than defect candidates.
+
 ## Stage/Live crawler output tag
 
 Dashboard 또는 배치 실행에서 `BASE_URL`/`baseUrl`이 stage 도메인을 가리키면 크롤러 산출물 파일명은 `wsop-player-crawler-stage-YYYYMMDD-HHMMSS-*` 형식으로 생성됩니다. 기본 Live 실행은 기존처럼 `wsop-player-crawler-live-YYYYMMDD-HHMMSS-*` 형식을 유지합니다.

@@ -632,6 +632,88 @@ function parseEntries(value) {
   return match ? Number(match[1]) : null;
 }
 
+const UNKNOWN_COUNTRY_CODE = "UNKNOWN";
+const UNKNOWN_COUNTRY_LABEL = "Unknown Country";
+
+function normalizeCountryCode(value) {
+  const text = normalizeText(value).toUpperCase();
+  if (!text || /^(UNKNOWN|N\/A|NA|NONE|-)$/.test(text)) return UNKNOWN_COUNTRY_CODE;
+  const fileName = text.split(/[?#]/)[0].split(/[\\/]/).pop() || text;
+  const baseName = fileName.replace(/\.(PNG|JPE?G|SVG|GIF|WEBP)$/i, "");
+  const exactCode = baseName.match(/^[A-Z]{2,3}$/);
+  if (exactCode) return exactCode[0];
+  const embeddedCode = baseName.match(/(?:^|[-_])([A-Z]{2,3})(?:[-_]|$)/);
+  return embeddedCode ? embeddedCode[1] : UNKNOWN_COUNTRY_CODE;
+}
+
+function countryDisplay(country) {
+  const code = normalizeCountryCode(country?.countryCode);
+  return code === UNKNOWN_COUNTRY_CODE ? UNKNOWN_COUNTRY_LABEL : code;
+}
+
+function countryDetailFromSources(sources) {
+  return sources.map((source) => `${source.sourceLabel}: ${countryDisplay(source)}`).join("; ");
+}
+
+function buildCountryChecks(player, mode = "crawler") {
+  const sources = [];
+  for (const source of player?.standingsSources || []) {
+    sources.push({
+      source: "standings",
+      sourceLabel: `Standings${source.category ? ` - ${source.category}` : ""}`,
+      countryCode: normalizeCountryCode(source.countryCode),
+      url: source.sourceUrl || player.url
+    });
+  }
+  if (mode !== "standings-only" && player?.profileCountry) {
+    sources.push({
+      source: "profile",
+      sourceLabel: "Profile",
+      countryCode: normalizeCountryCode(player.profileCountry.countryCode),
+      url: player.url
+    });
+  }
+  if (mode === "crawler") {
+    for (const event of player?.events || []) {
+      const row = event.resultPage?.foundRow;
+      if (!row) continue;
+      sources.push({
+        source: "result",
+        sourceLabel: `Result - ${event.eventName || "event"}`,
+        countryCode: normalizeCountryCode(row.countryCode),
+        url: event.resultPage?.url || event.resultUrl || player.url
+      });
+    }
+  }
+
+  if (!sources.length) {
+    return [{
+      item: "Country flag",
+      status: "skipped",
+      expected: UNKNOWN_COUNTRY_CODE,
+      actual: UNKNOWN_COUNTRY_CODE,
+      detail: "No standings/profile/result country source was available for this mode."
+    }];
+  }
+
+  const missingSources = sources.filter((source) => normalizeCountryCode(source.countryCode) === UNKNOWN_COUNTRY_CODE);
+  const codes = Array.from(new Set(sources.map((source) => normalizeCountryCode(source.countryCode)).filter((code) => code !== UNKNOWN_COUNTRY_CODE)));
+  const expected = codes[0] || UNKNOWN_COUNTRY_CODE;
+  const codeMismatch = codes.length > 1;
+  const status = missingSources.length || codeMismatch ? "minor" : "pass";
+  const type = codeMismatch ? "Country flag mismatch" : (missingSources.length ? "Country flag missing" : "Country flag match");
+
+  return [{
+    item: "Country flag",
+    type,
+    status,
+    expected,
+    actual: codes.length ? codes.join(", ") : UNKNOWN_COUNTRY_CODE,
+    sources,
+    detail: countryDetailFromSources(sources)
+  }];
+}
+
 // 화면 텍스트에서 상단 요약 카운터를 읽는다.
 // 이 값은 독립 수집한 프로필 row 계산값과 비교할 기준값이다.
 function parseSummary(bodyText) {
@@ -1204,7 +1286,8 @@ function formatStatus(status) {
   return {
     pass: "통과",
     fail: "실패",
-    warn: "주의"
+    warn: "주의",
+    minor: "경미"
   }[status] || status || "-";
 }
 
@@ -1274,7 +1357,7 @@ function buildDefects(player) {
   for (const event of player.events || []) {
     const result = event.resultPage;
     if (!result) continue;
-    if (result.status === "pass" || result.status === "warn") continue;
+    if (result.status === "pass" || result.status === "warn" || result.status === "minor") continue;
     defects.push({
       brand: playerBrands,
       type: resultSearchIncomplete(result) ? "Result search incomplete" : "Result page mismatch",
@@ -1307,12 +1390,19 @@ function hasWarningStatus(items) {
   return (items || []).some((item) => item?.status === "warn");
 }
 
+function hasMinorStatus(items) {
+  return (items || []).some((item) => item?.status === "minor");
+}
+
 function playerStatus(player) {
   if (player?.error) return "fail";
   const defects = player?.defects?.length ? player.defects : buildDefects(player || {});
   if (defects.length) return "fail";
   if ((player?.warnings || []).length || hasWarningStatus(player?.comparisons) || hasWarningStatus(player?.tabChecks) || hasWarningStatus(player?.standingsChecks) || (player?.events || []).some((event) => event.resultPage?.status === "warn")) {
     return "warn";
+  }
+  if (hasMinorStatus(player?.countryChecks) || (player?.events || []).some((event) => event.resultPage?.status === "minor")) {
+    return "minor";
   }
   return "pass";
 }
@@ -1391,6 +1481,25 @@ async function clickControlWithFallback(control, timeout = 5000) {
 async function extractStandingPlayerLinks(page, limit, containerSelector) {
   const links = await page.evaluate((selector) => {
     const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
+    const countryCodeFromValue = (value) => {
+      const text = normalize(value).toUpperCase();
+      if (!text) return "";
+      const fileName = text.split(/[?#]/)[0].split(/[\\/]/).pop() || text;
+      const baseName = fileName.replace(/\.(PNG|JPE?G|SVG|GIF|WEBP)$/i, "");
+      if (/^[A-Z]{2,3}$/.test(baseName)) return baseName;
+      const match = baseName.match(/(?:^|[-_])([A-Z]{2,3})(?:[-_]|$)/);
+      return match ? match[1] : "";
+    };
+    const countryCodeFromImage = (rootElement) => {
+      if (!rootElement) return "";
+      const image = rootElement.querySelector('img[src*="flag" i], img[alt*="flag" i], img[class*="flag" i], [class*="country" i] img, [class*="flag" i] img');
+      if (!image) return "";
+      return countryCodeFromValue(image.getAttribute("src"))
+        || countryCodeFromValue(image.getAttribute("data-src"))
+        || countryCodeFromValue(image.getAttribute("alt"))
+        || countryCodeFromValue(image.getAttribute("title"))
+        || countryCodeFromValue(image.getAttribute("class"));
+    };
     const root = selector ? document.querySelector(selector) : document;
     if (!root) return [];
     return Array.from(root.querySelectorAll("a[href]"))
@@ -1399,7 +1508,8 @@ async function extractStandingPlayerLinks(page, limit, containerSelector) {
         return {
           href: anchor.href,
           text: normalize(anchor.textContent),
-          rowText: normalize(row?.textContent || anchor.textContent)
+          rowText: normalize(row?.textContent || anchor.textContent),
+          countryCode: countryCodeFromImage(row)
         };
       })
       .filter((item) => {
@@ -1423,6 +1533,7 @@ async function extractStandingPlayerLinks(page, limit, containerSelector) {
       url: cleanUrl,
       name: cleanPlayerName(link.text, cleanUrl),
       rowText: link.rowText,
+      countryCode: normalizeCountryCode(link.countryCode),
       rank: rows.length + 1
     });
     if (limit > 0 && rows.length >= limit) break;
@@ -1832,6 +1943,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
           rank: row.rank,
           name: row.name,
           rowText: row.rowText,
+          countryCode: row.countryCode,
           sourceUrl: page.url(),
           brand: currentBrand || "All",
           ...buildStandingMetricSource(category.label, row.rowText)
@@ -1845,7 +1957,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
     for (const row of rows) {
       byUrl.set(row.url, {
         url: row.url,
-        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, selected: false, brand: "All" }]
+        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, countryCode: row.countryCode, selected: false, brand: "All" }]
       });
     }
   }
@@ -1915,6 +2027,40 @@ async function extractPlayerName(page) {
   const title = await page.title().catch(() => "");
   const heading = headings.map(normalizeText).find((value) => value && !/^player profile$/i.test(value));
   return cleanPlayerName(heading || normalizeText(title).replace(/\s*\|\s*WSOP\.com.*$/i, ""), page.url());
+}
+
+async function extractProfileCountryFlag(page) {
+  const country = await page.evaluate(() => {
+    const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
+    const countryCodeFromValue = (value) => {
+      const text = normalize(value).toUpperCase();
+      if (!text) return "";
+      const fileName = text.split(/[?#]/)[0].split(/[\\/]/).pop() || text;
+      const baseName = fileName.replace(/\.(PNG|JPE?G|SVG|GIF|WEBP)$/i, "");
+      if (/^[A-Z]{2,3}$/.test(baseName)) return baseName;
+      const match = baseName.match(/(?:^|[-_])([A-Z]{2,3})(?:[-_]|$)/);
+      return match ? match[1] : "";
+    };
+    const images = Array.from(document.querySelectorAll('img[src*="flag" i], img[alt*="flag" i], img[class*="flag" i], [class*="country" i] img, [class*="flag" i] img'));
+    for (const image of images) {
+      const countryCode = countryCodeFromValue(image.getAttribute("src"))
+        || countryCodeFromValue(image.getAttribute("data-src"))
+        || countryCodeFromValue(image.getAttribute("alt"))
+        || countryCodeFromValue(image.getAttribute("title"))
+        || countryCodeFromValue(image.getAttribute("class"));
+      if (!countryCode) continue;
+      return {
+        countryCode,
+        flagUrl: image.getAttribute("src") || image.getAttribute("data-src") || ""
+      };
+    }
+    return { countryCode: "", flagUrl: "" };
+  }).catch(() => ({ countryCode: "", flagUrl: "" }));
+
+  return {
+    countryCode: normalizeCountryCode(country.countryCode),
+    flagUrl: country.flagUrl || ""
+  };
 }
 
 // WSOP가 어떤 표 구조로 렌더링하든 보이는 프로필 이벤트 row를 추출한다.
@@ -2194,20 +2340,6 @@ async function waitForVisibleLoadMoreControl(page, timeoutMs = 12000) {
   }
 
   return lastControl;
-}
-
-// 더보기 클릭 후 이벤트 수가 늘어날 때까지 기다린다.
-// 최신 row를 반환해 버튼 정체를 감지하면서도 부분 수집 데이터는 보존한다.
-async function waitForEventRowsToIncrease(page, beforeCount, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  let latestEvents = await extractEventRows(page);
-
-  while (Date.now() < deadline) {
-    if (latestEvents.length > beforeCount) return latestEvents;
-    await page.waitForLoadState("networkidle", { timeout: 1500 }).catch(() => {});
-    await page.waitForTimeout(700);
-    latestEvents = await extractEventRows(page);
-  }
 }
 
 // 더보기 클릭 후 이벤트 수가 늘어날 때까지 기다린다.
@@ -2534,6 +2666,25 @@ async function extractFinalResultRows(page) {
       const match = normalize(value).match(/-?\d[\d,]*(?:\.\d+)?/);
       return match ? Math.round(Number(match[0].replace(/[,\s]/g, ""))) : null;
     };
+    const countryCodeFromValue = (value) => {
+      const text = normalize(value).toUpperCase();
+      if (!text) return "";
+      const fileName = text.split(/[?#]/)[0].split(/[\\/]/).pop() || text;
+      const baseName = fileName.replace(/\.(PNG|JPE?G|SVG|GIF|WEBP)$/i, "");
+      if (/^[A-Z]{2,3}$/.test(baseName)) return baseName;
+      const match = baseName.match(/(?:^|[-_])([A-Z]{2,3})(?:[-_]|$)/);
+      return match ? match[1] : "";
+    };
+    const countryCodeFromElement = (rootElement) => {
+      if (!rootElement) return "";
+      const image = rootElement.querySelector('img[src*="flag" i], img[alt*="flag" i], img[class*="flag" i], [class*="country" i] img, [class*="flag" i] img');
+      if (!image) return "";
+      return countryCodeFromValue(image.getAttribute("src"))
+        || countryCodeFromValue(image.getAttribute("data-src"))
+        || countryCodeFromValue(image.getAttribute("alt"))
+        || countryCodeFromValue(image.getAttribute("title"))
+        || countryCodeFromValue(image.getAttribute("class"));
+    };
     const isVisibleElement = (element) => {
       const style = window.getComputedStyle(element);
       if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse" || Number(style.opacity) === 0) return false;
@@ -2568,7 +2719,9 @@ async function extractFinalResultRows(page) {
         const earnings = parseMoney(cells[cells.length - 1]);
         const player = cells[1] || "";
         const country = cells.length >= 4 ? cells[cells.length - 2] : "";
-        addRow({ no, player, country, earnings, cells, rowText: normalize(row.textContent) });
+        const countryCell = cells.length >= 4 ? row.querySelectorAll("td, th")[cells.length - 2] : null;
+        const countryCode = countryCodeFromElement(countryCell) || countryCodeFromElement(row);
+        addRow({ no, player, country, countryCode, earnings, cells, rowText: normalize(row.textContent) });
       }
     }
 
@@ -2589,6 +2742,7 @@ async function extractFinalResultRows(page) {
         no,
         player,
         country: "",
+        countryCode: "",
         earnings,
         cells: [String(no), player, earnings === null ? "" : `$${earnings.toLocaleString("en-US")}`],
         rowText: normalize(match[0])
@@ -3658,6 +3812,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     await page.waitForTimeout(3000);
 
     const profileName = await extractPlayerName(page);
+    const profileCountry = await extractProfileCountryFlag(page);
     const name = canonicalPlayerName(profileName, standingsSources);
     const bodyText = await page.locator("body").innerText({ timeout });
     const summary = parseSummary(bodyText);
@@ -3720,6 +3875,8 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     const player = {
       name,
       url,
+      countryCode: profileCountry.countryCode,
+      profileCountry,
       standingsSources,
       summary,
       badgeCounts,
@@ -3734,6 +3891,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       calculated,
       comparisons: [],
       standingsChecks: [],
+      countryChecks: [],
       warnings,
       defects: [],
       status: "fail"
@@ -3772,6 +3930,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
           event.resultSkipped = event.resultSkipped || "Skipped (profile-only mode)";
         }
       }
+      player.countryChecks = buildCountryChecks(player, "profile-only");
       player.defects = buildDefects(player);
       player.status = playerStatus(player);
       return player;
@@ -3821,6 +3980,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       warnings.push("결과 확인 일부 컨트롤이 단순 버튼 형태입니다. 일부 행에 대해 클릭 네비게이션이 실행되었습니다.");
     }
 
+    player.countryChecks = buildCountryChecks(player, "crawler");
     player.defects = buildDefects(player);
     player.status = playerStatus(player);
     return player;
@@ -3845,7 +4005,15 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
 }
 
 function flattenDefects(report) {
-  return (report.players || []).flatMap((player) => player.defects?.length ? player.defects : buildDefects(player));
+  return (report.players || []).flatMap((player) => {
+    const countrySource = player.profileCountry || (player.standingsSources || []).find((source) => source.countryCode) || {};
+    const countryCode = normalizeCountryCode(player.countryCode || countrySource.countryCode);
+    const rows = player.defects?.length ? player.defects : buildDefects(player);
+    return rows.map((row) => ({
+      countryCode,
+      ...row
+    }));
+  });
 }
 
 function flattenReviewNotes(report) {
@@ -3857,6 +4025,7 @@ function flattenReviewNotes(report) {
     for (const warning of player.warnings || []) {
       notes.push({
         brand: playerBrands,
+        status: "warn",
         type: "Crawler warning",
         player: player.name,
         item: "warning",
@@ -3865,10 +4034,24 @@ function flattenReviewNotes(report) {
       });
     }
 
+    for (const check of player.countryChecks || []) {
+      if (check.status === "pass" || check.status === "skipped") continue;
+      notes.push({
+        brand: playerBrands,
+        status: check.status || "minor",
+        type: check.type || "Country flag mismatch",
+        player: player.name,
+        item: check.item || "Country flag",
+        url: player.url,
+        detail: check.detail || ""
+      });
+    }
+
     for (const event of player.events || []) {
       if (event.resultPage?.status === "warn") {
         notes.push({
           brand: playerBrands,
+          status: "warn",
           type: "Result page unavailable",
           player: player.name,
           item: event.eventName,
@@ -3881,6 +4064,7 @@ function flattenReviewNotes(report) {
       if (!/(result|ranklimit|resultlimit|비활|결과|검증)/i.test(event.resultSkipped)) continue;
       notes.push({
         brand: playerBrands,
+        status: "warn",
         type: "Result skipped",
         player: player.name,
         item: event.eventName,
@@ -3902,15 +4086,17 @@ function summarize(report) {
   const events = players.flatMap((player) => player.events || []);
   const resultPages = events.filter((event) => event.resultPage);
   const tabChecks = players.flatMap((player) => player.tabChecks || []);
+  const countryChecks = players.flatMap((player) => player.countryChecks || []);
   const standingsCategories = new Set(players.flatMap((player) => (player.standingsSources || []).map((source) => source.category)));
   const runStatus = report.runStatus || "complete";
   const totalPlayers = report.totalPlayers || players.length;
   const completedPlayers = players.length;
   const pendingPlayers = Math.max(0, totalPlayers - completedPlayers);
   const warnPlayers = players.filter((player) => player.status === "warn").length;
+  const minorPlayers = players.filter((player) => player.status === "minor").length;
   const failedPlayers = players.filter((player) => player.status === "fail").length;
   const passedPlayers = players.filter((player) => player.status === "pass").length;
-  const status = defects.length || failedPlayers ? "fail" : (warnPlayers || runStatus !== "complete") ? "warn" : "pass";
+  const status = defects.length || failedPlayers ? "fail" : (warnPlayers || runStatus !== "complete") ? "warn" : (minorPlayers ? "minor" : "pass");
   return {
     status,
     runStatus,
@@ -3922,10 +4108,13 @@ function summarize(report) {
     checkedStandingsCategories: standingsCategories.size,
     passedPlayers,
     warnedPlayers: warnPlayers,
+    minorPlayers,
     failedPlayers,
     crawledEvents: events.length,
     tabChecks: tabChecks.length,
     failedTabChecks: tabChecks.filter((check) => check.status === "fail").length,
+    countryChecks: countryChecks.length,
+    minorCountryChecks: countryChecks.filter((check) => check.status === "minor").length,
     crawledResultPages: resultPages.length,
     failedResultPages: resultPages.filter((event) => event.resultPage.status !== "pass").length,
     defects: defects.length,
@@ -3945,6 +4134,32 @@ function summarizeStandingsSources(players) {
     category,
     entries: entries.sort((a, b) => (a.rank || 999999) - (b.rank || 999999))
   }));
+}
+
+function summarizeCountries(players) {
+  const byCountry = new Map();
+  const unknownPlayers = [];
+  const issuePlayers = [];
+
+  for (const player of players || []) {
+    const countrySource = player.profileCountry || (player.standingsSources || []).find((source) => source.countryCode) || {};
+    const countryCode = normalizeCountryCode(player.countryCode || countrySource.countryCode);
+    const countryKey = countryCode === UNKNOWN_COUNTRY_CODE ? UNKNOWN_COUNTRY_LABEL : countryCode;
+    if (!byCountry.has(countryKey)) {
+      byCountry.set(countryKey, { countryCode, players: [] });
+    }
+    byCountry.get(countryKey).players.push({ player: player.name, url: player.url, status: player.status });
+    if (countryCode === UNKNOWN_COUNTRY_CODE) unknownPlayers.push({ player: player.name, url: player.url });
+    if ((player.countryChecks || []).some((check) => check.status === "minor" || check.status === "warn")) {
+      issuePlayers.push({ player: player.name, url: player.url, checks: player.countryChecks || [] });
+    }
+  }
+
+  const entries = Array.from(byCountry.values())
+    .map((entry) => ({ ...entry, count: entry.players.length }))
+    .sort((a, b) => b.count - a.count || a.countryCode.localeCompare(b.countryCode));
+
+  return { entries, unknownPlayers, issuePlayers };
 }
 
 function formatResultFinding(event) {
@@ -3984,6 +4199,8 @@ function formatKoreanDefectType(type) {
     "Result page mismatch": "Result 페이지 불일치",
     "Result page unavailable": "Result 페이지 일시 접근 불가",
     "Result search incomplete": "Result 탐색 미완료",
+    "Country flag mismatch": "국기 국가코드 불일치",
+    "Country flag missing": "국기 국가코드 누락",
     "Crawler warning": "크롤러 경고",
     "Result skipped": "Result 검증 건너뜀",
     "Crawler error": "크롤러 오류"
@@ -4012,6 +4229,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
   const defects = flattenDefects(report);
   const reviewNotes = flattenReviewNotes(report);
   const standingsSourceSummary = summarizeStandingsSources(report.players);
+  const countrySummary = summarizeCountries(report.players);
 
   const totalChecked = summary.checkedPlayers || 1;
   const passPercent = Math.round((summary.passedPlayers / totalChecked) * 100);
@@ -4042,6 +4260,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     filterPass: isKo ? "통과" : "Pass",
     filterFail: isKo ? "실패" : "Fail",
     filterWarn: isKo ? "주의" : "Warn",
+    filterMinor: isKo ? "경미" : "Minor",
     noDefects: isKo ? "발견된 결함 후보가 없습니다." : "No defect candidates found.",
     noReviewNotes: isKo ? "표시할 주의/건너뜀 항목이 없습니다." : "No warnings or skipped checks found.",
     profileStat: isKo ? "프로필 표시값" : "Profile Stat",
@@ -4052,6 +4271,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     selectedTabLabel: isKo ? "클릭한 탭 라벨" : "Selected Label",
     visibleRows: isKo ? "표시 row 수" : "Visible Rows",
     detailText: isKo ? "상세 정보" : "Detail",
+    countryValidation: isKo ? "국기 국가코드 검증" : "Country Flag Validation",
+    countrySource: isKo ? "소스" : "Source",
+    countryCode: isKo ? "국가코드" : "Country Code",
     seriesEvent: isKo ? "시리즈 / 이벤트" : "Series / Event",
     dateText: isKo ? "일자" : "Date",
     rankText: isKo ? "순위" : "Rank",
@@ -4071,6 +4293,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       ["Cashes", "Load more로 펼친 ALL 탭 row를 프로필 Cashes와 비교합니다. 프로필 Cashes까지 수집하지 못하면 수집 미완료 주의로 표시합니다."],
       ["Total Earnings", "프로필 Total Earnings와 ALL 탭 계산 합계가 다르면 환율/통화/원본값 차이 가능성이 있어 주의로 표시하고 실패 집계에서는 제외합니다."],
       ["Profile tabs", "Title, Bracelets, Rings, Final Tables 탭을 눌러 표시 row 수와 프로필 요약값을 비교합니다."],
+      ["Country flag", "Standings, Profile, Result에서 수집 가능한 국기 이미지의 국가코드만 비교합니다. 코드 누락 또는 코드 불일치는 실패가 아닌 경미 이슈로 표시합니다."],
       ["Result", "Result 페이지를 열어 최종 결과표에서 No, 선수명, 상금이 모두 정확히 맞는지 확인합니다."]
     ] : [
       ["Standings categories", `Collect top players from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
@@ -4082,6 +4305,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       ["Cashes", "Compare ALL-tab rows against profile Cashes. If collection stops before the profile Cashes count, mark it as an incomplete-collection warning."],
       ["Total Earnings", "If profile Total Earnings differs from the ALL-tab calculated total, mark it as Warn because currency/rate/source differences can occur, and exclude it from failure totals."],
       ["Profile tabs", "Click Title, Bracelets, Rings, and Final Tables tabs and compare visible row counts with profile stats."],
+      ["Country flag", "Compare only country codes from flag images across Standings, Profile, and Result when available. Missing codes and code mismatches are reported as Minor, not Fail."],
       ["Result", "Open Results and verify that No, Player, and Earnings all match exactly."]
     ]
   };
@@ -4152,6 +4376,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .status-badge.pass { background-color: var(--success-bg); color: var(--success); }
     .status-badge.fail { background-color: var(--danger-bg); color: var(--danger); }
     .status-badge.warn { background-color: var(--warning-bg); color: var(--warning); }
+    .status-badge.minor { background-color: rgba(59, 130, 246, 0.14); color: #60a5fa; }
     .status-badge.pending { background-color: rgba(255,255,255,0.06); color: var(--text-muted); }
     .header-actions .status-badge { font-size: 14px; padding: 8px 20px; font-weight: 800; letter-spacing: 1px; }
 
@@ -4328,6 +4553,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="kpi-label">${isKo ? "주의 선수" : "Warned Players"}</div>
         <div class="kpi-value" style="color: var(--warning);">${summary.warnedPlayers || 0}</div>
       </div>
+      <div class="kpi-card" onclick="filterByStatus('minor')">
+        <div class="kpi-label">${isKo ? "경미 이슈 선수" : "Minor Players"}</div>
+        <div class="kpi-value" style="color: #60a5fa;">${summary.minorPlayers || 0}</div>
+      </div>
       <div class="kpi-card" onclick="filterByStatus('fail')">
         <div class="kpi-label">${escapeHtml(t.defectCandidates)}</div>
         <div class="kpi-value" style="color: ${defects.length ? "var(--danger)" : "inherit"};">${summary.defects}</div>
@@ -4385,6 +4614,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             <div class="bar-pass" style="width:${(summary.passedPlayers / (summary.checkedPlayers || 1)) * 100}%"></div>
             <div class="bar-fail" style="width:${(summary.failedPlayers / (summary.checkedPlayers || 1)) * 100}%"></div>
             <div class="bar-skip" style="width:${((summary.warnedPlayers || 0) / (summary.checkedPlayers || 1)) * 100}%"></div>
+            <div class="bar-skip" style="width:${((summary.minorPlayers || 0) / (summary.checkedPlayers || 1)) * 100}%; background:#60a5fa;"></div>
           </div>
         </div>
       </div>
@@ -4435,6 +4665,41 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                 </tr>`).join("")}
               </tbody>
             </table>` : `<div style="padding: 20px; text-align: center; color: var(--text-muted);">${escapeHtml(t.noDefects)}</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Country Coverage Collapsible Card -->
+    <div class="group-card" style="margin-bottom: 20px;">
+      <div class="group-header" onclick="toggleGroupCollapse('metadata', 'countries')">
+        <div class="group-header-left">
+          <span class="status-badge ${summary.minorCountryChecks ? "minor" : "pass"}" style="background-color: rgba(var(--primary-rgb), 0.15);">${escapeHtml(t.countryValidation)}</span>
+          <span class="item-count-badge">${countrySummary.entries.length} ${isKo ? '개 국가코드' : 'Country Codes'}</span>
+          <span class="item-count-badge">${summary.minorCountryChecks || 0} ${isKo ? '개 경미 이슈' : 'Minor Issues'}</span>
+        </div>
+        <svg class="group-arrow-icon" id="metadata-group-arrow-countries" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+      </div>
+      <div class="group-body collapsed" id="metadata-group-body-countries">
+        <div class="group-body-inner">
+          <div class="table-container" style="border-top: 1px solid var(--border);">
+            <table>
+              <thead>
+                <tr><th>${escapeHtml(t.countryCode)}</th><th>Players</th></tr>
+              </thead>
+              <tbody>
+                ${countrySummary.entries.map((entry) => `<tr>
+                  <td><code>${escapeHtml(entry.countryCode)}</code></td>
+                  <td>${entry.players.map((item) => `<span class="status-badge ${escapeHtml(item.status)}" style="margin:2px;"><a href="${escapeHtml(item.url)}" target="_blank" onclick="event.stopPropagation();">${escapeHtml(item.player)}</a></span>`).join("")}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+            ${(countrySummary.unknownPlayers.length || countrySummary.issuePlayers.length) ? `
+              <div class="note" style="margin: 16px;">
+                ${countrySummary.unknownPlayers.length ? `${isKo ? "Unknown Country 선수" : "Unknown Country players"}: ${countrySummary.unknownPlayers.map((item) => escapeHtml(item.player)).join(", ")}<br>` : ""}
+                ${countrySummary.issuePlayers.length ? `${isKo ? "국기/국가코드 경미 이슈 선수" : "Country flag minor issue players"}: ${countrySummary.issuePlayers.map((item) => escapeHtml(item.player)).join(", ")}` : ""}
+              </div>
+            ` : ""}
           </div>
         </div>
       </div>
@@ -4494,11 +4759,16 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           <button class="filter-btn active" data-filter="all" onclick="filterByStatus('all')">${escapeHtml(t.filterAll)}</button>
           <button class="filter-btn" data-filter="pass" onclick="filterByStatus('pass')">${escapeHtml(t.filterPass)}</button>
           <button class="filter-btn" data-filter="warn" onclick="filterByStatus('warn')">${escapeHtml(t.filterWarn)}</button>
+          <button class="filter-btn" data-filter="minor" onclick="filterByStatus('minor')">${escapeHtml(t.filterMinor)}</button>
           <button class="filter-btn" data-filter="fail" onclick="filterByStatus('fail')">${escapeHtml(t.filterFail)}</button>
         </div>
         <select class="select-dropdown" id="category-filter" onchange="filterByCategory(this.value)">
           <option value="all">${isKo ? "모든 카테고리" : "All Categories"}</option>
           <!-- Categories filled dynamically -->
+        </select>
+        <select class="select-dropdown" id="country-filter" onchange="filterByCountry(this.value)">
+          <option value="all">${isKo ? "모든 국가" : "All Countries"}</option>
+          ${countrySummary.entries.map((entry) => `<option value="${escapeHtml(entry.countryCode)}">${escapeHtml(entry.countryCode === UNKNOWN_COUNTRY_CODE ? UNKNOWN_COUNTRY_LABEL : entry.countryCode)} (${entry.count})</option>`).join("")}
         </select>
         <select class="select-dropdown" id="sort-select" onchange="sortPlayers(this.value)">
           <option value="name-asc">${isKo ? "이름순 (A-Z)" : "Name (A-Z)"}</option>
@@ -4539,6 +4809,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       resultUrlText: "${escapeHtml(t.resultUrlText)}",
       resultCheckText: "${escapeHtml(t.resultCheckText)}",
       finalFindingText: "${escapeHtml(t.finalFindingText)}",
+      countryValidation: "${escapeHtml(t.countryValidation)}",
+      countrySource: "${escapeHtml(t.countrySource)}",
+      countryCode: "${escapeHtml(t.countryCode)}",
       noDefects: "${escapeHtml(t.noDefects)}",
       noReviewNotes: "${escapeHtml(t.noReviewNotes)}",
       searchEventsPlaceholder: "${escapeHtml(t.searchEventsPlaceholder)}"
@@ -4549,6 +4822,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       searchQuery: '',
       statusFilter: 'all',
       categoryFilter: 'all',
+      countryFilter: 'all',
       sortBy: 'name-asc'
     };
 
@@ -4581,7 +4855,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
     function formatStatus(status) {
       if (!isKo) return status;
-      return { pass: "통과", fail: "실패", warn: "주의", pending: "대기" }[status] || status;
+      return { pass: "통과", fail: "실패", warn: "주의", minor: "경미", skipped: "건너뜀", pending: "대기" }[status] || status;
     }
 
     function formatKoreanDefectType(type) {
@@ -4594,6 +4868,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         "Result page mismatch": "Result 페이지 불일치",
         "Result page unavailable": "Result 페이지 일시 접근 불가",
         "Result search incomplete": "Result 탐색 미완료",
+        "Country flag mismatch": "국기 국가코드 불일치",
+        "Country flag missing": "국기 국가코드 누락",
         "Crawler warning": "크롤러 경고",
         "Result skipped": "Result 검증 건너뜀",
         "Crawler error": "크롤러 오류"
@@ -4684,7 +4960,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             matchesCategory = (player.standingsSources || []).some(src => src.category === state.categoryFilter);
           }
 
-          return matchesSearch && matchesStatus && matchesCategory;
+          let matchesCountry = true;
+          if (state.countryFilter !== 'all') {
+            const countrySource = player.profileCountry || (player.standingsSources || []).find(src => src.countryCode) || {};
+            const playerCountryCode = player.countryCode || countrySource.countryCode || "UNKNOWN";
+            matchesCountry = playerCountryCode === state.countryFilter;
+          }
+
+          return matchesSearch && matchesStatus && matchesCategory && matchesCountry;
         })
         .sort((a, b) => {
           if (state.sortBy === 'name-asc') return a.name.localeCompare(b.name);
@@ -4701,7 +4984,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             return bEarnings - aEarnings;
           }
           if (state.sortBy === 'status-desc') {
-            const order = { fail: 3, warn: 2, pass: 1 };
+            const order = { fail: 4, warn: 3, minor: 2, pass: 1 };
             const aOrder = order[a.status] || 0;
             const bOrder = order[b.status] || 0;
             return bOrder - aOrder;
@@ -4784,11 +5067,23 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       const warningsList = [];
       state.players.forEach(p => {
         (p.warnings || []).forEach(w => {
-          warningsList.push({ type: "Crawler warning", player: p.name, item: "warning", url: p.url, detail: w });
+          warningsList.push({ status: "warn", type: "Crawler warning", player: p.name, item: "warning", url: p.url, detail: w });
+        });
+        (p.countryChecks || []).forEach(check => {
+          if (check.status === "pass" || check.status === "skipped") return;
+          warningsList.push({
+            status: check.status || "minor",
+            type: check.type || "Country flag mismatch",
+            player: p.name,
+            item: check.item || "Country flag",
+            url: p.url,
+            detail: check.detail || ""
+          });
         });
         (p.events || []).forEach(ev => {
           if (ev.resultPage?.status === "warn") {
             warningsList.push({
+              status: "warn",
               type: "Result page unavailable",
               player: p.name,
               item: ev.eventName,
@@ -4798,7 +5093,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           }
           if (ev.resultSkipped && /(result|ranklimit|resultlimit|비활|결과|검증)/i.test(ev.resultSkipped)) {
             if (!/profile-only|standings-only/i.test(ev.resultSkipped)) {
-              warningsList.push({ type: "Result skipped", player: p.name, item: ev.eventName, url: ev.resultUrl || ev.disabledResultUrl || p.url, detail: ev.resultSkipped });
+              warningsList.push({ status: "warn", type: "Result skipped", player: p.name, item: ev.eventName, url: ev.resultUrl || ev.disabledResultUrl || p.url, detail: ev.resultSkipped });
             }
           }
         });
@@ -4822,7 +5117,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             <div class="group-card">
               <div class="group-header" onclick="toggleGroupCollapse('warnings', '\${typeKey}')">
                 <div class="group-header-left">
-                  <span class="status-badge warn">\${escapeHtml(localizedType)}</span>
+                  <span class="status-badge \${escapeHtml(rows[0]?.status || 'warn')}">\${escapeHtml(localizedType)}</span>
                   <span class="item-count-badge">\${rows.length} \${isKo ? '건' : 'items'}</span>
                 </div>
                 <svg class="group-arrow-icon" id="warnings-group-arrow-\${typeKey}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
@@ -4988,12 +5283,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       const statusText = formatStatus(player.status);
       const isExpanded = activeSubTabs[player.name] ? 'open' : '';
       const totalEvents = player.events?.length ?? 0;
+      const countrySource = player.profileCountry || player.standingsSources?.find(src => src.countryCode) || {};
+      const countryCode = player.countryCode || countrySource.countryCode || "UNKNOWN";
 
       return \`
         <div class="player-card" data-status="\${player.status}" data-name="\${escapeHtml(player.name)}">
           <div class="player-header" onclick="toggleAccordion('\${escapeHtml(player.name)}')">
             <div class="player-info-left">
-              <h3>\${highlightText(player.name, state.searchQuery)}</h3>
+              <h3>\${highlightText(player.name, state.searchQuery)} <span class="status-badge \${countryCode === "UNKNOWN" ? "minor" : "pass"}">\${escapeHtml(countryCode)}</span></h3>
               <div class="player-meta-info">
                 <span>🔗 <a href="\${escapeHtml(player.url)}" onclick="event.stopPropagation();" target="_blank">\${escapeHtml(player.url)}</a></span>
                 <span>🏆 Cashed Events: <strong>\${totalEvents}</strong></span>
@@ -5034,6 +5331,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                     ${report.mode !== 'profile-only' ? `
                       <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(player.name)}', 'events')">\${isKo ? "3. 참가 이벤트 결과 검증" : "3. Result Verification"}</button>
                     ` : ''}
+                    <button class="sub-tab-btn" data-tab="country" onclick="switchSubTab('\${escapeHtml(player.name)}', 'country')">${report.mode !== 'profile-only' ? (isKo ? "4. 국가코드 검증" : "4. Country Code Check") : (isKo ? "3. 국가코드 검증" : "3. Country Code Check")}</button>
                     <div class="tab-active-bar"></div>
                   </div>
 
@@ -5121,6 +5419,27 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                         : "ℹ️ <strong>Profile Only Mode</strong>: Profile summary and tab validation were performed, and tournament result (Result) detail checks were intentionally skipped."}
                     </div>
                   `}
+
+                  <!-- Sub-tab Content: Country code validation -->
+                  <div class="sub-tab-content" data-tab="country">
+                    <h4 style="margin:0 0 12px;font-family:'Outfit',sans-serif;">\${labels.countryValidation}</h4>
+                    <div class="table-container">
+                      <table style="width:100%;">
+                        <thead>
+                          <tr><th>\${labels.countrySource}</th><th>\${labels.countryCode}</th><th>\${labels.statusText}</th></tr>
+                        </thead>
+                        <tbody>
+                          \${(player.countryChecks || []).flatMap(check => (check.sources && check.sources.length ? check.sources : [check]).map(source => \`
+                            <tr>
+                              <td><strong>\${escapeHtml(source.sourceLabel || check.item || "-")}</strong></td>
+                              <td><code>\${escapeHtml(source.countryCode || check.actual || "UNKNOWN")}</code></td>
+                              <td><span class="status-badge \${check.status || "skipped"}">\${escapeHtml(formatStatus(check.status || "skipped"))}</span></td>
+                            </tr>
+                          \`)).join("")}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 `}
 
               </div>
@@ -5173,6 +5492,11 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       renderPlayerList();
     }
 
+    function filterByCountry(countryCode) {
+      state.countryFilter = countryCode;
+      renderPlayerList();
+    }
+
     function sortPlayers(sortBy) {
       state.sortBy = sortBy;
       renderPlayerList();
@@ -5192,6 +5516,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       state.searchQuery = '';
       state.statusFilter = 'all';
       state.categoryFilter = 'all';
+      state.countryFilter = 'all';
 
       // Update Filter buttons & selectors
       document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -5199,6 +5524,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         else btn.classList.remove('active');
       });
       document.getElementById('category-filter').value = 'all';
+      document.getElementById('country-filter').value = 'all';
 
       renderPlayerList();
 
@@ -5258,20 +5584,22 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         const integrityData = {
           passed: ${summary.passedPlayers},
           warned: ${summary.warnedPlayers || 0},
+          minor: ${summary.minorPlayers || 0},
           failed: ${summary.failedPlayers}
         };
 
-        const integrityLabels = isKo ? ['통과', '주의', '실패'] : ['Passed', 'Warned', 'Failed'];
+        const integrityLabels = isKo ? ['통과', '주의', '경미', '실패'] : ['Passed', 'Warned', 'Minor', 'Failed'];
 
         statusChartInstance = new Chart(ctx1, {
           type: 'doughnut',
           data: {
             labels: integrityLabels,
             datasets: [{
-              data: [integrityData.passed, integrityData.warned, integrityData.failed],
+              data: [integrityData.passed, integrityData.warned, integrityData.minor, integrityData.failed],
               backgroundColor: [
                 style.getPropertyValue('--success').trim() || '#10b981',
                 style.getPropertyValue('--warning').trim() || '#f59e0b',
+                '#60a5fa',
                 style.getPropertyValue('--danger').trim() || '#ef4444'
               ],
               borderWidth: 2,
@@ -5400,7 +5728,7 @@ function writeJson(filePath, payload) {
 }
 
 function writeCsv(filePath, rows) {
-  const headers = ["brand", "type", "player", "item", "expected", "actual", "url", "detail"];
+  const headers = ["brand", "countryCode", "type", "player", "item", "expected", "actual", "url", "detail"];
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, [headers, ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(","))].map((line) => Array.isArray(line) ? line.join(",") : line).join("\n") + "\n", "utf8");
 }
@@ -5446,19 +5774,24 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
 
 function standingOnlyPlayerFromEntry(entry) {
   const firstSource = (entry.standingsSources || []).find((source) => source?.name) || {};
-  return {
+  const player = {
     name: firstSource.name || playerNameFromUrl(entry.url) || entry.url,
     url: entry.url,
+    countryCode: normalizeCountryCode(firstSource.countryCode),
     standingsSources: entry.standingsSources || [],
     summary: {},
     events: [],
     calculated: {},
     comparisons: [],
     tabChecks: [],
+    countryChecks: [],
     warnings: [],
     defects: [],
     status: "pass"
   };
+  player.countryChecks = buildCountryChecks(player, "standings-only");
+  player.status = playerStatus(player);
+  return player;
 }
 
 function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null, brandOptions = null }) {
@@ -5831,8 +6164,6 @@ function runSelfTest() {
   if (failedTabShouldNotOverrideAllComparison?.status !== "pass" || failedTabShouldNotOverrideAllComparison.source !== "all-tab" || failedTabShouldNotOverrideAllComparison.calculated !== 5) {
     throw new Error("Failed profile tab counts should not overwrite matching ALL-tab summary calculations");
   }
-  const incompleteCashesComparison = reconcileSummaryComparisons(
-  }
   const crawlerWarningOnlyPlayer = {
     name: "Crawler Warning Sample",
     url: "https://example.test/crawler-warning",
@@ -5893,9 +6224,15 @@ function runSelfTest() {
   const sampleReport = { playersUrl: DEFAULT_PLAYERS_URL, players: [{ name: "Sample", url: "https://example.test/player", summary, events, expansion: {}, tabChecks, calculated, comparisons, defects: [], warnings: [], status: "pass" }] };
   const html = renderHtml(sampleReport);
   if (!html.includes("WSOP Player Standings Dashboard")) throw new Error("HTML render failed");
+  if (!html.includes('id="country-filter"') || !html.includes("filterByCountry")) throw new Error("HTML country filter render failed");
+  if (!html.includes("Country Flag Validation")) throw new Error("HTML country validation render failed");
+  if (!html.includes('data-tab="country"') || !html.includes("Country Code Check")) throw new Error("HTML country validation tab render failed");
   if (!html.includes('comparisonValue: "Comparison Value"')) throw new Error("Summary comparison value label render failed");
   const koreanHtml = renderKoreanHtml(sampleReport);
   if (!koreanHtml.includes("WSOP 선수 순위 크롤러 대시보드")) throw new Error("Korean HTML render failed");
+  const profileOnlyHtml = renderHtml({ ...sampleReport, mode: "profile-only" });
+  if (profileOnlyHtml.includes("${report.mode")) throw new Error("Profile-only HTML leaked server report mode expression");
+  if (!profileOnlyHtml.includes("3. Country Code Check") || profileOnlyHtml.includes("3. Result Verification")) throw new Error("Profile-only country tab render failed");
   const partialReport = buildCrawlerReport({
     startedAt: new Date().toISOString(),
     finishedAt: new Date().toISOString(),
@@ -5917,8 +6254,8 @@ function runSelfTest() {
     startedAt: new Date().toISOString(),
     finishedAt: new Date().toISOString(),
     playersUrl: DEFAULT_PLAYERS_URL,
-    playerEntries: [{ url: warningOnlyPlayer.url, standingsSources: [] }],
-    players: [warningOnlyPlayer],
+    playerEntries: [{ url: crawlerWarningOnlyPlayer.url, standingsSources: [] }],
+    players: [crawlerWarningOnlyPlayer],
     runStatus: "complete"
   });
   if (warningReport.summary.status !== "warn" || warningReport.summary.warnedPlayers !== 1 || warningReport.summary.failedPlayers !== 0) {
