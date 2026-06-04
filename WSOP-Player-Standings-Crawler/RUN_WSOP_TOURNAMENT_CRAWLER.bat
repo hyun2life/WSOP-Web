@@ -25,7 +25,7 @@ if "%LIMIT%"=="" (
     set "LIMIT=10"
   )
 )
-if "%CONCURRENCY%"=="" set "CONCURRENCY=3"
+if "%CONCURRENCY%"=="" set "CONCURRENCY=10"
 if "%HEADED%"=="" set "HEADED=true"
 if "%WSOP_NO_PAUSE%"=="" set "WSOP_NO_PAUSE=false"
 

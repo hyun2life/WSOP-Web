@@ -177,6 +177,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const item = createYearCheckbox(String(y), String(y), false);
       yearContainer.appendChild(item);
     }
+
+    yearContainer.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target && target.name === 'opt-year') {
+        if (target.value === 'ALL') {
+          if (target.checked) {
+            document.querySelectorAll('input[name="opt-year"]').forEach(chk => {
+              if (chk.value !== 'ALL') chk.checked = false;
+            });
+          }
+        } else {
+          if (target.checked) {
+            const allChk = yearContainer.querySelector('input[name="opt-year"][value="ALL"]');
+            if (allChk) allChk.checked = false;
+          }
+        }
+        syncYearControls();
+      }
+    });
     
     syncYearControls();
   }
@@ -195,8 +214,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function syncYearControls() {
     const yearEnabled = Boolean(crawlerOpts.year?.chk?.checked);
+    const allChk = document.querySelector('input[name="opt-year"][value="ALL"]');
+    const isAllChecked = allChk && allChk.checked;
+
     document.querySelectorAll('input[name="opt-year"]').forEach((chk) => {
-      chk.disabled = !yearEnabled;
+      if (!yearEnabled) {
+        chk.disabled = true;
+      } else {
+        if (isAllChecked && chk.value !== 'ALL') {
+          chk.disabled = true;
+        } else {
+          chk.disabled = false;
+        }
+      }
     });
   }
 

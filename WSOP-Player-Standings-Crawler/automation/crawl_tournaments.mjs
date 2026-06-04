@@ -484,6 +484,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .status-badge.fail { background-color: var(--danger-bg); color: var(--danger); }
     .status-badge.warn { background-color: var(--warning-bg); color: var(--warning); }
     .status-badge.skipped { background-color: rgba(148, 163, 184, 0.08); color: var(--text-muted); }
+    .header-actions .status-badge { font-size: 14px; padding: 8px 20px; font-weight: 800; letter-spacing: 1px; }
 
     .visualizations-row { display: grid; grid-template-columns: 1fr 2fr; gap: 25px; margin-bottom: 45px; }
     @media (max-width: 1024px) {
@@ -559,7 +560,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .player-meta-info span { display: inline-flex; align-items: center; gap: 6px; }
 
     .player-header-right { display: flex; align-items: center; gap: 15px; }
-    .arrow-icon { width: 22px; height: 22px; fill: var(--text-muted); transition: transform 0.3s ease-out; }
+    .arrow-icon { width: 22px; height: 22px; fill: var(--text-muted); transition: transform 0.3s ease-out; pointer-events: none; }
 
     .accordion-content { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
     .accordion-content.open { grid-template-rows: 1fr; }
@@ -572,12 +573,12 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .defects-summary-box h4 { margin: 0 0 10px; font-weight: 700; font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 8px; }
     .defects-summary-box ul { margin: 0; padding-left: 20px; font-size: 13px; }
 
+    /* Nested Tabs Style */
     .sub-tabs-container { border-bottom: 1px solid var(--border); margin-bottom: 20px; display: flex; gap: 20px; position: relative; }
     .sub-tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 12px 4px; cursor: pointer; font-size: 13px; font-weight: 600; position: relative; }
     .sub-tab-btn:hover { color: var(--text-main); }
     .sub-tab-btn.active { color: var(--primary); }
     .tab-active-bar { position: absolute; bottom: -1px; height: 2px; background: var(--primary); transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-
     .sub-tab-content { display: none; }
     .sub-tab-content.active { display: block; }
 
@@ -613,7 +614,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       <div class="header-title">
         <div class="eyebrow">${isKo ? "WSOP 토너먼트 크롤러" : "WSOP TOURNAMENT CRAWLER"}</div>
         <h1>${escapeHtml(t.title)}</h1>
-        <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.failedTournaments > 0 ? "fail" : "pass"}">${summary.failedTournaments > 0 ? t.filterFail : t.filterPass}</span></p>
+        <p>${escapeHtml(t.generated)}: ${escapeHtml(new Date().toLocaleString())} | ${escapeHtml(t.source)}: <a href="${escapeHtml(summary.sourceUrl || 'https://www.wsop.com/')}" target="_blank" style="color: var(--primary); text-decoration: underline;">${escapeHtml(summary.sourceUrl || 'https://www.wsop.com/')}</a> | ${escapeHtml(t.runStatus)}: <span class="status-badge ${summary.failedTournaments > 0 ? "fail" : "pass"}">${summary.failedTournaments > 0 ? t.filterFail : t.filterPass}</span></p>
       </div>
       <div class="header-actions">
         ${pastReports.length > 0 ? `
@@ -652,7 +653,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
       <div class="kpi-card">
         <div class="kpi-label">${isKo ? "실행 연도" : "Target Year"}</div>
-        <div class="kpi-value" style="font-size:22px;">${escapeHtml(summary.year)}</div>
+        <div class="kpi-value" style="font-size:16px; word-break:break-all; white-space:normal; line-height:1.3;">${escapeHtml(summary.year.replace(/[|_]/g, ', '))}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">${isKo ? "브랜드 필터" : "Brand Filter"}</div>
@@ -816,8 +817,16 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
     const eventPages = {};
     const eventSearchQuery = {};
+    const activeSubTabs = {};
     let statusChartInstance = null;
     let defectsChartInstance = null;
+
+    const allDefects = [];
+    state.tournaments.forEach(t => {
+      (t.defects || []).forEach(d => {
+        allDefects.push({ ...d, tournament: t.seriesName });
+      });
+    });
 
     const scrollTopBtn = document.getElementById('scroll-to-top');
     window.addEventListener('scroll', () => {
@@ -836,6 +845,18 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     function formatStatus(status) {
       if (!isKo) return status;
       return { pass: "통과", fail: "실패", warn: "주의", minor: "경미", skipped: "제외", pending: "대기" }[status] || status;
+    }
+
+    function formatKoreanDefectType(type) {
+      if (!isKo) return type;
+      return {
+        "Header mismatch": "헤더 정보 불일치",
+        "Event metadata invalid": "이벤트 메타데이터 오류",
+        "Cross check mismatch": "교차 검증 불일치",
+        "Payout page unavailable": "교차 검증 페이지 접근 불가",
+        "Schedule data invalid": "일정 데이터 오류",
+        "Tournament page unavailable": "대회 페이지 접근 불가"
+      }[type] || type;
     }
 
     function escapeHtml(str) {
@@ -918,7 +939,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             <div class="group-card">
               <div class="group-header" onclick="toggleGroupCollapse('defects', '\${typeKey}')">
                 <div class="group-header-left">
-                  <span class="status-badge fail">\${escapeHtml(type)}</span>
+                  <span class="status-badge fail">\${escapeHtml(isKo ? formatKoreanDefectType(type) : type)}</span>
                   <span class="item-count-badge">\${rows.length} \${isKo ? '건' : 'items'}</span>
                 </div>
                 <svg class="group-arrow-icon" id="defects-group-arrow-\${typeKey}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
@@ -977,6 +998,36 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       } else {
         content.classList.add('open');
         icon.style.transform = 'rotate(180deg)';
+        
+        // 서브 탭 초기화 연동
+        const activeTab = activeSubTabs[tournamentName] || 'summary';
+        setTimeout(() => switchSubTab(tournamentName, activeTab), 10);
+      }
+    }
+
+    function switchSubTab(tournamentName, tabName) {
+      activeSubTabs[tournamentName] = tabName;
+      const card = document.querySelector(\`.player-card[data-name="\${tournamentName}"]\`);
+      if (!card) return;
+
+      card.querySelectorAll('.sub-tab-btn').forEach(btn => btn.classList.remove('active'));
+      card.querySelectorAll('.sub-tab-content').forEach(c => c.classList.remove('active'));
+
+      const targetBtn = card.querySelector(\`.sub-tab-btn[data-tab="\${tabName}"]\`);
+      const targetContent = card.querySelector(\`.sub-tab-content[data-tab="\${tabName}"]\`);
+
+      if (targetBtn) targetBtn.classList.add('active');
+      if (targetContent) targetContent.classList.add('active');
+
+      // Update underline bar position
+      const bar = card.querySelector('.tab-active-bar');
+      if (bar && targetBtn) {
+        bar.style.left = targetBtn.offsetLeft + 'px';
+        bar.style.width = targetBtn.offsetWidth + 'px';
+      }
+
+      if (tabName === 'events') {
+        if (!eventPages[tournamentName]) eventPages[tournamentName] = 1;
         renderTournamentEvents(tournamentName);
       }
     }
@@ -1018,14 +1069,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             return \`
               <tr>
                 <td><strong>\${escapeHtml(event.eventName)}</strong></td>
-                <td class="nowrap">\th\${escapeHtml(event.date || "-")}</td>
+                <td class="nowrap">\${escapeHtml(event.date || "-")}</td>
                 <td class="nowrap">\${escapeHtml(event.buyInText || "-")}</td>
                 <td class="nowrap">\${escapeHtml(formatValue("entries", event.entries))}</td>
                 <td class="nowrap">\${escapeHtml(event.itmText || "-")}</td>
                 <td class="nowrap">\${escapeHtml(formatValue("prize", event.prize))}</td>
                 <td>\${escapeHtml(event.winner || "-")}</td>
                 <td>
-                  <span class="status-badge \th\${crossStatus}">\${escapeHtml(formatStatus(crossStatus))}</span>
+                  <span class="status-badge \${crossStatus}">\${escapeHtml(formatStatus(crossStatus))}</span>
                   \${crossErrors ? \`<div class="error-detail" style="color:var(--danger); font-size:10px; margin-top:2px;">\${escapeHtml(crossErrors)}</div>\` : ""}
                 </td>
                 <td>
@@ -1083,7 +1134,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
       return \`
         <div class="player-card" data-status="\${tObj.status}" data-name="\${escapeHtml(tObj.seriesName)}">
-          <div class="player-header" onclick="toggleAccordion('\th\${escapeHtml(tObj.seriesName)}')">
+          <div class="player-header" onclick="toggleAccordion('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}')">
             <div class="player-info-left">
               <h3>\${highlightText(tObj.seriesName, state.searchQuery)} <span class="brand-badge" style="background:#1e3a8a; margin-left:8px;">\${escapeHtml(tObj.brand)}</span></h3>
               <div class="player-meta-info">
@@ -1104,77 +1155,89 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           <div class="accordion-content">
             <div class="accordion-inner">
               <div class="player-body-wrapper" style="padding-top:20px;">
-                \${hasDefects ? \`
-                  <div class="defects-summary-box">
-                    <h4>Defect Candidate List</h4>
-                    <ul>
-                      \${tObj.defects.map(d => \`<li><strong>[\${escapeHtml(d.type)}]</strong> \${escapeHtml(d.item)}: Expected [\${escapeHtml(d.expected)}] but got [\${escapeHtml(d.actual)}]. \${escapeHtml(d.detail || "")}</li>\`).join("")}
-                    </ul>
-                  </div>
-                \` : ""}
-
-                <div style="margin-bottom: 20px;">
-                  <h4 style="margin:0 0 10px; font-family:'Outfit',sans-serif;">Visual Header Validation (목록-상세 헤더 검증)</h4>
-                  <div style="background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:8px; padding:15px; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                      <span>검증 상태: </span>
-                      <span class="status-badge \${headerStatus}">\${escapeHtml(formatStatus(headerStatus))}\${headerErrText}</span>
-                    </div>
-                    <div>
-                      <a href="\${escapeHtml(tObj.url)}" target="_blank">대회 상세 페이지 이동 ↗</a>
-                    </div>
-                  </div>
-                  \${tObj.headerCheck?.errors?.length > 0 ? \`
-                    <div style="margin-top:10px; color:var(--danger); font-size:12px; background:rgba(248,81,73,0.05); padding:10px; border-radius:6px; border-left:3px solid var(--danger);">
-                      \${tObj.headerCheck.errors.map(err => \`<div>• \${escapeHtml(err)}</div>\`).join("")}
-                    </div>
-                  \` : ""}
+                <div class="sub-tabs-container">
+                  <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
+                  <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', 'events')">\${isKo ? "2. 개별 이벤트 검증" : "2. Event Verification"}</button>
+                  <div class="tab-active-bar"></div>
                 </div>
 
-                <div>
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
-                    <h4 style="margin:0; font-family:'Outfit',sans-serif;">Events List Verification (개별 이벤트 검증)</h4>
-                    <div class="search-box" style="min-width:200px; flex:0 1 250px; margin:0;">
-                      <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
-                      <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(tObj.seriesName)}', this.value)" style="padding-top:8px; padding-bottom:8px;">
+                <!-- Sub-tab Content: Summary Metrics -->
+                <div class="sub-tab-content" data-tab="summary">
+                  \${hasDefects ? \`
+                    <div class="defects-summary-box">
+                      <h4>Defect Candidate List</h4>
+                      <ul>
+                        \${tObj.defects.map(d => \`<li><strong>[\${escapeHtml(isKo ? formatKoreanDefectType(d.type) : d.type)}]</strong> \${escapeHtml(d.item)}: Expected [\${escapeHtml(d.expected)}] but got [\${escapeHtml(d.actual)}]. \${escapeHtml(d.detail || "")}</li>\`).join("")}
+                      </ul>
                     </div>
-                  </div>
+                  \` : ""}
 
-                  <div class="table-container">
-                    <table>
-                      <thead>
-                        <tr>
-                          \${isCaseA ? \`
-                            <th>\${labels.seriesEvent}</th>
-                            <th>\${labels.dateText}</th>
-                            <th>Buy-in</th>
-                            <th>Entries</th>
-                            <th>ITM</th>
-                            <th>Prize</th>
-                            <th>Winner</th>
-                            <th>\${labels.resultCheckText}</th>
-                            <th>\${labels.statusText}</th>
-                          \` : \`
-                            <th>\${labels.seriesEvent}</th>
-                            <th>\${labels.dateText}</th>
-                            <th>Buy-in</th>
-                            <th>Chips</th>
-                            <th>Clock</th>
-                            <th>Late Reg.</th>
-                            <th>\${labels.statusText}</th>
-                          \`}
-                        </tr>
-                      </thead>
-                      <tbody class="events-tbody">
-                        <!-- Filled dynamically -->
-                      </tbody>
-                    </table>
+                  <div style="margin-bottom: 20px;">
+                    <h4 style="margin:0 0 10px; font-family:'Outfit',sans-serif;">Visual Header Validation (목록-상세 헤더 검증)</h4>
+                    <div style="background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:8px; padding:15px; display:flex; justify-content:space-between; align-items:center;">
+                      <div>
+                        <span>검증 상태: </span>
+                        <span class="status-badge \${headerStatus}">\${escapeHtml(formatStatus(headerStatus))}\${headerErrText}</span>
+                      </div>
+                      <div>
+                        <a href="\${escapeHtml(tObj.url)}" target="_blank">대회 상세 페이지 이동 ↗</a>
+                      </div>
+                    </div>
+                    \${tObj.headerCheck?.errors?.length > 0 ? \`
+                      <div style="margin-top:10px; color:var(--danger); font-size:12px; background:rgba(248,81,73,0.05); padding:10px; border-radius:6px; border-left:3px solid var(--danger);">
+                        \${tObj.headerCheck.errors.map(err => \`<div>• \${escapeHtml(err)}</div>\`).join("")}
+                      </div>
+                    \` : ""}
                   </div>
+                </div>
 
-                  <div class="pagination-bar">
-                    <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(tObj.seriesName)}', -1)">◀ Prev</button>
-                    <span class="events-page-info">1 / 1 (0)</span>
-                    <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(tObj.seriesName)}', 1)">Next ▶</button>
+                <!-- Sub-tab Content: Events List -->
+                <div class="sub-tab-content" data-tab="events">
+                  <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+                      <h4 style="margin:0; font-family:'Outfit',sans-serif;">Events List Verification (개별 이벤트 검증)</h4>
+                      <div class="search-box" style="min-width:200px; flex:0 1 250px; margin:0;">
+                        <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+                        <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', this.value)" style="padding-top:8px; padding-bottom:8px;">
+                      </div>
+                    </div>
+
+                    <div class="table-container">
+                      <table>
+                        <thead>
+                          <tr>
+                            \${isCaseA ? \`
+                              <th>\${labels.seriesEvent}</th>
+                              <th>\${labels.dateText}</th>
+                              <th>Buy-in</th>
+                              <th>Entries</th>
+                              <th>ITM</th>
+                              <th>Prize</th>
+                              <th>Winner</th>
+                              <th>\${labels.resultCheckText}</th>
+                              <th>\${labels.statusText}</th>
+                            \` : \`
+                              <th>\${labels.seriesEvent}</th>
+                              <th>\${labels.dateText}</th>
+                              <th>Buy-in</th>
+                              <th>Chips</th>
+                              <th>Clock</th>
+                              <th>Late Reg.</th>
+                              <th>\${labels.statusText}</th>
+                            \`}
+                          </tr>
+                        </thead>
+                        <tbody class="events-tbody">
+                          <!-- Filled dynamically -->
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div class="pagination-bar">
+                      <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', -1)">◀ Prev</button>
+                      <span class="events-page-info">1 / 1 (0)</span>
+                      <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', 1)">Next ▶</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1200,6 +1263,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         const content = card?.querySelector('.accordion-content');
         if (content && content.classList.contains('open')) {
           renderTournamentEvents(t.seriesName);
+          switchSubTab(t.seriesName, activeSubTabs[t.seriesName] || 'summary');
         }
       });
     }
@@ -1295,14 +1359,21 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         const textMuted = style.getPropertyValue('--text-muted').trim() || '#94a3b8';
         const borderGrid = style.getPropertyValue('--border').trim() || 'rgba(255, 255, 255, 0.08)';
 
+        const integrityData = {
+          passed: ${summary.passedTournaments},
+          warned: state.tournaments.filter(t => t.status === 'warn').length,
+          failed: ${summary.failedTournaments}
+        };
+
         statusChartInstance = new Chart(ctx1, {
           type: 'doughnut',
           data: {
-            labels: isKo ? ['통과', '실패'] : ['Passed', 'Failed'],
+            labels: isKo ? ['통과', '주의', '실패'] : ['Passed', 'Warned', 'Failed'],
             datasets: [{
-              data: [${summary.passedTournaments}, ${summary.failedTournaments}],
+              data: [integrityData.passed, integrityData.warned, integrityData.failed],
               backgroundColor: [
                 style.getPropertyValue('--success').trim() || '#2ea043',
+                style.getPropertyValue('--warning').trim() || '#d29922',
                 style.getPropertyValue('--danger').trim() || '#f85149'
               ],
               borderWidth: 2,
@@ -1324,7 +1395,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
         const defectsCount = {};
         allDefects.forEach(d => {
-          defectsCount[d.type] = (defectsCount[d.type] || 0) + 1;
+          const type = isKo ? formatKoreanDefectType(d.type) : d.type;
+          defectsCount[type] = (defectsCount[type] || 0) + 1;
         });
 
         const barLabels = Object.keys(defectsCount);
@@ -2037,6 +2109,7 @@ Options:
     summary: {
       year: args.year,
       brand: args.brand,
+      sourceUrl: "https://www.wsop.com/",
       startedAt,
       finishedAt,
       totalTournaments: targetCards.length,
