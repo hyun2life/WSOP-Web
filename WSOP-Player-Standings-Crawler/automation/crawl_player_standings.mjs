@@ -117,6 +117,9 @@ function parseArgs(argv) {
     fromReport: null,
     concurrency: DEFAULT_CONCURRENCY,
     brand: null,
+    season: null,
+    profileBrand: null,
+    profileSeason: null,
     help: false
   };
 
@@ -161,6 +164,9 @@ function parseArgs(argv) {
     else if (arg === "--result-only") args.resultOnly = true;
     else if (arg === "--from-report") args.fromReport = argv[++i];
     else if (arg === "--brand") args.brand = argv[++i];
+    else if (arg === "--season") args.season = argv[++i];
+    else if (arg === "--profile-brand") args.profileBrand = argv[++i];
+    else if (arg === "--profile-season") args.profileSeason = argv[++i];
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -192,6 +198,33 @@ function safeFilePart(value, fallback = "manual-player") {
 }
 
 function splitBrandArgument(value) {
+  const text = normalizeText(value);
+  if (!text) return [];
+
+  const parts = [];
+  let current = "";
+  let depth = 0;
+
+  for (const char of text) {
+    if (char === "(" || char === "[" || char === "{") depth += 1;
+    if (char === ")" || char === "]" || char === "}") depth = Math.max(0, depth - 1);
+
+    if ((char === "," || char === "|") && depth === 0) {
+      const item = current.trim();
+      if (item) parts.push(item);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const tail = current.trim();
+  if (tail) parts.push(tail);
+  return parts;
+}
+
+function splitSeasonArgument(value) {
   const text = normalizeText(value);
   if (!text) return [];
 
@@ -320,6 +353,9 @@ Options:
   --result-only             Reuse a profile/snapshot report and crawl Result pages only.
   --from-report <path>      JSON report to use as the result-only snapshot input.
   --self-test               Run local data-model checks without opening a browser.
+  --season <value>          Filter player standings list by season/year.
+  --profile-brand <value>   Filter player profile pages by brand.
+  --profile-season <value>  Filter player profile pages by season/year.
 `);
 }
 
@@ -1800,6 +1836,229 @@ async function selectBrandFilter(page, brand) {
   return false;
 }
 
+async function selectProfileBrandFilter(page, brand) {
+  if (!brand) return false;
+
+  const selectLocators = page.locator("select");
+  const count = await selectLocators.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const select = selectLocators.nth(i);
+    const isVisible = await select.isVisible().catch(() => false);
+    if (!isVisible) continue;
+
+    const options = await select.evaluate((s) => Array.from(s.options || []).map(o => ({
+      label: (o.textContent || "").trim(),
+      value: o.value
+    }))).catch(() => []);
+
+    const hasBrandOption = options.some(o => /wsop|ggpoker|wpt|pgt|bsop|brand/i.test(o.label));
+    if (hasBrandOption) {
+      const aliases = brandSelectionAliases(brand);
+      const aliasKeys = aliases.map(compactBrandLabel);
+      const matched = options.find((o) => {
+        const labelKey = compactBrandLabel(o.label);
+        const valueKey = compactBrandLabel(o.value);
+        return aliasKeys.some(aliasKey =>
+          labelKey.includes(aliasKey) ||
+          aliasKey.includes(labelKey) ||
+          valueKey.includes(aliasKey) ||
+          aliasKey.includes(valueKey)
+        );
+      });
+
+      if (matched) {
+        await select.selectOption({ value: matched.value }).catch(async () => {
+          await select.selectOption({ label: matched.label }).catch(() => { });
+        });
+        return true;
+      }
+    }
+  }
+
+  const aliases = brandSelectionAliases(brand);
+  const aliasKeys = aliases.map(compactBrandLabel);
+  const triggerPatterns = [
+    "All Brands", "Brand", "Brands", "Select Brand", "Select Brands", "WSOP", "GGPoker", "WPT", "PGT", "BSOP", "APT", "Triton", "Irish Poker",
+    ...aliases
+  ];
+  const triggerRegex = new RegExp(triggerPatterns.map(escapeRegExp).join("|"), "i");
+
+  let dropdownTrigger = page.locator("button.select-box, button.select-container, button").filter({ hasText: triggerRegex }).first();
+  if ((await dropdownTrigger.count()) === 0 || !(await dropdownTrigger.isVisible().catch(() => false))) {
+    dropdownTrigger = page.locator("div.select-box, div.select-container, [class*=select-box i], a, div, span").filter({ hasText: triggerRegex }).first();
+  }
+
+  if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+    await dropdownTrigger.click().catch(() => { });
+    await page.waitForTimeout(500);
+
+    const matchedOptionText = await page.evaluate((keys) => {
+      const normalize = (val) => String(val || "").toUpperCase().replace(/[^A-Z0-9]+/g, "");
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      const items = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+        .filter(visible)
+        .map(el => ({ text: (el.textContent || "").trim(), compact: normalize(el.textContent) }))
+        .filter(item => item.text.length > 0 && item.text.length < 80);
+
+      const found = items.find(item =>
+        keys.some(aliasKey =>
+          item.compact.includes(aliasKey) || aliasKey.includes(item.compact)
+        )
+      );
+      return found ? found.text : null;
+    }, aliasKeys).catch(() => null);
+
+    if (matchedOptionText) {
+      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(matchedOptionText)}\\s*$`, "i") }).first();
+      if ((await optionItem.count()) > 0) {
+        await optionItem.click().catch(() => { });
+        return true;
+      }
+    }
+
+    for (const alias of aliases) {
+      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(alias)}\\s*$`, "i") }).first();
+      if ((await optionItems.count()) > 0 && (await optionItems.isVisible().catch(() => true))) {
+        await optionItems.click().catch(() => { });
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+async function selectProfileSeasonFilter(page, season) {
+  if (!season) return false;
+
+  const targetSeasonStr = String(season).trim();
+
+  const selectLocators = page.locator("select");
+  const count = await selectLocators.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const select = selectLocators.nth(i);
+    const isVisible = await select.isVisible().catch(() => false);
+    if (!isVisible) continue;
+
+    const options = await select.evaluate((s) => Array.from(s.options || []).map(o => ({
+      label: (o.textContent || "").trim(),
+      value: o.value
+    }))).catch(() => []);
+
+    const hasSeasonOption = options.some(o => /year|season|20\d{2}/i.test(o.label));
+    if (hasSeasonOption) {
+      const matched = options.find((o) => {
+        const label = o.label.toLowerCase();
+        const value = o.value.toLowerCase();
+        const target = targetSeasonStr.toLowerCase();
+        return label.includes(target) || value.includes(target);
+      });
+
+      if (matched) {
+        await select.selectOption({ value: matched.value }).catch(async () => {
+          await select.selectOption({ label: matched.label }).catch(() => { });
+        });
+        return true;
+      }
+    }
+  }
+
+  const triggerPatterns = [
+    "All Seasons", "Season", "Seasons", "Year", "Years", "Select Season", "Select Year",
+    targetSeasonStr
+  ];
+  const triggerRegex = new RegExp(triggerPatterns.map(escapeRegExp).join("|"), "i");
+
+  let dropdownTrigger = page.locator("button.select-box, button.select-container, button").filter({ hasText: triggerRegex }).first();
+  if ((await dropdownTrigger.count()) === 0 || !(await dropdownTrigger.isVisible().catch(() => false))) {
+    dropdownTrigger = page.locator("div.select-box, div.select-container, [class*=select-box i], a, div, span").filter({ hasText: triggerRegex }).first();
+  }
+
+  if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+    await dropdownTrigger.click().catch(() => { });
+    await page.waitForTimeout(500);
+
+    const matchedOptionText = await page.evaluate((target) => {
+      const visible = (el) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style && style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      const items = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+        .filter(visible)
+        .map(el => (el.textContent || "").trim())
+        .filter(text => text.length > 0 && text.length < 80);
+
+      const targetLower = target.toLowerCase();
+      const found = items.find(text => text.toLowerCase().includes(targetLower));
+      return found || null;
+    }, targetSeasonStr).catch(() => null);
+
+    if (matchedOptionText) {
+      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(matchedOptionText)}\\s*$`, "i") }).first();
+      if ((await optionItem.count()) > 0) {
+        await optionItem.click().catch(() => { });
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+async function applyProfileFilters(page, brand, season) {
+  let appliedAny = false;
+
+  if (brand) {
+    const ok = await selectProfileBrandFilter(page, brand);
+    if (ok) {
+      console.log(`    [필터] 프로필 브랜드 필터 적용 성공: ${brand}`);
+      appliedAny = true;
+    } else {
+      console.warn(`    [경고] 프로필 브랜드 필터 적용 실패: ${brand}`);
+    }
+  }
+
+  if (season) {
+    const ok = await selectProfileSeasonFilter(page, season);
+    if (ok) {
+      console.log(`    [필터] 프로필 시즌 필터 적용 성공: ${season}`);
+      appliedAny = true;
+    } else {
+      console.warn(`    [경고] 프로필 시즌 필터 적용 실패: ${season}`);
+    }
+  }
+
+  if (appliedAny) {
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
+    await page.waitForTimeout(2000);
+  }
+}
+
+async function collectBrandOptions(page, playersUrl, authWaitMs) {
+  await retryWithBackoff(async () => {
+    await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
+    await waitForAccessLogin(page, authWaitMs);
+  }, 2, 2000);
+
+  const options = await collectBrandOptionsFromCurrentPage(page);
+  return {
+    collectedAt: new Date().toISOString(),
+    sourceUrl: playersUrl,
+    count: options.length,
+    rawCount: options.length,
+    options: options,
+    rawOptions: options
+  };
+}
+
 async function collectBrandOptionsFromCurrentPage(page) {
   const selectCandidates = await page.evaluate(() => {
     const visible = (el) => {
@@ -1851,154 +2110,159 @@ async function collectBrandOptionsFromCurrentPage(page) {
       const listboxOptions = Array.from(document.querySelectorAll('ul.option-list li, [role="listbox"] [role="option"], .select-container ul li'))
         .filter(visible)
         .map((el) => (el.textContent || "").trim())
-        .filter(Boolean);
+        .filter((text) => text.length > 0 && text.length < 80);
+      return listboxOptions;
+    }).catch(() => []);
 
-      if (listboxOptions.length > 0) {
-        return { source: 'listbox', options: listboxOptions };
-      }
-
-      const fallback = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
-        .filter(visible)
-        .map((el) => (el.textContent || "").trim())
-        .filter((text) => text && text.length <= 80);
-
-      return { source: 'fallback', options: fallback };
-    }).catch(() => ({ source: 'error', options: [] }));
-
-    if (dropdownOptions.source === 'listbox') {
-      return uniqueBrandOptionLabels(dropdownOptions.options);
+    if (dropdownOptions && dropdownOptions.length > 0) {
+      return uniqueBrandOptionLabels(dropdownOptions);
     }
-    return uniqueBrandOptionLabels(dropdownOptions.options.filter((text) => /brand|wsop|ggpoker|wpt|pgt|poker|masters|million|circuit|paradise|europe|asia|online|irish/i.test(text)));
   }
 
   return [];
 }
 
-async function collectBrandOptions(page, playersUrl, authWaitMs) {
-  const sourceCategory = STANDINGS_CATEGORIES.find((category) => category.label !== "2026 Standings" && categoryUrlFor(playersUrl, category))
-    || STANDINGS_CATEGORIES.find((category) => categoryUrlFor(playersUrl, category));
-  const sourceUrl = sourceCategory ? categoryUrlFor(playersUrl, sourceCategory) : playersUrl;
-
-  await retryWithBackoff(async () => {
-    await page.goto(sourceUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
-    await waitForAccessLogin(page, authWaitMs);
-  }, 2, 1500);
-
-  const rawOptions = uniqueBrandOptionLabels(await collectBrandOptionsFromCurrentPage(page));
-  const options = rawOptions.filter((option) => !isPlaceholderBrandOption(option));
-
-  return {
-    collectedAt: new Date().toISOString(),
-    sourceCategory: sourceCategory?.label || "Player standings",
-    sourceUrl: page.url(),
-    count: options.length,
-    rawCount: rawOptions.length,
-    options,
-    rawOptions
-  };
+async function selectSeasonFilter(page, season) {
+  return selectProfileSeasonFilter(page, season);
 }
 
-
-async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand = null) {
+async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand = null, season = null) {
   if (limit <= 0) return [];
 
   const byUrl = new Map();
   let selectedAnyCategory = false;
   const brands = brand ? splitBrandArgument(brand) : [null];
+  const seasons = season ? splitSeasonArgument(season) : [null];
 
   for (const currentBrand of brands) {
-    await retryWithBackoff(async () => {
-      await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
-      await page.waitForLoadState("networkidle").catch(() => { });
-      await waitForAccessLogin(page, authWaitMs);
-    }, 2, 2000);
+    for (const currentSeason of seasons) {
+      await retryWithBackoff(async () => {
+        await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+        await page.waitForLoadState("networkidle").catch(() => { });
+        await waitForAccessLogin(page, authWaitMs);
+      }, 2, 2000);
 
-    for (const category of STANDINGS_CATEGORIES) {
-      if (currentBrand && !shouldApplyBrandFilter(category)) {
-        console.log(`  [크롤러] 브랜드 필터 제외 카테고리 skip: ${category.label}`);
-        continue;
+      let appliedStandingsFilter = false;
+      if (currentBrand) {
+        const ok = await selectBrandFilter(page, currentBrand);
+        if (ok) {
+          console.log(`  [필터] 스탠딩 브랜드 필터 적용 성공: ${currentBrand}`);
+          appliedStandingsFilter = true;
+        } else {
+          console.warn(`  [경고] 스탠딩 브랜드 필터 적용 실패: ${currentBrand}`);
+        }
+      }
+      if (currentSeason) {
+        const ok = await selectSeasonFilter(page, currentSeason);
+        if (ok) {
+          console.log(`  [필터] 스탠딩 시즌 필터 적용 성공: ${currentSeason}`);
+          appliedStandingsFilter = true;
+        } else {
+          console.warn(`  [경고] 스탠딩 시즌 필터 적용 실패: ${currentSeason}`);
+        }
+      }
+      if (appliedStandingsFilter) {
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
+        await page.waitForTimeout(2000);
       }
 
-      const categoryUrl = categoryUrlFor(playersUrl, category);
-      let selected = false;
+      for (const category of STANDINGS_CATEGORIES) {
+        if (currentBrand && !shouldApplyBrandFilter(category)) {
+          console.log(`  [크롤러] 브랜드 필터 제외 카테고리 skip: ${category.label}`);
+          continue;
+        }
 
-      if (category.sectionSelector) {
-        try {
-          const currentUrl = page.url();
-          const isOnMainPage = /\/player-standings\/?$/i.test(new URL(currentUrl).pathname);
-          if (!isOnMainPage) {
+        const categoryUrl = categoryUrlFor(playersUrl, category);
+        let selected = false;
+
+        if (category.sectionSelector) {
+          try {
+            const currentUrl = page.url();
+            const isOnMainPage = /\/player-standings\/?$/i.test(new URL(currentUrl).pathname);
+            if (!isOnMainPage) {
+              await retryWithBackoff(async () => {
+                await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+                await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
+                await waitForAccessLogin(page, authWaitMs);
+              }, 2, 1500);
+            }
+            const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
+            selected = sectionExists;
+          } catch {
+            selected = false;
+          }
+        } else if (categoryUrl) {
+          try {
             await retryWithBackoff(async () => {
-              await page.goto(playersUrl, { waitUntil: "domcontentloaded" });
+              await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
               await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
               await waitForAccessLogin(page, authWaitMs);
             }, 2, 1500);
+            selected = true;
+          } catch {
+            selected = false;
           }
-          const sectionExists = await page.locator(category.sectionSelector).count().then((c) => c > 0).catch(() => false);
-          selected = sectionExists;
-        } catch {
-          selected = false;
+        } else {
+          selected = await clickExactTextControl(page, category.label);
         }
-      } else if (categoryUrl) {
-        try {
-          await retryWithBackoff(async () => {
-            await page.goto(categoryUrl, { waitUntil: "domcontentloaded" });
-            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
-            await waitForAccessLogin(page, authWaitMs);
-          }, 2, 1500);
-          selected = true;
-        } catch {
-          selected = false;
-        }
-      } else {
-        selected = await clickExactTextControl(page, category.label);
-      }
-      if (!selected) continue;
+        if (!selected) continue;
 
-      if (currentBrand) {
-        console.log(`  [크롤러] 브랜드 필터 적용 중: "${currentBrand}"`);
-        const applied = await selectBrandFilter(page, currentBrand);
-        if (!applied) {
-          console.warn(`  [경고] 브랜드 필터 옵션을 찾지 못했습니다: "${currentBrand}"`);
-        }
-        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
-        await page.waitForTimeout(1000);
-      }
-
-      let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
-
-      if (currentBrand && rows.length < limit) {
-        const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
-        const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
-
-        if (hasNext) {
-          console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
-          await nextButton.click().catch(() => { });
+        if (currentBrand) {
+          console.log(`  [크롤러] 브랜드 필터 적용 중: "${currentBrand}"`);
+          const applied = await selectBrandFilter(page, currentBrand);
+          if (!applied) {
+            console.warn(`  [경고] 브랜드 필터 옵션을 찾지 못했습니다: "${currentBrand}"`);
+          }
           await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
           await page.waitForTimeout(1000);
-
-          const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
-          rows = rows.concat(page2Rows);
         }
-      }
 
-      if (!rows.length) continue;
-      selectedAnyCategory = true;
-
-      for (const row of rows) {
-        if (!byUrl.has(row.url)) {
-          byUrl.set(row.url, { url: row.url, standingsSources: [] });
+        if (currentSeason) {
+          console.log(`  [크롤러] 시즌 필터 적용 중: "${currentSeason}"`);
+          const applied = await selectProfileSeasonFilter(page, currentSeason);
+          if (!applied) {
+            console.warn(`  [경고] 시즌 필터 옵션을 찾지 못했습니다: "${currentSeason}"`);
+          }
+          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
+          await page.waitForTimeout(1000);
         }
-        byUrl.get(row.url).standingsSources.push({
-          category: category.label,
-          rank: row.rank,
-          name: row.name,
-          rowText: row.rowText,
-          countryCode: row.countryCode,
-          sourceUrl: page.url(),
-          brand: currentBrand || "All",
-          ...buildStandingMetricSource(category.label, row.rowText)
-        });
+
+        let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
+
+        if (currentBrand && rows.length < limit) {
+          const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
+          const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
+
+          if (hasNext) {
+            console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
+            await nextButton.click().catch(() => { });
+            await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
+            await page.waitForTimeout(1000);
+
+            const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
+            rows = rows.concat(page2Rows);
+          }
+        }
+
+        if (!rows.length) continue;
+        selectedAnyCategory = true;
+
+        for (const row of rows) {
+          if (!byUrl.has(row.url)) {
+            byUrl.set(row.url, { url: row.url, standingsSources: [] });
+          }
+          byUrl.get(row.url).standingsSources.push({
+            category: category.label,
+            rank: row.rank,
+            name: row.name,
+            rowText: row.rowText,
+            countryCode: row.countryCode,
+            sourceUrl: page.url(),
+            brand: currentBrand || "All",
+            season: currentSeason || "All",
+            ...buildStandingMetricSource(category.label, row.rowText)
+          });
+        }
       }
     }
   }
@@ -3802,7 +4066,7 @@ async function crawlResultByClick(context, player, event, timeout, authWaitMs, r
 
 // 선수 프로필 하나를 끝까지 크롤링한다.
 // 요약, ALL 탭, 지표 탭, Result 페이지, 경고, 결함, 최종 상태를 모두 만든다.
-async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, authWaitMs, maxLoadMore, resultPageLimit, disabledResultMode, profileOnly = false, standingsSources = []) {
+async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, authWaitMs, maxLoadMore, resultPageLimit, disabledResultMode, profileOnly = false, standingsSources = [], brandFilter = null, seasonFilter = null) {
   const page = await context.newPage();
   const warnings = [];
   try {
@@ -3844,6 +4108,9 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     if (profileUnavailable) {
       return profileUnavailable;
     }
+
+    // 프로필 필터 적용 (브랜드, 시즌)
+    await applyProfileFilters(page, brandFilter, seasonFilter);
 
     // Cashes 또는 Earnings 통계 텍스트가 렌더링될 때까지 명시적 대기
     await page.waitForFunction(() => {
@@ -6647,7 +6914,7 @@ async function main() {
         };
         console.warn(`  [경고] 브랜드 옵션 목록 수집 실패: ${error.message}`);
       }
-      playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs, args.brand);
+      playerEntries = await collectPlayerEntries(listPage, args.playersUrl, args.limit, authWaitMs, args.brand, args.season);
       await listPage.close().catch(() => { });
     }
 
@@ -6733,7 +7000,9 @@ async function main() {
                 args.resultPageLimit,
                 args.disabledResultMode,
                 args.profileOnly,
-                entry.standingsSources
+                entry.standingsSources,
+                args.profileBrand,
+                args.profileSeason
               );
             if (result.error) throw new Error(result.error);
             return result;

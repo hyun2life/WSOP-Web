@@ -307,6 +307,7 @@ automation/output/
 
 검증 범위:
 
+- Player Profile의 브랜드 및 시즌년도 필터 적용 및 필터링된 요약 수치(Cashes 등)와 이벤트 목록 정합성 검증
 - Player Standings 상위 플레이어 노출 및 profile 연결
 - Player Standings UI는 기존 크롤러의 `--standings-only` 모드로 빠르게 추출한 최신 standings 대상자를 기준으로 이름, profile link, 국가/국기 후보로 보이는지 확인
 - Player Search에서 모든 플레이어를 전수 입력하지 않고, fixture에 정의한 대표 탑랭커 중심으로 이름 입력 시 검색창 하단 자동완성 row와 검색 결과에 해당 인물이 노출되는지 확인
@@ -337,9 +338,9 @@ npm run test:phase3
 주요 파일:
 
 ```text
-tests/player-presentation/
-fixtures/player-presentation/
-utils/playerPresentation/
+tests/player-presentation/player-profile-filter.spec.ts  # 신규 필터 검증 스펙
+fixtures/player-presentation/filter-players.fixture.json   # 필터 검증용 픽스처
+utils/playerPresentation/playerPresentationChecks.ts       # 필터 적용 공통 헬퍼 포함
 ```
 
 Standings UI 검증은 full crawler 산출물에 의존하지 않습니다. Phase 3 runner가 먼저 `WSOP-Player-Standings-Crawler`의 `--standings-only` 모드를 실행해 standings 카테고리별 선수 이름, rank, profile URL, source URL만 빠르게 추출하고, 이 최신 대상자 기준으로 이름, 프로필 링크, 국가/국기, 이미지 후보를 확인합니다. Profile/Result 상세 크롤링은 수행하지 않습니다.
@@ -634,6 +635,28 @@ RUN_BRAND_COMPARE_LATEST.bat "LIVE_DATA_JSON" "STAGE_DATA_JSON"
 - 해당 이벤트의 `resultPage.status`는 `warn`으로 저장됩니다.
 - 리포트의 검토/경고 목록에는 남기지만 `Result search incomplete` 또는 `Result page mismatch` 결함으로 집계하지 않습니다.
 - 이 케이스는 Stage/Live 서버가 Result 상세 페이지를 정상 응답한 뒤 재실행해서 검증해야 합니다.
+
+## 필터 사용 목적 및 조합 가이드 (Filter Usage Guide)
+
+플레이어 크롤러는 용도에 따라 브랜드 및 시즌 필터를 다음과 같이 조합하여 사용해야 합니다.
+
+### 1. 용도별 필터 조합
+* **전체 데이터 정합성 검증 (필터 해제)**:
+  * **설정**: `Brand Filter` 및 `Season Filter` 모두 **체크 해제**
+  * **용도**: 특정 브랜드나 연도 제한 없이, 전체 역대 랭킹 및 선수 프로필을 기준값(All Seasons / All Brands)으로 검증하고자 할 때 사용합니다.
+* **특정 브랜드 중심의 검증**:
+  * **설정**: `Brand Filter` **체크 후 특정 브랜드 선택** (예: GGPoker) / `Season Filter` **체크 해제**
+  * **용도**: 지정된 브랜드의 스탠딩 데이터를 수집하고, 해당 브랜드 내 모든 시즌에 걸친 프로필 데이터를 일관되게 검증하고자 할 때 사용합니다.
+* **특정 시즌(연도) 중심의 검증**:
+  * **설정**: `Brand Filter` **체크 해제** / `Season Filter` **체크 후 특정 연도 입력** (예: 2024)
+  * **용도**: 전체 브랜드의 스탠딩을 수집하지만, 개별 선수의 프로필로 들어갔을 때는 오직 `2024` 시즌으로 필터링을 변경해 Cashes 개수와 요약 정합성을 맞출 때 사용합니다.
+* **특정 브랜드의 특정 시즌 교차 검증**:
+  * **설정**: `Brand Filter` 및 `Season Filter` **둘 다 체크 후 설정**
+  * **용도**: 특정 브랜드(예: WSOP)의 특정 시즌(예: 2026) 데이터만 정밀 교차 검증하고자 할 때 사용합니다.
+
+### 2. 필터 적용 시 주의사항
+* **이중 필터 적용**: 크롤러에 전달된 `--brand` 및 `--season` 옵션은 **(1) 스탠딩 리스트 수집 시점**과 **(2) 개별 선수 프로필 상세 검증 시점** 모두에 동일하게 적용됩니다.
+* **Standings Only 모드와의 연계**: `--standings-only` 모드로 실행 시 프로필 상세 페이지에 접근하지 않으므로, `Season Filter`는 무시되고 오직 스탠딩 리스트에서의 `Brand Filter`만 동작합니다.
 
 ## Crawler mode selection note
 

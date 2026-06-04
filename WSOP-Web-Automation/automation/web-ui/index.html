@@ -118,6 +118,16 @@
                       <!-- JS로 렌더링 -->
                     </div>
                   </div>
+                  <div class="option-row" id="opt-season-row" style="flex-wrap: wrap;">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-season-check">
+                      <span class="checkmark"></span>
+                      Standings Season Filter <span class="help-icon" data-tooltip="스탠딩 목록 수집 시 특정 시즌/년도 필터를 적용하여 필터링된 상태의 목록을 수집합니다. 여러 시즌을 동시 선택하여 순차 누적 수집할 수 있습니다.">?</span>
+                    </label>
+                    <div class="season-checkboxes-container" id="opt-season-list-container" style="width: 100%; max-height: 120px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: var(--button-radius); margin-top: 5px; background: var(--bg-input); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                      <!-- JS로 렌더링 -->
+                    </div>
+                  </div>
                   <div class="option-row">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-limit-check">
@@ -154,7 +164,7 @@
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-brand-check">
                       <span class="checkmark"></span>
-                      Brand Filter <span class="help-icon" data-tooltip="선택한 브랜드의 standings 결과만 수집합니다. 브랜드 통합 검증에는 전체 브랜드 선택을 권장합니다.">?</span>
+                      Standings Brand Filter <span class="help-icon" data-tooltip="스탠딩 목록 수집 시 동일한 브랜드 필터를 적용하여 요약 정보와 목록의 정합성을 검증합니다.">?</span>
                     </label>
                     <div class="brand-checkboxes-container" id="opt-brand-list-container" style="width: 100%; max-height: 120px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: var(--button-radius); margin-top: 5px; background: var(--bg-input); display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
                       <div class="brand-checkbox-item"><label class="custom-checkbox"><input type="checkbox" name="opt-brand" value="WSOP" disabled><span class="checkmark"></span>WSOP</label></div>
@@ -177,6 +187,42 @@
                     <div id="custom-brand-container" class="hidden" style="width: 100%; margin-top: 5px;">
                       <input type="text" id="custom-brand-input" placeholder="브랜드명 직접 입력 (예: Triton)" disabled class="form-input" style="width: 100%; font-size: 0.8rem; padding: 6px 10px; border-radius: 4px; height: 30px; text-align: left;">
                     </div>
+                  </div>
+                  <div class="option-row" id="opt-profile-brand-row" style="flex-wrap: wrap;">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-profile-brand-check">
+                      <span class="checkmark"></span>
+                      Profile Brand Filter <span class="help-icon" data-tooltip="개별 플레이어 프로필 페이지 진입 시 해당 브랜드 필터를 적용하여 요약 정보와 목록의 정합성을 검증합니다.">?</span>
+                    </label>
+                    <div class="custom-select-wrapper" style="width: 100%; margin-top: 5px;">
+                      <select id="opt-profile-brand-select" class="form-select" disabled style="font-size: 0.85rem; padding: 8px 12px;">
+                        <option value="WSOP" selected>WSOP</option>
+                        <option value="GGPoker">GGPoker</option>
+                        <option value="WPT">WPT</option>
+                        <option value="PGT (Poker Go Tour)">PGT (Poker Go Tour)</option>
+                        <option value="Irish Poker Open">Irish Poker Open</option>
+                        <option value="WSOP PARADISE">WSOP PARADISE</option>
+                        <option value="WSOP EUROPE">WSOP EUROPE</option>
+                        <option value="WSOP ASIA">WSOP ASIA</option>
+                        <option value="WSOP ONLINE">WSOP ONLINE</option>
+                        <option value="WSOP CIRCUIT">WSOP CIRCUIT</option>
+                        <option value="GGMASTERS">GGMASTERS</option>
+                        <option value="GGMILLION$">GGMILLION$</option>
+                        <option value="WPT PRIME">WPT PRIME</option>
+                        <option value="Custom">Custom...</option>
+                      </select>
+                    </div>
+                    <div id="custom-profile-brand-container" class="hidden" style="width: 100%; margin-top: 5px;">
+                      <input type="text" id="custom-profile-brand-input" placeholder="프로필 브랜드명 직접 입력 (예: Triton)" disabled class="form-input" style="width: 100%; font-size: 0.8rem; padding: 6px 10px; border-radius: 4px; height: 30px; text-align: left;">
+                    </div>
+                  </div>
+                  <div class="option-row" id="opt-profile-season-row">
+                    <label class="custom-checkbox">
+                      <input type="checkbox" id="opt-profile-season-check">
+                      <span class="checkmark"></span>
+                      Profile Season Filter <span class="help-icon" data-tooltip="개별 플레이어 프로필 페이지 진입 시 특정 시즌/년도 필터를 적용하여 요약 정보와 목록의 정합성을 검증합니다. (예: 2024)">?</span>
+                    </label>
+                    <input type="text" id="opt-profile-season-input" value="2024" disabled class="form-input" placeholder="Profile Season (eg. 2024)">
                   </div>
                   <div class="option-row">
                     <label class="custom-checkbox">

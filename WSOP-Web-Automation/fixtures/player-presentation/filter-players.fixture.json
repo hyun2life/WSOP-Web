@@ -1,0 +1,18 @@
+[
+  {
+    "displayName": "Daniel Negreanu",
+    "searchKeyword": "Daniel Negreanu",
+    "profileUrl": "/players/daniel-negreanu/",
+    "expectedCountry": "Canada",
+    "testBrand": "WSOP",
+    "testSeason": "2026"
+  },
+  {
+    "displayName": "Phil Hellmuth",
+    "searchKeyword": "Phil Hellmuth",
+    "profileUrl": "/players/phil-hellmuth/",
+    "expectedCountry": "United States",
+    "testBrand": "WSOP",
+    "testSeason": "2025"
+  }
+]

@@ -416,3 +416,219 @@ function countryAliases(country: string): string[] {
 
   return aliases[normalized] ?? [country];
 }
+
+export async function selectProfileBrandFilter(page: Page, brand: string): Promise<boolean> {
+  const selectLocators = page.locator('select');
+  const count = await selectLocators.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const select = selectLocators.nth(i);
+    const isVisible = await select.isVisible().catch(() => false);
+    if (!isVisible) continue;
+
+    const options = await select.evaluate((s: HTMLSelectElement) => Array.from(s.options || []).map(o => ({
+      label: (o.textContent || '').trim(),
+      value: o.value
+    }))).catch(() => []);
+
+    const hasBrandOption = options.some(o => /wsop|ggpoker|wpt|pgt|bsop|brand/i.test(o.label));
+    if (hasBrandOption) {
+      const compactBrandLabel = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]+/g, '');
+      const brandSelectionAliases = (b: string) => {
+        const lbl = b.trim();
+        const cmp = compactBrandLabel(lbl);
+        return [lbl, cmp];
+      };
+
+      const aliases = brandSelectionAliases(brand);
+      const aliasKeys = aliases.map(compactBrandLabel);
+      const matched = options.find((o) => {
+        const labelKey = compactBrandLabel(o.label);
+        const valueKey = compactBrandLabel(o.value);
+        return aliasKeys.some(aliasKey =>
+          labelKey.includes(aliasKey) ||
+          aliasKey.includes(labelKey) ||
+          valueKey.includes(aliasKey) ||
+          aliasKey.includes(valueKey)
+        );
+      });
+
+      if (matched) {
+        await select.selectOption({ value: matched.value }).catch(async () => {
+          await select.selectOption({ label: matched.label }).catch(() => { });
+        });
+        return true;
+      }
+    }
+  }
+
+  const compactBrandLabel = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]+/g, '');
+  const brandSelectionAliases = (b: string) => {
+    const lbl = b.trim();
+    const cmp = compactBrandLabel(lbl);
+    return [lbl, cmp];
+  };
+  const aliases = brandSelectionAliases(brand);
+  const aliasKeys = aliases.map(compactBrandLabel);
+  const triggerPatterns = [
+    'All Brands', 'Brand', 'Brands', 'Select Brand', 'Select Brands', 'WSOP', 'GGPoker', 'WPT', 'PGT', 'BSOP', 'APT', 'Triton', 'Irish Poker',
+    ...aliases
+  ];
+  const triggerRegex = new RegExp(triggerPatterns.map(escapeRegExp).join('|'), 'i');
+
+  let dropdownTrigger = page.locator('button.select-box, button.select-container, button').filter({ hasText: triggerRegex }).first();
+  if ((await dropdownTrigger.count()) === 0 || !(await dropdownTrigger.isVisible().catch(() => false))) {
+    dropdownTrigger = page.locator('div.select-box, div.select-container, [class*=select-box i], a, div, span').filter({ hasText: triggerRegex }).first();
+  }
+
+  if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+    await dropdownTrigger.click().catch(() => { });
+    await page.waitForTimeout(500);
+
+    const matchedOptionText = await page.evaluate((keys) => {
+      const normalize = (val: string) => String(val || '').toUpperCase().replace(/[^A-Z0-9]+/g, '');
+      const visible = (el: HTMLElement) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+
+      const items = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+        .filter((el): el is HTMLElement => el instanceof HTMLElement && visible(el))
+        .map(el => ({ text: (el.textContent || '').trim(), compact: normalize(el.textContent || '') }))
+        .filter(item => item.text.length > 0 && item.text.length < 80);
+
+      const found = items.find(item =>
+        keys.some(aliasKey =>
+          item.compact.includes(aliasKey) || aliasKey.includes(item.compact)
+        )
+      );
+      return found ? found.text : null;
+    }, aliasKeys).catch(() => null);
+
+    if (matchedOptionText) {
+      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(matchedOptionText)}\\s*$`, 'i') }).first();
+      if ((await optionItem.count()) > 0) {
+        await optionItem.click().catch(() => { });
+        return true;
+      }
+    }
+
+    for (const alias of aliases) {
+      const optionItems = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(alias)}\\s*$`, 'i') }).first();
+      if ((await optionItems.count()) > 0 && (await optionItems.isVisible().catch(() => true))) {
+        await optionItems.click().catch(() => { });
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+export async function selectProfileSeasonFilter(page: Page, season: string | number): Promise<boolean> {
+  if (!season) return false;
+
+  const targetSeasonStr = String(season).trim();
+
+  const selectLocators = page.locator('select');
+  const count = await selectLocators.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const select = selectLocators.nth(i);
+    const isVisible = await select.isVisible().catch(() => false);
+    if (!isVisible) continue;
+
+    const options = await select.evaluate((s: HTMLSelectElement) => Array.from(s.options || []).map(o => ({
+      label: (o.textContent || '').trim(),
+      value: o.value
+    }))).catch(() => []);
+
+    const hasSeasonOption = options.some(o => /year|season|20\d{2}/i.test(o.label));
+    if (hasSeasonOption) {
+      const matched = options.find((o) => {
+        const label = o.label.toLowerCase();
+        const value = o.value.toLowerCase();
+        const target = targetSeasonStr.toLowerCase();
+        return label.includes(target) || value.includes(target);
+      });
+
+      if (matched) {
+        await select.selectOption({ value: matched.value }).catch(async () => {
+          await select.selectOption({ label: matched.label }).catch(() => { });
+        });
+        return true;
+      }
+    }
+  }
+
+  const triggerPatterns = [
+    'All Seasons', 'Season', 'Seasons', 'Year', 'Years', 'Select Season', 'Select Year',
+    targetSeasonStr
+  ];
+  const triggerRegex = new RegExp(triggerPatterns.map(escapeRegExp).join('|'), 'i');
+
+  let dropdownTrigger = page.locator('button.select-box, button.select-container, button').filter({ hasText: triggerRegex }).first();
+  if ((await dropdownTrigger.count()) === 0 || !(await dropdownTrigger.isVisible().catch(() => false))) {
+    dropdownTrigger = page.locator('div.select-box, div.select-container, [class*=select-box i], a, div, span').filter({ hasText: triggerRegex }).first();
+  }
+
+  if ((await dropdownTrigger.count()) > 0 && (await dropdownTrigger.isVisible().catch(() => false))) {
+    await dropdownTrigger.click().catch(() => { });
+    await page.waitForTimeout(500);
+
+    const matchedOptionText = await page.evaluate((target) => {
+      const visible = (el: HTMLElement) => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+
+      const items = Array.from(document.querySelectorAll('[role="option"], [role="menuitem"], li, a, button'))
+        .filter((el): el is HTMLElement => el instanceof HTMLElement && visible(el))
+        .map(el => (el.textContent || '').trim())
+        .filter(text => text.length > 0 && text.length < 80);
+
+      const targetLower = target.toLowerCase();
+      const found = items.find(text => text.toLowerCase().includes(targetLower));
+      return found || null;
+    }, targetSeasonStr).catch(() => null);
+
+    if (matchedOptionText) {
+      const optionItem = page.locator('[role="option"], li, a, button').filter({ hasText: new RegExp(`^\\s*${escapeRegExp(matchedOptionText)}\\s*$`, 'i') }).first();
+      if ((await optionItem.count()) > 0) {
+        await optionItem.click().catch(() => { });
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+export async function applyProfileFilters(page: Page, brand?: string, season?: string | number): Promise<void> {
+  let appliedAny = false;
+
+  if (brand) {
+    const ok = await selectProfileBrandFilter(page, brand);
+    if (ok) {
+      console.log(`    [필터] 프로필 브랜드 필터 적용 성공: ${brand}`);
+      appliedAny = true;
+    } else {
+      console.warn(`    [경고] 프로필 브랜드 필터 적용 실패: ${brand}`);
+    }
+  }
+
+  if (season) {
+    const ok = await selectProfileSeasonFilter(page, season);
+    if (ok) {
+      console.log(`    [필터] 프로필 시즌 필터 적용 성공: ${season}`);
+      appliedAny = true;
+    } else {
+      console.warn(`    [경고] 프로필 시즌 필터 적용 실패: ${season}`);
+    }
+  }
+
+  if (appliedAny) {
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => { });
+    await page.waitForTimeout(2000);
+  }
+}

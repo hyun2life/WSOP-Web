@@ -120,6 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const brandListContainer = document.getElementById('opt-brand-list-container');
   const customBrandContainer = document.getElementById('custom-brand-container');
   const customBrandInput = document.getElementById('custom-brand-input');
+  const profileBrandSelect = document.getElementById('opt-profile-brand-select');
+  const customProfileBrandContainer = document.getElementById('custom-profile-brand-container');
+  const customProfileBrandInput = document.getElementById('custom-profile-brand-input');
 
   const btnRun = document.getElementById('btn-run');
   const btnKill = document.getElementById('btn-kill');
@@ -142,6 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const crawlerOpts = {
     year: { chk: document.getElementById('opt-year-check'), arg: 'year' },
+    season: { chk: document.getElementById('opt-season-check'), arg: 'season' },
+    profileBrand: { chk: document.getElementById('opt-profile-brand-check'), arg: 'profile-brand' },
+    profileSeason: { chk: document.getElementById('opt-profile-season-check'), input: document.getElementById('opt-profile-season-input'), arg: 'profile-season' },
     limit: { chk: document.getElementById('opt-limit-check'), input: document.getElementById('opt-limit-input'), arg: 'limit' },
     auth: { chk: document.getElementById('opt-auth-check'), input: document.getElementById('opt-auth-input'), arg: 'auth-wait-ms' },
     concurrency: { chk: document.getElementById('opt-concurrency-check'), input: document.getElementById('opt-concurrency-input'), arg: 'concurrency' },
@@ -159,10 +165,52 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   initializeYearOptions();
+  initializeStandingsSeasonOptions();
   renderBrandOptions(defaultBrandOptions, { sourceLabel: '기본 브랜드 목록' });
   setupCheckboxToggles(crawlerOpts);
   setupCheckboxToggles(pwOpts);
   setupExclusiveCrawlerModes();
+  syncProfileBrandControls();
+
+  function initializeStandingsSeasonOptions() {
+    const seasonContainer = document.getElementById('opt-season-list-container');
+    if (!seasonContainer) return;
+    seasonContainer.innerHTML = '';
+    const currentYear = new Date().getFullYear();
+
+    for (let y = currentYear; y >= 1970; y--) {
+      const item = createSeasonCheckbox(String(y), String(y), y === 2026);
+      seasonContainer.appendChild(item);
+    }
+
+    seasonContainer.addEventListener('change', (e) => {
+      const target = e.target;
+      if (target && target.name === 'opt-season') {
+        syncStandingsSeasonControls();
+      }
+    });
+
+    syncStandingsSeasonControls();
+  }
+
+  function createSeasonCheckbox(value, label, checked) {
+    const div = document.createElement('div');
+    div.className = 'season-checkbox-item';
+    div.innerHTML = `
+      <label class="custom-checkbox">
+        <input type="checkbox" name="opt-season" value="${escapeHtml(value)}" ${checked ? 'checked' : ''}>
+        <span class="checkmark"></span>${escapeHtml(label)}
+      </label>
+    `;
+    return div;
+  }
+
+  function syncStandingsSeasonControls() {
+    const seasonEnabled = Boolean(crawlerOpts.season?.chk?.checked);
+    document.querySelectorAll('input[name="opt-season"]').forEach((chk) => {
+      chk.disabled = !seasonEnabled;
+    });
+  }
 
   function initializeYearOptions() {
     const yearContainer = document.getElementById('opt-year-list-container');
@@ -335,8 +383,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function bindCustomBrandToggle() {
     const customBrandChk = document.getElementById('opt-brand-custom-chk');
-    if (!customBrandChk || !customBrandContainer) return;
-    customBrandChk.addEventListener('change', syncBrandControls);
+    if (customBrandChk && customBrandContainer) {
+      customBrandChk.addEventListener('change', syncBrandControls);
+    }
+
+    const profileBrandChk = document.getElementById('opt-profile-brand-check');
+    if (profileBrandChk) {
+      profileBrandChk.addEventListener('change', syncProfileBrandControls);
+    }
+    if (profileBrandSelect) {
+      profileBrandSelect.addEventListener('change', syncProfileBrandControls);
+    }
   }
 
   function syncBrandControls() {
@@ -349,6 +406,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const showCustom = brandEnabled && Boolean(customBrandChk?.checked);
     if (customBrandContainer) customBrandContainer.classList.toggle('hidden', !showCustom);
     if (customBrandInput) customBrandInput.disabled = !showCustom;
+  }
+
+  function syncProfileBrandControls() {
+    const profileBrandChk = document.getElementById('opt-profile-brand-check');
+    const enabled = Boolean(profileBrandChk && profileBrandChk.checked);
+    if (profileBrandSelect) profileBrandSelect.disabled = !enabled;
+
+    const showCustom = enabled && Boolean(profileBrandSelect && profileBrandSelect.value === 'Custom');
+    if (customProfileBrandContainer) customProfileBrandContainer.classList.toggle('hidden', !showCustom);
+    if (customProfileBrandInput) customProfileBrandInput.disabled = !showCustom;
   }
 
   function setupAccordion(toggleEl, contentEl, defaultCollapsed = false) {
@@ -505,6 +572,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const isTournament = phase.id === 'tournament-crawler';
     const yearRow = document.getElementById('opt-year-row');
     if (yearRow) yearRow.classList.toggle('hidden', !isTournament);
+    const seasonRow = document.getElementById('opt-season-row');
+    if (seasonRow) seasonRow.classList.toggle('hidden', isTournament);
+
+    const profileBrandRow = document.getElementById('opt-profile-brand-row');
+    if (profileBrandRow) profileBrandRow.classList.toggle('hidden', isTournament);
+    const profileSeasonRow = document.getElementById('opt-profile-season-row');
+    if (profileSeasonRow) profileSeasonRow.classList.toggle('hidden', isTournament);
+
     if (crawlerOpts.reslimit?.chk) crawlerOpts.reslimit.chk.closest('.option-row').classList.remove('hidden');
     if (crawlerOpts.standingsOnly?.chk) crawlerOpts.standingsOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
     if (crawlerOpts.profileOnly?.chk) crawlerOpts.profileOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
@@ -642,6 +717,8 @@ document.addEventListener('DOMContentLoaded', () => {
           syncBrandControls();
         } else if (item.arg === 'year') {
           syncYearControls();
+        } else if (item.arg === 'season') {
+          syncStandingsSeasonControls();
         } else if (item.input) {
           item.input.disabled = !item.chk.checked;
         }
@@ -870,6 +947,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
           customArgs[argName] = selectedBrands.join('|');
+        } else if (argName === 'profile-brand') {
+          const selectVal = profileBrandSelect ? profileBrandSelect.value : 'WSOP';
+          if (selectVal === 'Custom') {
+            customArgs[argName] = customProfileBrandInput ? customProfileBrandInput.value.trim() : '';
+          } else {
+            customArgs[argName] = selectVal;
+          }
         } else if (argName === 'year') {
           const selectedYears = [];
           const yearChks = document.querySelectorAll('input[name="opt-year"]:checked');
@@ -877,6 +961,13 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedYears.push(chk.value);
           });
           customArgs[argName] = selectedYears.join('|');
+        } else if (argName === 'season') {
+          const selectedSeasons = [];
+          const seasonChks = document.querySelectorAll('input[name="opt-season"]:checked');
+          seasonChks.forEach((chk) => {
+            selectedSeasons.push(chk.value);
+          });
+          customArgs[argName] = selectedSeasons.join('|');
         } else if (argName === 'standings-only' || argName === 'profile-only') {
           customArgs[argName] = true;
         } else if (opt.input) {
