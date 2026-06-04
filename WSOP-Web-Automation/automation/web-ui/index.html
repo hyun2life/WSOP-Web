@@ -108,23 +108,14 @@
               <div id="crawler-options" class="options-panel hidden">
                 <span class="options-panel-title">Crawler Options</span>
                 <div class="options-grid">
-                  <div class="option-row" id="opt-year-row">
+                  <div class="option-row" id="opt-year-row" style="flex-wrap: wrap;">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-year-check" checked>
                       <span class="checkmark"></span>
-                      Target Year <span class="help-icon" data-tooltip="크롤링할 과거 대회의 연도입니다. 'ALL' 선택 시 전체 연도를 순회 검증합니다.">?</span>
+                      Target Years <span class="help-icon" data-tooltip="크롤링할 과거 대회의 연도입니다. 여러 연도를 동시 선택할 수 있습니다.">?</span>
                     </label>
-                    <div class="custom-select-wrapper" style="width: 120px;">
-                      <select id="opt-year-input" class="form-select" style="height: 38px; padding: 0 10px; font-size: 0.85rem;">
-                        <option value="2026" selected>2026</option>
-                        <option value="2025">2025</option>
-                        <option value="2024">2024</option>
-                        <option value="2023">2023</option>
-                        <option value="2022">2022</option>
-                        <option value="2021">2021</option>
-                        <option value="2020">2020</option>
-                        <option value="ALL">ALL (전체)</option>
-                      </select>
+                    <div class="year-checkboxes-container" id="opt-year-list-container" style="width: 100%; max-height: 120px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: var(--button-radius); margin-top: 5px; background: var(--bg-input); display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                      <!-- JS로 렌더링 -->
                     </div>
                   </div>
                   <div class="option-row">

@@ -148,7 +148,8 @@ function parseArgs(argv) {
   if (!args.selfTest) {
     const stamp = formatRunTimestamp();
     const brandSuffix = args.brand ? `-${args.brand.toLowerCase().replace(/[^a-z0-9]/g, "")}` : "";
-    const tag = `wsop-tournament-crawler-${args.year}${brandSuffix}-${stamp}`;
+    const yearTag = args.year.toLowerCase().replace(/[^a-z0-9-]/g, "_");
+    const tag = `wsop-tournament-crawler-${yearTag}${brandSuffix}-${stamp}`;
     
     if (!args.outputPathOverrides.out) args.out = `automation/output/${tag}-data.json`;
     if (!args.outputPathOverrides.html) args.html = `automation/output/${tag}-report.html`;
@@ -1646,9 +1647,10 @@ Options:
   const uniqueUrls = new Set();
 
   const currentYear = new Date().getFullYear();
-  const targetYears = args.year.toUpperCase() === "ALL"
+  const isAll = args.year.toUpperCase() === "ALL" || args.year.toUpperCase().split("|").includes("ALL");
+  const targetYears = isAll
     ? Array.from({ length: currentYear - 1970 + 1 }, (_, i) => String(currentYear - i))
-    : [args.year];
+    : args.year.split("|").map(y => y.trim()).filter(Boolean);
 
   console.log(`[1/4] 수집 대상 연도 목록: ${targetYears.join(", ")}`);
 

@@ -529,7 +529,7 @@ function listReportCandidates(suite, mode) {
   const prefixPattern = normalized === 'crawler'
     ? 'wsop-player-crawler-(?:live|stage)'
     : normalized === 'tournament-crawler'
-      ? 'wsop-tournament-crawler-(?:\\d+|all|ALL)'
+      ? 'wsop-tournament-crawler-(?:[0-9_|-]+|all|ALL)'
       : escapeRegExp(prefix);
   const patterns = {
     ko: new RegExp(`^${prefixPattern}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report-ko\\.html$`),
@@ -646,7 +646,7 @@ function getLatestReportJsonPath(suite) {
 
   if (normalized === 'tournament-crawler') {
     const dir = path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
-    return findLatestMatchingFile(dir, /^wsop-tournament-crawler-(?:\d+|all|ALL)-\d{8}-\d{6}(?:-\d{3})?(?:-[A-Za-z0-9_$. -]+)?-data\.json$/);
+    return findLatestMatchingFile(dir, /^wsop-tournament-crawler-(?:[0-9_|-]+|all|ALL)-\d{8}-\d{6}(?:-\d{3})?(?:-[A-Za-z0-9_$. -]+)?-data\.json$/);
   }
 
   const dir = path.join(PROJECT_ROOT, 'automation', 'output');

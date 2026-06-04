@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
       nameKo: '토너먼트 크롤러',
       shortSummaryKo: '과거 대회 목록과 일정을 수집하고 헤더 및 개별 이벤트 데이터 정합성을 검증합니다.',
       descriptionKo: '특정 연도의 과거 대회 목록에서 이미지, 브랜드, 시리즈명 등을 수집하고 헤더 정합성 및 개별 결과(Payout)와의 교차 데이터 정합성을 검증합니다.',
-      stepsKo: ['과거 대회 목록 페이지 수집 및 브랜드 필터 적용', '상세 대회 헤더 데이터와 카드 정보 1:1 비교 검증', 'Case A: 결과 있음 상세 데이터 추출 및 Payout 페이지와 교차 정합성 대조', 'Case B: 결과 없음 상세 일정 데이터 포맷 누락 여부 검사', '토너먼트 크롤러 JSON, HTML, CSV 산출물 생성'],
+      stepsKo: ['과거 대회 목록 페이지 수집', '상세 대회 헤더 데이터와 카드 정보 1:1 비교 검증', 'Case A: 결과 있음 상세 데이터 추출 및 Payout 페이지와 교차 정합성 대조', 'Case B: 결과 없음 상세 일정 데이터 포맷 누락 여부 검사', '토너먼트 크롤러 JSON, HTML, CSV 산출물 생성'],
       passCriteriaKo: ['토너먼트 크롤러 배치 파일 실행이 정상 완료되어야 합니다.', '상세 결과(Payout) 페이지의 데이터(우승자, 참가자, 상금)와 이벤트 리스트의 데이터가 완전히 일치해야 합니다.'],
     },
   };
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingReportSelection = null;
 
   const crawlerOpts = {
-    year: { chk: document.getElementById('opt-year-check'), input: document.getElementById('opt-year-input'), arg: 'year' },
+    year: { chk: document.getElementById('opt-year-check'), arg: 'year' },
     limit: { chk: document.getElementById('opt-limit-check'), input: document.getElementById('opt-limit-input'), arg: 'limit' },
     auth: { chk: document.getElementById('opt-auth-check'), input: document.getElementById('opt-auth-input'), arg: 'auth-wait-ms' },
     concurrency: { chk: document.getElementById('opt-concurrency-check'), input: document.getElementById('opt-concurrency-input'), arg: 'concurrency' },
@@ -165,21 +165,39 @@ document.addEventListener('DOMContentLoaded', () => {
   setupExclusiveCrawlerModes();
 
   function initializeYearOptions() {
-    const yearSelect = document.getElementById('opt-year-input');
-    if (!yearSelect) return;
-    yearSelect.innerHTML = '';
+    const yearContainer = document.getElementById('opt-year-list-container');
+    if (!yearContainer) return;
+    yearContainer.innerHTML = '';
     const currentYear = new Date().getFullYear();
+    
+    const allItem = createYearCheckbox('ALL', 'ALL (전체)', true);
+    yearContainer.appendChild(allItem);
+
     for (let y = currentYear; y >= 1970; y--) {
-      const opt = document.createElement('option');
-      opt.value = String(y);
-      opt.textContent = String(y);
-      yearSelect.appendChild(opt);
+      const item = createYearCheckbox(String(y), String(y), false);
+      yearContainer.appendChild(item);
     }
-    const allOpt = document.createElement('option');
-    allOpt.value = 'ALL';
-    allOpt.textContent = 'ALL (전체)';
-    allOpt.selected = true;
-    yearSelect.appendChild(allOpt);
+    
+    syncYearControls();
+  }
+
+  function createYearCheckbox(value, label, checked) {
+    const div = document.createElement('div');
+    div.className = 'year-checkbox-item';
+    div.innerHTML = `
+      <label class="custom-checkbox">
+        <input type="checkbox" name="opt-year" value="${escapeHtml(value)}" ${checked ? 'checked' : ''}>
+        <span class="checkmark"></span>${escapeHtml(label)}
+      </label>
+    `;
+    return div;
+  }
+
+  function syncYearControls() {
+    const yearEnabled = Boolean(crawlerOpts.year?.chk?.checked);
+    document.querySelectorAll('input[name="opt-year"]').forEach((chk) => {
+      chk.disabled = !yearEnabled;
+    });
   }
 
   envSelect.addEventListener('change', () => {
@@ -585,6 +603,8 @@ document.addEventListener('DOMContentLoaded', () => {
       item.chk.addEventListener('change', () => {
         if (item.arg === 'brand') {
           syncBrandControls();
+        } else if (item.arg === 'year') {
+          syncYearControls();
         } else if (item.input) {
           item.input.disabled = !item.chk.checked;
         }
@@ -809,6 +829,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
           customArgs[opt.arg] = selectedBrands.join('|');
+        } else if (opt.arg === 'year') {
+          const selectedYears = [];
+          const yearChks = document.querySelectorAll('input[name="opt-year"]:checked');
+          yearChks.forEach((chk) => {
+            selectedYears.push(chk.value);
+          });
+          customArgs[opt.arg] = selectedYears.join('|');
         } else if (opt.arg === 'standings-only' || opt.arg === 'profile-only') {
           customArgs[opt.arg] = true;
         } else if (opt.input) {
