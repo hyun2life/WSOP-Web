@@ -173,14 +173,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const opt = document.createElement('option');
       opt.value = String(y);
       opt.textContent = String(y);
-      if (y === currentYear) {
-        opt.selected = true;
-      }
       yearSelect.appendChild(opt);
     }
     const allOpt = document.createElement('option');
     allOpt.value = 'ALL';
     allOpt.textContent = 'ALL (전체)';
+    allOpt.selected = true;
     yearSelect.appendChild(allOpt);
   }
 
@@ -366,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     appendPhaseCard(allPhase, allContent);
 
     phases.forEach((phase) => {
-      if (phase.id === 'crawler') {
+      if (phase.id === 'crawler' || phase.id === 'tournament-crawler') {
         appendPhaseCard(phase, crawlerList);
       } else if (phase.implemented) {
         appendPhaseCard(phase, activeList);
@@ -463,6 +461,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (crawlerOpts.reslimit?.chk) crawlerOpts.reslimit.chk.closest('.option-row').classList.toggle('hidden', isTournament);
     if (crawlerOpts.standingsOnly?.chk) crawlerOpts.standingsOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
     if (crawlerOpts.profileOnly?.chk) crawlerOpts.profileOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+    if (crawlerOpts.brand?.chk) crawlerOpts.brand.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+
+    updateLabelsAndTooltips(isTournament);
 
     const soChk = document.getElementById('opt-standingsonly-check');
     const poChk = document.getElementById('opt-profileonly-check');
@@ -509,6 +510,38 @@ document.addEventListener('DOMContentLoaded', () => {
       btnReportKo.disabled = false;
       btnReportEn.disabled = false;
       btnReportPw.disabled = false;
+    }
+
+    function updateLabelsAndTooltips(isTournament) {
+      const limitLabel = crawlerOpts.limit.chk.parentNode;
+      const concurrencyLabel = crawlerOpts.concurrency.chk.parentNode;
+      if (!limitLabel || !concurrencyLabel) return;
+
+      const limitHelp = limitLabel.querySelector('.help-icon');
+      const concurrencyHelp = concurrencyLabel.querySelector('.help-icon');
+
+      if (isTournament) {
+        replaceLabelText(limitLabel, 'Limit Tournaments');
+        if (limitHelp) limitHelp.setAttribute('data-tooltip', '수집할 토너먼트(대회) 수를 제한합니다. 빠른 확인에는 2~3개를 권장합니다.');
+
+        replaceLabelText(concurrencyLabel, 'Concurrency');
+        if (concurrencyHelp) concurrencyHelp.setAttribute('data-tooltip', '동시에 처리할 토너먼트(대회) 수입니다. 값이 높을수록 빠르지만 브라우저와 메모리 사용량이 늘어납니다.');
+      } else {
+        replaceLabelText(limitLabel, 'Limit Players');
+        if (limitHelp) limitHelp.setAttribute('data-tooltip', '카테고리별로 수집할 선수 수를 제한합니다. 빠른 확인에는 5~10명을 권장합니다.');
+
+        replaceLabelText(concurrencyLabel, 'Concurrency');
+        if (concurrencyHelp) concurrencyHelp.setAttribute('data-tooltip', '동시에 처리할 선수 수입니다. 값이 높을수록 빠르지만 브라우저와 메모리 사용량이 늘어납니다.');
+      }
+    }
+
+    function replaceLabelText(labelEl, newText) {
+      for (let node of labelEl.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0) {
+          node.textContent = ' ' + newText + ' ';
+          break;
+        }
+      }
     }
   }
 
