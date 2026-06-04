@@ -31,7 +31,7 @@ export function addStepResult(
   summary.totalSteps++;
   summary.stepResults.push(result);
 
-  if (result.status === 'passed') {
+  if (result.status === 'passed' || result.status === 'minor') {
     summary.passedSteps++;
   } else if (result.status === 'failed') {
     summary.failedSteps++;
@@ -301,7 +301,8 @@ function formatStepStatus(status: string): string {
     failed: 'Failed',
     optionalFailed: 'Optional Failed',
     warning: 'Warning',
-    skipped: 'Skipped'
+    skipped: 'Skipped',
+    minor: 'Minor (Passed)'
   };
 
   return labels[status] ?? status;
@@ -512,7 +513,7 @@ export function formatHtmlSummary(
     tr:hover td { background-color: rgba(255, 255, 255, 0.015); }
     
     .badge { display: inline-block; border-radius: 99px; padding: 4px 12px; font-size: 11px; font-weight: 700; border: 1px solid currentColor; white-space: nowrap; text-transform: uppercase; }
-    .badge.passed { color: var(--success); background: var(--success-bg); }
+    .badge.passed, .badge.minor { color: var(--success); background: var(--success-bg); }
     .badge.failed, .badge.optionalFailed { color: var(--danger); background: var(--danger-bg); }
     .badge.warning { color: var(--warning); background: var(--warning-bg); }
     .badge.skipped { color: var(--text-muted); background: rgba(255,255,255,0.06); }

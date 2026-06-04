@@ -1,4 +1,4 @@
-export type RegressionStatus = 'passed' | 'failed' | 'optionalFailed' | 'warning' | 'skipped';
+export type RegressionStatus = 'passed' | 'failed' | 'optionalFailed' | 'warning' | 'skipped' | 'minor';
 
 export interface RegressionStep {
   phase: string;
