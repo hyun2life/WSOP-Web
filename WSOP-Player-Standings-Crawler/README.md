@@ -631,4 +631,40 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 
 ## Stage/Live output tag
 
-`RUN_WSOP_PLAYER_CRAWLER_LIVE.bat`는 `BASE_URL`이 stage 도메인을 포함하면 `OutputTag`를 `wsop-player-crawler-stage`로 설정합니다. 기본 Live 실행은 `wsop-player-crawler-live`를 사용합니다.
+`RUN_WSOP_PLAYER_CRAWLER_LIVE.bat`는 `BASE_URL`이 stage 도메인을 포함하면 `OutputTag` to `wsop-player-crawler-stage`로 설정합니다. 기본 Live 실행은 `wsop-player-crawler-live`를 사용합니다.
+
+## Tournament Crawler (토너먼트 전용 크롤러)
+
+특정 연도의 과거 대회 목록 페이지에서 시작하여 각 대회의 상세 헤더 정합성, 개별 이벤트 데이터 포맷 검증 및 상세 결과 페이지(Payout)와 2차 교차 검증을 통합 수행하는 검증 도구입니다.
+
+### 주요 기능
+- **메인 목록-상세 헤더 검증**: 목록 카드 정보(이미지, 브랜드, 시리즈명, 시간, 장소, 국가)와 상세 페이지 비주얼 헤더(.kv-contents) 정보의 1:1 일치 여부 검증
+- **결과 유무에 따른 동적 케이스 분류 및 검증**:
+  - **Case A (결과가 있는 대회)**: 개별 이벤트 목록의 데이터(`Date`, `Event`, `Buy-in`, `Entries`, `ITM`, `Prize`, `Winner`) 포맷 검증 및 Payout 링크로 이동하여 우승자/참가자수/총상금 교차 정합성 검증
+  - **Case B (결과가 없는 대회 / 일정 전용)**: 일정 목록의 데이터(`Date`, `Event`, `Buy-in`, `Chips`, `Clock`, `Late Reg`) 유효성 및 누락 검증
+
+### 실행 방법
+
+배치 파일을 이용한 실행 (가장 간편한 방법):
+```cmd
+RUN_WSOP_TOURNAMENT_CRAWLER.bat
+```
+배치 파일 내부의 환경변수(`YEAR`, `BRAND`, `LIMIT`, `CONCURRENCY`, `HEADED`)를 수정하여 실행 연도나 브랜드 필터링을 쉽게 조정할 수 있습니다.
+
+Node 명령어로 단독 실행:
+```bash
+# 2024년 대회를 최대 5개 수집하여 2개 병렬로 브라우저 창을 띄워(headed) 검증
+node automation/crawl_tournaments.mjs --year 2024 --limit 5 --concurrency 2 --headed
+
+# 브랜드 필터링 적용 (예: CIRCUIT)
+node automation/crawl_tournaments.mjs --year 2024 --brand CIRCUIT --limit 10
+
+# 오프라인 검증 로직 자체 테스트 (모크 데이터 기반)
+node automation/crawl_tournaments.mjs --self-test
+```
+
+### 산출물 위치
+- 크롤링 요약 데이터: `automation/output/wsop-tournament-crawler-*.json`
+- 국문 대시보드 리포트: `automation/output/wsop-tournament-crawler-*-report.html` (자동 브라우저 팝업)
+- 검출된 결함 리스트: `automation/output/wsop-tournament-crawler-*-defects.csv`
+

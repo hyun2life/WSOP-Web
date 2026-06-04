@@ -278,6 +278,7 @@ function setEnvVar(key, val, env) {
     'headed': 'HEADED',
     'ui': 'UI',
     'brand': 'BRAND',
+    'year': 'YEAR',
     'standings-only': 'STANDINGS_ONLY',
     'profile-only': 'PROFILE_ONLY',
     'result-only': 'RESULT_ONLY',

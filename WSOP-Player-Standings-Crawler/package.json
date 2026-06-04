@@ -8,7 +8,9 @@
     "crawl:headed": "node automation/crawl_player_standings.mjs --headed",
     "crawl:headless": "node automation/crawl_player_standings.mjs",
     "crawl:ui": "cmd /C \"set PWDEBUG=1&&node automation/crawl_player_standings.mjs --headed\"",
-    "crawl:self-test": "node automation/crawl_player_standings.mjs --self-test"
+    "crawl:self-test": "node automation/crawl_player_standings.mjs --self-test",
+    "crawl:tournament": "node automation/crawl_tournaments.mjs",
+    "crawl:tournament:self-test": "node automation/crawl_tournaments.mjs --self-test"
   },
   "dependencies": {
     "playwright": "1.60.0"

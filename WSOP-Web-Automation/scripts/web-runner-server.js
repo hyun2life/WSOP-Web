@@ -517,19 +517,20 @@ function listReportCandidates(suite, mode) {
   if (normalized === 'crawler') {
     outputDir = path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
     prefix = 'wsop-player-crawler-live';
+  } else if (normalized === 'tournament-crawler') {
+    outputDir = path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
+    prefix = 'wsop-tournament-crawler';
   } else {
     outputDir = path.join(PROJECT_ROOT, 'automation', 'output');
     prefix = `wsop-public-${normalized}`;
   }
 
-  if (!fs.existsSync(outputDir)) {
-    throw new Error(`Output directory not found: ${outputDir}`);
-  }
-
   const escapeRegExp = (val) => val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const prefixPattern = normalized === 'crawler'
     ? 'wsop-player-crawler-(?:live|stage)'
-    : escapeRegExp(prefix);
+    : normalized === 'tournament-crawler'
+      ? 'wsop-tournament-crawler-(?:\\d+|all|ALL)'
+      : escapeRegExp(prefix);
   const patterns = {
     ko: new RegExp(`^${prefixPattern}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report-ko\\.html$`),
     en: new RegExp(`^${prefixPattern}-\\d{8}-\\d{6}(?:-\\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report\\.html$`),
@@ -641,6 +642,11 @@ function getLatestReportJsonPath(suite) {
   if (normalized === 'crawler') {
     const dir = path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
     return findLatestMatchingFile(dir, /^wsop-player-crawler-(?:live|stage)-\d{8}-\d{6}(?:-\d{3})?(?:-[A-Za-z0-9_$. -]+)?-report\.json$/);
+  }
+
+  if (normalized === 'tournament-crawler') {
+    const dir = path.resolve(PROJECT_ROOT, '..', 'WSOP-Player-Standings-Crawler', 'automation', 'output');
+    return findLatestMatchingFile(dir, /^wsop-tournament-crawler-(?:\d+|all|ALL)-\d{8}-\d{6}(?:-\d{3})?(?:-[A-Za-z0-9_$. -]+)?-data\.json$/);
   }
 
   const dir = path.join(PROJECT_ROOT, 'automation', 'output');

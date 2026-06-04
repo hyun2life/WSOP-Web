@@ -94,6 +94,13 @@ document.addEventListener('DOMContentLoaded', () => {
       stepsKo: ['브랜드와 환경 선택', '실제 화면 브랜드 옵션 수집', 'standings 대상 수집', '선택 모드에 따라 프로필 또는 Result 검증', 'JSON/HTML/CSV 산출물 생성'],
       passCriteriaKo: ['실제 화면의 브랜드 옵션 목록이 JSON에 저장되어야 합니다.', '지정한 조건의 대상 선수가 수집되어야 합니다.', '선택한 모드에 맞는 리포트가 생성되어야 합니다.'],
     },
+    'tournament-crawler': {
+      nameKo: '토너먼트 크롤러',
+      shortSummaryKo: '과거 대회 목록과 일정을 수집하고 헤더 및 개별 이벤트 데이터 정합성을 검증합니다.',
+      descriptionKo: '특정 연도의 과거 대회 목록에서 이미지, 브랜드, 시리즈명 등을 수집하고 헤더 정합성 및 개별 결과(Payout)와의 교차 데이터 정합성을 검증합니다.',
+      stepsKo: ['과거 대회 목록 페이지 수집 및 브랜드 필터 적용', '상세 대회 헤더 데이터와 카드 정보 1:1 비교 검증', 'Case A: 결과 있음 상세 데이터 추출 및 Payout 페이지와 교차 정합성 대조', 'Case B: 결과 없음 상세 일정 데이터 포맷 누락 여부 검사', '토너먼트 크롤러 JSON, HTML, CSV 산출물 생성'],
+      passCriteriaKo: ['토너먼트 크롤러 배치 파일 실행이 정상 완료되어야 합니다.', '상세 결과(Payout) 페이지의 데이터(우승자, 참가자, 상금)와 이벤트 리스트의 데이터가 완전히 일치해야 합니다.'],
+    },
   };
   const phaseListContainer = document.getElementById('phase-list-container');
   const detailId = document.getElementById('detail-id');
@@ -134,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingReportSelection = null;
 
   const crawlerOpts = {
+    year: { chk: document.getElementById('opt-year-check'), input: document.getElementById('opt-year-input'), arg: 'year' },
     limit: { chk: document.getElementById('opt-limit-check'), input: document.getElementById('opt-limit-input'), arg: 'limit' },
     auth: { chk: document.getElementById('opt-auth-check'), input: document.getElementById('opt-auth-input'), arg: 'auth-wait-ms' },
     concurrency: { chk: document.getElementById('opt-concurrency-check'), input: document.getElementById('opt-concurrency-input'), arg: 'concurrency' },
@@ -150,10 +158,31 @@ document.addEventListener('DOMContentLoaded', () => {
     retries: { chk: document.getElementById('opt-retries-check'), input: document.getElementById('opt-retries-input'), arg: 'retries' },
   };
 
+  initializeYearOptions();
   renderBrandOptions(defaultBrandOptions, { sourceLabel: '기본 브랜드 목록' });
   setupCheckboxToggles(crawlerOpts);
   setupCheckboxToggles(pwOpts);
   setupExclusiveCrawlerModes();
+
+  function initializeYearOptions() {
+    const yearSelect = document.getElementById('opt-year-input');
+    if (!yearSelect) return;
+    yearSelect.innerHTML = '';
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= 1970; y--) {
+      const opt = document.createElement('option');
+      opt.value = String(y);
+      opt.textContent = String(y);
+      if (y === currentYear) {
+        opt.selected = true;
+      }
+      yearSelect.appendChild(opt);
+    }
+    const allOpt = document.createElement('option');
+    allOpt.value = 'ALL';
+    allOpt.textContent = 'ALL (전체)';
+    yearSelect.appendChild(allOpt);
+  }
 
   envSelect.addEventListener('change', () => {
     customEnvUrlContainer.classList.toggle('hidden', envSelect.value !== 'Custom');
@@ -425,8 +454,15 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPhaseSteps(phase.stepsKo || []);
     renderPhaseCriteria(phase.passCriteriaKo || []);
 
-    crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3');
-    pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'all');
+    crawlerOptionsPanel.classList.toggle('hidden', phase.id !== 'crawler' && phase.id !== 'phase3' && phase.id !== 'tournament-crawler');
+    pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'tournament-crawler' || phase.id === 'all');
+
+    const isTournament = phase.id === 'tournament-crawler';
+    const yearRow = document.getElementById('opt-year-row');
+    if (yearRow) yearRow.classList.toggle('hidden', !isTournament);
+    if (crawlerOpts.reslimit?.chk) crawlerOpts.reslimit.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+    if (crawlerOpts.standingsOnly?.chk) crawlerOpts.standingsOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+    if (crawlerOpts.profileOnly?.chk) crawlerOpts.profileOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
 
     const soChk = document.getElementById('opt-standingsonly-check');
     const poChk = document.getElementById('opt-profileonly-check');
@@ -465,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btnReportKo.disabled = true;
       btnReportEn.disabled = true;
       btnReportPw.disabled = true;
-    } else if (phase.id === 'crawler') {
+    } else if (phase.id === 'crawler' || phase.id === 'tournament-crawler') {
       btnReportKo.disabled = false;
       btnReportEn.disabled = false;
       btnReportPw.disabled = true;
@@ -721,7 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
       baseUrl = customEnvUrl.value.trim();
     }
 
-    if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3') {
+    if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3' || selectedPhase.id === 'tournament-crawler') {
       Object.values(crawlerOpts).forEach((opt) => {
         if (!opt.chk || !opt.chk.checked) return;
         if (selectedPhase.id === 'phase3' && opt.arg === 'profile-only') return;
