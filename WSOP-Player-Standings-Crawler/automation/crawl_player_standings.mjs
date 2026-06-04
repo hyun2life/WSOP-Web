@@ -4969,9 +4969,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       }
 
       // 3. Warnings Grouped Accordion
+      // KPI(summary.reviewNotes)와 일치시키기 위해 필터와 무관하게 전체 플레이어 기준으로 집계
       const warningsContainer = document.getElementById('warnings-grouped-container');
       const warningsList = [];
-      filteredPlayers.forEach(p => {
+      state.players.forEach(p => {
         (p.warnings || []).forEach(w => {
           warningsList.push({ type: "Crawler warning", player: p.name, item: "warning", url: p.url, detail: w });
         });
