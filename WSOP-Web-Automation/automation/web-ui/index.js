@@ -169,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!yearContainer) return;
     yearContainer.innerHTML = '';
     const currentYear = new Date().getFullYear();
-    
     const allItem = createYearCheckbox('ALL', 'ALL (전체)', true);
     yearContainer.appendChild(allItem);
 
@@ -196,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
         syncYearControls();
       }
     });
-    
+
     syncYearControls();
   }
 

@@ -268,7 +268,6 @@ function parseArgs(argv) {
     const brandSuffix = args.brand ? `-${args.brand.toLowerCase().replace(/[^a-z0-9]/g, "")}` : "";
     const yearTag = args.year.toLowerCase().replace(/[^a-z0-9-]/g, "_");
     const tag = `wsop-tournament-crawler-${yearTag}${brandSuffix}-${stamp}`;
-    
     if (!args.outputPathOverrides.out) args.out = `automation/output/${tag}-data.json`;
     if (!args.outputPathOverrides.html) args.html = `automation/output/${tag}-report.html`;
     if (!args.outputPathOverrides.defects) args.defects = `automation/output/${tag}-defects.csv`;
@@ -284,7 +283,7 @@ function parseArgs(argv) {
 function verifyHeader(card, headerLines) {
   // Compare card values vs detail header lines
   const errors = [];
-  
+
   const cardBrandNorm = normalizeComparable(card.brand);
   const cardSeriesNorm = normalizeComparable(card.seriesName);
   const cardDatesNorm = normalizeComparable(card.dateRange);
@@ -382,7 +381,7 @@ function validateCaseAEvent(event, tournament = {}) {
 
 function verifyPayoutDetails(event, payoutDetails) {
   const errors = [];
-  
+
   if (payoutDetails.entries !== null && event.entries !== null && payoutDetails.entries !== event.entries) {
     errors.push(`Entries mismatch: list=${event.entries}, payoutDetail=${payoutDetails.entries}`);
   }
@@ -422,7 +421,7 @@ function writeJson(filePath, payload) {
 function writeCsv(filePath, defects) {
   const headers = ["type", "tournament", "event", "item", "expected", "actual", "url", "detail"];
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  
+
   const rows = defects.map(d => [
     d.type,
     d.tournament,
@@ -899,9 +898,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="panel-body">
           <div class="note">
             ${isKo ?
-              (summary.totalDefects > 0 ? "검사 결과 정합성 오류가 검출되었습니다. 아래 결함 후보 목록에서 원인을 확인하십시오." : "모든 대회 및 일정 데이터의 정합성 검증이 완료되었으며, 검출된 결함이 없습니다.") :
-              (summary.totalDefects > 0 ? "Some data integrity defects were detected. Please check the Defect Candidates List below." : "All checked tournaments passed verification. No defects found.")
-            }
+      (summary.totalDefects > 0 ? "검사 결과 정합성 오류가 검출되었습니다. 아래 결함 후보 목록에서 원인을 확인하십시오." : "모든 대회 및 일정 데이터의 정합성 검증이 완료되었으며, 검출된 결함이 없습니다.") :
+      (summary.totalDefects > 0 ? "Some data integrity defects were detected. Please check the Defect Candidates List below." : "All checked tournaments passed verification. No defects found.")
+    }
           </div>
         </div>
       </div>
@@ -2090,7 +2089,7 @@ Options:
 
   // Process details with concurrency limit
   console.log(`[4/4] 개별 대회 상세 페이지 검증 시작 (동시성: ${args.concurrency})...`);
-  
+
   const chunk = async (card, index) => {
     console.log(`  [대회 ${index + 1}/${targetCards.length}] 진입 중: ${card.seriesName}`);
     const detPage = await context.newPage();
@@ -2138,11 +2137,11 @@ Options:
       if (await eventTable.isVisible()) {
         const tableHeaders = await eventTable.locator("th, td.header").allInnerTexts();
         const headerText = tableHeaders.join(" | ");
-        
+
         // Detect Mode
         const isCaseA = tableHeaders.some(h => /entries|prize|winner|payout/i.test(h));
         const isCaseB = tableHeaders.some(h => /chips|clock|late reg/i.test(h));
-        
+
         if (isCaseA) {
           mode = "Case A (Results)";
           // Gather rows
@@ -2233,16 +2232,16 @@ Options:
                 if (await listDetail.isVisible()) {
                   const detailText = await listDetail.innerText();
                   const dLines = detailText.split("\n").map(l => l.trim()).filter(Boolean);
-                  
+
                   for (let d = 0; d < dLines.length; d++) {
-                    if (dLines[d] === "Entries" && dLines[d+1]) {
-                      payoutData.entries = parseNumber(dLines[d+1]);
+                    if (dLines[d] === "Entries" && dLines[d + 1]) {
+                      payoutData.entries = parseNumber(dLines[d + 1]);
                     }
-                    if (dLines[d] === "Prize" && dLines[d+1]) {
-                      payoutData.prize = parseMoney(dLines[d+1]);
+                    if (dLines[d] === "Prize" && dLines[d + 1]) {
+                      payoutData.prize = parseMoney(dLines[d + 1]);
                     }
-                    if (dLines[d] === "Winner" && dLines[d+1]) {
-                      payoutData.winner = normalizeText(dLines[d+1]);
+                    if (dLines[d] === "Winner" && dLines[d + 1]) {
+                      payoutData.winner = normalizeText(dLines[d + 1]);
                     }
                   }
                 }
