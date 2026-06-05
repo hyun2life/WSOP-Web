@@ -71,10 +71,19 @@ const candidates = fs
     return {
       path: reportPath,
       mtime: fs.statSync(reportPath).mtimeMs,
+      runId: extractReportRunId(entry.name),
     };
   })
   .filter(Boolean)
-  .sort((a, b) => b.mtime - a.mtime);
+  .map((item) => ({
+    ...item,
+    runAt: parseReportRunId(item.runId),
+  }))
+  .sort((a, b) => {
+    const runDiff = (b.runAt || 0) - (a.runAt || 0);
+    if (runDiff !== 0) return runDiff;
+    return b.mtime - a.mtime;
+  });
 
 if (candidates.length === 0) {
   fail(`No ${mode} ${suite} report found in ${outputDir}`);
@@ -97,6 +106,26 @@ function openFile(filePath) {
   } catch (err) {
     console.error(`Failed to open report: ${err.message}`);
   }
+}
+
+function extractReportRunId(name) {
+  const match = String(name || '').match(/-(\d{8}-\d{6}(?:-\d{3})?)(?:-|$)/);
+  return match ? match[1] : null;
+}
+
+function parseReportRunId(runId) {
+  const match = String(runId || '').match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(?:-(\d{3}))?$/);
+  if (!match) return 0;
+  const [, year, month, day, hour, minute, second, millisecond = '0'] = match;
+  return Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+    Number(millisecond),
+  );
 }
 
 function hasExecutedResults(reportPath, reportMode) {

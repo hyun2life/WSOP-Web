@@ -369,6 +369,8 @@ const server = http.createServer((req, res) => {
         path: item.path,
         displayName: item.displayName,
         modifiedAt: new Date(item.mtime).toISOString(),
+        runId: item.runId,
+        runAt: item.runAt ? new Date(item.runAt).toISOString() : null,
       }));
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -551,12 +553,41 @@ function listReportCandidates(suite, mode) {
         path: reportPath,
         displayName: entry.name + (entry.isDirectory() ? '/index.html' : ''),
         mtime: fs.statSync(reportPath).mtimeMs,
+        runId: extractReportRunId(entry.name),
       };
     })
     .filter(Boolean)
-    .sort((a, b) => b.mtime - a.mtime);
+    .map((item) => ({
+      ...item,
+      runAt: parseReportRunId(item.runId),
+    }))
+    .sort((a, b) => {
+      const runDiff = (b.runAt || 0) - (a.runAt || 0);
+      if (runDiff !== 0) return runDiff;
+      return b.mtime - a.mtime;
+    });
 
   return reports;
+}
+
+function extractReportRunId(name) {
+  const match = String(name || '').match(/-(\d{8}-\d{6}(?:-\d{3})?)(?:-|$)/);
+  return match ? match[1] : null;
+}
+
+function parseReportRunId(runId) {
+  const match = String(runId || '').match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})(?:-(\d{3}))?$/);
+  if (!match) return 0;
+  const [, year, month, day, hour, minute, second, millisecond = '0'] = match;
+  return Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+    Number(millisecond),
+  );
 }
 
 function isSamePath(left, right) {
