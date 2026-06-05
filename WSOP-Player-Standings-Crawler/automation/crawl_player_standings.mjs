@@ -5032,7 +5032,12 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="panel-body">
           <div class="summary-line">
             <span>${isKo ? "대상 사이트" : "Source"}: <a href="${escapeHtml(report.playersUrl || "")}" target="_blank" onclick="event.stopPropagation();">${escapeHtml(report.playersUrl || "")}</a></span>
-            <span>${isKo ? "브랜드 필터" : "Brand Filter"}: <strong>${escapeHtml(report.brandFilter || (isKo ? "전체" : "All"))}</strong></span>
+            <span>${isKo ? "스탠딩 브랜드" : "Standings Brand"}: <strong>${escapeHtml(report.brandFilter || (isKo ? "전체" : "All"))}</strong></span>
+            <span>${isKo ? "스탠딩 시즌(년도)" : "Standings Season"}: <strong>${escapeHtml(report.seasonFilter || (isKo ? "전체" : "All"))}</strong></span>
+            ${!isStandingsOnly ? `
+            <span>${isKo ? "프로필 브랜드" : "Profile Brand"}: <strong>${escapeHtml(report.profileBrandFilter || (isKo ? "전체" : "All"))}</strong></span>
+            <span>${isKo ? "프로필 시즌" : "Profile Season"}: <strong>${escapeHtml(report.profileSeasonFilter || (isKo ? "전체" : "All"))}</strong></span>
+            ` : ""}
             <span>${isKo ? "확인한 선수" : "Players Checked"}: ${summary.completedPlayers}/${summary.totalPlayers}</span>
             <span>${isKo ? "생성 시간" : "Generated"}: ${escapeHtml(new Date().toLocaleString())}</span>
             <span>${isKo ? "수집 카테고리" : "Categories"}: ${summary.checkedStandingsCategories}</span>
@@ -6220,7 +6225,7 @@ function writeCsv(filePath, rows) {
 
 // 모든 선수 크롤링이 끝나거나 실행이 중단된 뒤 최종 리포트 객체를 만든다.
 // 디버깅과 재개 판단을 위해 pending player 정보를 보존한다.
-function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null, brandOptions = null, mode = "crawler" }) {
+function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, players, runStatus, interruptedReason = "", brandFilter = null, seasonFilter = null, profileBrandFilter = null, profileSeasonFilter = null, brandOptions = null, mode = "crawler" }) {
   const completedPlayers = [];
   const pendingPlayers = [];
 
@@ -6246,6 +6251,9 @@ function buildCrawlerReport({ startedAt, finishedAt, playersUrl, playerEntries, 
     finishedAt,
     playersUrl,
     brandFilter,
+    seasonFilter,
+    profileBrandFilter,
+    profileSeasonFilter,
     brandOptions,
     standingsCategories: STANDINGS_CATEGORIES.map((category) => category.label),
     totalPlayers: playerEntries.length,
@@ -6279,7 +6287,7 @@ function standingOnlyPlayerFromEntry(entry) {
   return player;
 }
 
-function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null, brandOptions = null }) {
+function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEntries, brandFilter = null, seasonFilter = null, brandOptions = null }) {
   const players = playerEntries.map(standingOnlyPlayerFromEntry);
   const report = buildCrawlerReport({
     startedAt,
@@ -6289,6 +6297,7 @@ function buildStandingsOnlyReport({ startedAt, finishedAt, playersUrl, playerEnt
     players,
     runStatus: "complete",
     brandFilter,
+    seasonFilter,
     brandOptions
   });
 
@@ -6927,6 +6936,7 @@ async function main() {
         playersUrl: args.playersUrl,
         playerEntries,
         brandFilter: args.brand,
+        seasonFilter: args.season,
         brandOptions
       });
       const koreanHtml = writeReportArtifacts(args, report);
@@ -6957,6 +6967,9 @@ async function main() {
         runStatus,
         interruptedReason,
         brandFilter: args.brand,
+        seasonFilter: args.season,
+        profileBrandFilter: args.profileBrand,
+        profileSeasonFilter: args.profileSeason,
         brandOptions,
         mode: args.resultOnly ? "result-only" : (args.profileOnly ? "profile-only" : "crawler")
       });

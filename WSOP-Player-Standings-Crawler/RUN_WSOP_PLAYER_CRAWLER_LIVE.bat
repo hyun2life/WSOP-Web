@@ -59,11 +59,40 @@ if "%STANDINGS_ONLY%"=="true" (set "STANDINGS_ONLY_FLAG=-StandingsOnly") else (s
 if "%PROFILE_ONLY%"=="true" (set "PROFILE_ONLY_FLAG=-ProfileOnly") else (set "PROFILE_ONLY_FLAG=")
 if "%RESULT_ONLY%"=="true" (set "RESULT_ONLY_FLAG=-ResultOnly") else (set "RESULT_ONLY_FLAG=")
 if not "%FROM_REPORT%"=="" (set "FROM_REPORT_PARAM=-FromReport "%FROM_REPORT%"") else (set "FROM_REPORT_PARAM=")
-if not "%BRAND%"=="" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% %RESULT_ONLY_FLAG% %FROM_REPORT_PARAM% -Brand "%BRAND%" -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
-) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" -PlayersUrl "%PLAYERS_URL%" -OutputTag "%OUTPUT_TAG%" -RunId "%RUN_ID%" %HEADED_FLAG% %UI_FLAG% %STANDINGS_ONLY_FLAG% %PROFILE_ONLY_FLAG% %RESULT_ONLY_FLAG% %FROM_REPORT_PARAM% -AuthWaitMs %AUTH_WAIT_MS% -Limit %PLAYER_LIMIT% -ResultLimit %RESULT_LIMIT% -ResultRankLimit %RESULT_RANK_LIMIT% -MaxLoadMore %MAX_LOAD_MORE% -ResultPageLimit %RESULT_PAGE_LIMIT% -DisabledResultMode "%DISABLED_RESULT_MODE%" -Concurrency %CONCURRENCY%
-)
+set "BRAND_PARAM="
+if not "%BRAND%"=="" set "BRAND_PARAM=-Brand "%BRAND%""
+
+set "SEASON_PARAM="
+if not "%SEASON%"=="" set "SEASON_PARAM=-Season "%SEASON%""
+
+set "PROFILE_BRAND_PARAM="
+if not "%PROFILE_BRAND%"=="" set "PROFILE_BRAND_PARAM=-ProfileBrand "%PROFILE_BRAND%""
+
+set "PROFILE_SEASON_PARAM="
+if not "%PROFILE_SEASON%"=="" set "PROFILE_SEASON_PARAM=-ProfileSeason "%PROFILE_SEASON%""
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%CRAWLER_SCRIPT%" ^
+  -PlayersUrl "%PLAYERS_URL%" ^
+  -OutputTag "%OUTPUT_TAG%" ^
+  -RunId "%RUN_ID%" ^
+  %HEADED_FLAG% ^
+  %UI_FLAG% ^
+  %STANDINGS_ONLY_FLAG% ^
+  %PROFILE_ONLY_FLAG% ^
+  %RESULT_ONLY_FLAG% ^
+  %FROM_REPORT_PARAM% ^
+  %BRAND_PARAM% ^
+  %SEASON_PARAM% ^
+  %PROFILE_BRAND_PARAM% ^
+  %PROFILE_SEASON_PARAM% ^
+  -AuthWaitMs %AUTH_WAIT_MS% ^
+  -Limit %PLAYER_LIMIT% ^
+  -ResultLimit %RESULT_LIMIT% ^
+  -ResultRankLimit %RESULT_RANK_LIMIT% ^
+  -MaxLoadMore %MAX_LOAD_MORE% ^
+  -ResultPageLimit %RESULT_PAGE_LIMIT% ^
+  -DisabledResultMode "%DISABLED_RESULT_MODE%" ^
+  -Concurrency %CONCURRENCY%
 set EXIT_CODE=%ERRORLEVEL%
 
 echo.

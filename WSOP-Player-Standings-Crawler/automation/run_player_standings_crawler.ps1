@@ -18,6 +18,9 @@ param(
   [string]$DefectReport = "",
   [int]$Concurrency = 5,
   [string]$Brand = "",
+  [string]$Season = "",
+  [string]$ProfileBrand = "",
+  [string]$ProfileSeason = "",
   [string]$FromReport = "",
   [switch]$StandingsOnly,
   [switch]$ProfileOnly,
@@ -283,6 +286,15 @@ try {
   }
   if ($Brand) {
     $scriptArgs += @("--brand", $Brand)
+  }
+  if ($Season) {
+    $scriptArgs += @("--season", $Season)
+  }
+  if ($ProfileBrand) {
+    $scriptArgs += @("--profile-brand", $ProfileBrand)
+  }
+  if ($ProfileSeason) {
+    $scriptArgs += @("--profile-season", $ProfileSeason)
   }
 
   & $nodeCmd @scriptArgs
