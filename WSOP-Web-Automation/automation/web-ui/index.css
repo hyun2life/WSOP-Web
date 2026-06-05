@@ -581,6 +581,14 @@ body {
   padding: 6px 10px;
 }
 
+.option-row.is-disabled {
+  opacity: 0.45;
+}
+
+.option-row.is-disabled .custom-checkbox {
+  cursor: not-allowed;
+}
+
 /* Custom Checkbox Toggle Styles */
 .custom-checkbox {
   display: flex;

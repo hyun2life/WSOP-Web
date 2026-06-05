@@ -170,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupCheckboxToggles(crawlerOpts);
   setupCheckboxToggles(pwOpts);
   setupExclusiveCrawlerModes();
+  syncCrawlerModeOptionAvailability();
   syncProfileBrandControls();
 
   function initializeStandingsSeasonOptions() {
@@ -410,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function syncProfileBrandControls() {
     const profileBrandChk = document.getElementById('opt-profile-brand-check');
-    const enabled = Boolean(profileBrandChk && profileBrandChk.checked);
+    const enabled = Boolean(profileBrandChk && profileBrandChk.checked && !crawlerOpts.standingsOnly?.chk?.checked);
     if (profileBrandSelect) profileBrandSelect.disabled = !enabled;
 
     const showCustom = enabled && Boolean(profileBrandSelect && profileBrandSelect.value === 'Custom');
@@ -608,6 +609,7 @@ document.addEventListener('DOMContentLoaded', () => {
         poChk.disabled = false;
       }
     }
+    syncCrawlerModeOptionAvailability();
 
     btnRun.disabled = !phase.implemented || isRunning;
 
@@ -710,9 +712,12 @@ document.addEventListener('DOMContentLoaded', () => {
           syncYearControls();
         } else if (item.arg === 'season') {
           syncStandingsSeasonControls();
+        } else if (item.arg === 'profile-brand') {
+          syncProfileBrandControls();
         } else if (item.input) {
           item.input.disabled = !item.chk.checked;
         }
+        syncCrawlerModeOptionAvailability();
       });
     });
   }
@@ -724,11 +729,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     standingsOnly.addEventListener('change', () => {
       if (standingsOnly.checked) profileOnly.checked = false;
+      syncCrawlerModeOptionAvailability();
     });
 
     profileOnly.addEventListener('change', () => {
       if (profileOnly.checked) standingsOnly.checked = false;
+      syncCrawlerModeOptionAvailability();
     });
+  }
+
+  function setCrawlerOptionDisabled(opt, disabled, { uncheck = false } = {}) {
+    if (!opt?.chk) return;
+    if (uncheck && disabled) opt.chk.checked = false;
+    opt.chk.disabled = disabled;
+    if (opt.input) opt.input.disabled = disabled || !opt.chk.checked;
+  }
+
+  function setOptionRowDisabled(rowClass, disabled) {
+    const row = document.querySelector(`.${rowClass}`);
+    if (row) row.classList.toggle('is-disabled', disabled);
+  }
+
+  function syncCrawlerModeOptionAvailability() {
+    const standingsOnly = Boolean(crawlerOpts.standingsOnly?.chk?.checked);
+    const profileOnly = Boolean(crawlerOpts.profileOnly?.chk?.checked);
+
+    setCrawlerOptionDisabled(crawlerOpts.profileSeason, standingsOnly, { uncheck: true });
+    setCrawlerOptionDisabled(crawlerOpts.profileBrand, standingsOnly, { uncheck: true });
+    setCrawlerOptionDisabled(crawlerOpts.reslimit, standingsOnly || profileOnly, { uncheck: true });
+
+    setOptionRowDisabled('row-season', false);
+    setOptionRowDisabled('row-brand', false);
+    setOptionRowDisabled('row-profile-season', standingsOnly);
+    setOptionRowDisabled('row-profile-brand', standingsOnly);
+    setOptionRowDisabled('row-reslimit', standingsOnly || profileOnly);
+
+    syncStandingsSeasonControls();
+    syncBrandControls();
+    syncProfileBrandControls();
   }
 
   function initSse() {
@@ -918,11 +956,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectedPhase.id === 'crawler' || selectedPhase.id === 'phase3' || selectedPhase.id === 'tournament-crawler') {
       Object.values(crawlerOpts).forEach((opt) => {
         if (!opt.chk || !opt.chk.checked) return;
+        if (opt.chk.disabled) return;
         if (selectedPhase.id === 'phase3' && opt.arg === 'profile-only') return;
 
         const argName = selectedPhase.id === 'tournament-crawler' && opt.arg === 'result-limit'
           ? 'event-limit'
           : opt.arg;
+
+        const isPlayerCrawler = selectedPhase.id === 'crawler';
+        const standingsOnlyRequested = isPlayerCrawler && Boolean(crawlerOpts.standingsOnly?.chk?.checked);
+        const profileOnlyRequested = isPlayerCrawler && Boolean(crawlerOpts.profileOnly?.chk?.checked);
+        const tournamentAllowedArgs = new Set(['year', 'limit', 'auth-wait-ms', 'concurrency', 'event-limit']);
+        if (selectedPhase.id === 'tournament-crawler' && !tournamentAllowedArgs.has(argName)) return;
+        if (standingsOnlyRequested && ['profile-brand', 'profile-season', 'result-limit'].includes(argName)) return;
+        if (profileOnlyRequested && argName === 'result-limit') return;
 
         if (argName === 'brand') {
           const selectedBrands = [];
