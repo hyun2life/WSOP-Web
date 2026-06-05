@@ -750,19 +750,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (row) row.classList.toggle('is-disabled', disabled);
   }
 
+  function clearNamedCheckboxes(name) {
+    document.querySelectorAll(`input[name="${name}"]`).forEach((chk) => {
+      chk.checked = false;
+    });
+  }
+
   function syncCrawlerModeOptionAvailability() {
+    const isTournament = selectedPhase?.id === 'tournament-crawler';
     const standingsOnly = Boolean(crawlerOpts.standingsOnly?.chk?.checked);
     const profileOnly = Boolean(crawlerOpts.profileOnly?.chk?.checked);
+    const playerStandingsOnly = !isTournament && standingsOnly;
+    const playerProfileOnly = !isTournament && profileOnly;
 
-    setCrawlerOptionDisabled(crawlerOpts.profileSeason, standingsOnly, { uncheck: true });
-    setCrawlerOptionDisabled(crawlerOpts.profileBrand, standingsOnly, { uncheck: true });
-    setCrawlerOptionDisabled(crawlerOpts.reslimit, standingsOnly || profileOnly, { uncheck: true });
+    setCrawlerOptionDisabled(crawlerOpts.season, playerProfileOnly, { uncheck: true });
+    setCrawlerOptionDisabled(crawlerOpts.brand, playerProfileOnly, { uncheck: true });
+    setCrawlerOptionDisabled(crawlerOpts.profileSeason, playerStandingsOnly, { uncheck: true });
+    setCrawlerOptionDisabled(crawlerOpts.profileBrand, playerStandingsOnly, { uncheck: true });
+    setCrawlerOptionDisabled(crawlerOpts.reslimit, !isTournament && (standingsOnly || profileOnly), { uncheck: true });
 
-    setOptionRowDisabled('row-season', false);
-    setOptionRowDisabled('row-brand', false);
-    setOptionRowDisabled('row-profile-season', standingsOnly);
-    setOptionRowDisabled('row-profile-brand', standingsOnly);
-    setOptionRowDisabled('row-reslimit', standingsOnly || profileOnly);
+    setOptionRowDisabled('row-season', playerProfileOnly);
+    setOptionRowDisabled('row-brand', playerProfileOnly);
+    setOptionRowDisabled('row-profile-season', playerStandingsOnly);
+    setOptionRowDisabled('row-profile-brand', playerStandingsOnly);
+    setOptionRowDisabled('row-reslimit', !isTournament && (standingsOnly || profileOnly));
+
+    if (playerProfileOnly) {
+      clearNamedCheckboxes('opt-season');
+      clearNamedCheckboxes('opt-brand');
+    }
 
     syncStandingsSeasonControls();
     syncBrandControls();
@@ -969,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tournamentAllowedArgs = new Set(['year', 'limit', 'auth-wait-ms', 'concurrency', 'event-limit']);
         if (selectedPhase.id === 'tournament-crawler' && !tournamentAllowedArgs.has(argName)) return;
         if (standingsOnlyRequested && ['profile-brand', 'profile-season', 'result-limit'].includes(argName)) return;
-        if (profileOnlyRequested && argName === 'result-limit') return;
+        if (profileOnlyRequested && ['brand', 'season', 'result-limit'].includes(argName)) return;
 
         if (argName === 'brand') {
           const selectedBrands = [];

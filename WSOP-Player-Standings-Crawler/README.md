@@ -640,10 +640,11 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 - **메인 목록-상세 헤더 검증**: 목록 카드 정보(이미지, 브랜드, 시리즈명, 시간, 장소, 국가)와 상세 페이지 비주얼 헤더(.kv-contents) 정보의 1:1 일치 여부 검증
 - **결과 유무에 따른 동적 케이스 분류 및 검증**:
   - **Case A (Result가 존재하는 대회)**: 이벤트 테이블 안에 Result/Payout 링크가 1개 이상 존재하면 Case A로 분류합니다. 개별 이벤트 목록의 데이터(`Date`, `Event`, `Buy-in`, `Entries`, `ITM`, `Prize`, `Winner`) 포맷 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증, Payout 링크로 이동하여 우승자/참가자수/총상금 교차 정합성 검증
-  - **Case B (Result가 없는 대회)**: 이벤트 테이블 안에 Result/Payout 링크가 없으면 Case B로 분류합니다. 일정 목록의 데이터(`Date`, `Event`, `Buy-in`, `Chips`, `Clock`, `Late Reg`) 유효성 및 누락 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증
-  - **온라인/Flight 일정 예외**: 일반 오프라인 일정은 `Chips`와 `Clock`이 양수여야 하지만, 이벤트명이 `Online` 또는 `Flight A/B/C` 등으로 식별되고 `Chips`/`Clock` 값이 `-`인 경우는 의도적 미표기 가능성으로 보고 Fail이 아닌 Warn으로 처리
-- **날짜 검증 기준**: 이벤트 날짜가 `Jan 05 ~ Jan 06`처럼 기간으로 표시되면 대회 기간과 하루라도 겹치는지 검증합니다. 이벤트 기간이 대회 기간과 겹치면 Pass이며, WSOP 원본 표기/시간대 차이로 보이는 1일 경계 이탈은 Fail이 아닌 Warn으로 처리합니다.
-- **주의 상태 기준**: 대회 기간이 `ClubGG Qualifiers`처럼 날짜 범위가 아닌 텍스트로 표시되어 날짜 검증을 수행할 수 없거나, 1일 경계 이탈처럼 원본 표기 검토가 필요한 경우는 `Warn`으로 표시합니다. `Warn`은 실패 결함은 아니지만 통과로 집계하지 않고, 리포트 상단의 `Warned`와 대회별 상태에 별도로 표시합니다.
+  - **Case B (Result가 없는 대회)**: 이벤트 테이블 안에 Result/Payout 링크가 없으면 Case B로 분류합니다. Case B는 임시 일정 데이터일 수 있으므로 `Date`, `Event`, `Buy-in`, `Chips`, `Clock`, `Late Reg`의 불일치/누락은 실패가 아닌 `Minor` 후보로 남깁니다.
+  - **Clock 예외**: Case B에서 `Clock`이 없거나 `0`인 경우는 실패가 아닌 `Minor`로 처리합니다.
+  - **Result 동률 순위**: Result 상세 테이블에서 1위가 동률로 여러 row에 표시될 수 있으므로, 1위 row 중 하나라도 이벤트 목록의 Winner와 일치하면 통과로 처리합니다.
+- **날짜 검증 기준**: 이벤트 날짜가 `Jan 05 ~ Jan 06`처럼 기간으로 표시되면 대회 기간과 하루라도 겹치는지 검증합니다. 이벤트 기간이 대회 기간과 겹치면 Pass이며, 이벤트 날짜가 시리즈 기간 기준 앞뒤 3일 이내이면 WSOP 원본 표기/시간대 차이 가능성으로 보고 Pass로 허용합니다. 날짜가 하나만 표시된 경우도 단일일 범위로 해석합니다.
+- **주의/경미 상태 기준**: 대회 기간이 `ClubGG Qualifiers`처럼 날짜 범위가 아닌 텍스트로 표시되어 날짜 검증을 수행할 수 없는 경우는 `Warn`으로 표시합니다. Case B 임시 일정 데이터의 불일치/누락은 `Minor`로 표시하며 실패로 집계하지 않습니다.
 
 ### 실행 방법
 

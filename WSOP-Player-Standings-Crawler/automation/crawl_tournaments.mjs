@@ -187,11 +187,12 @@ function validateEventDateInTournamentRange(eventDate, tournamentDateRange, fall
 
   const daysBeforeRange = range.start.dayNumber - eventEndDayNumber;
   const daysAfterRange = eventStartDayNumber - range.end.dayNumber;
-  if (daysBeforeRange === 1 || daysAfterRange === 1) {
+  const toleranceDays = 3;
+  if ((daysBeforeRange > 0 && daysBeforeRange <= toleranceDays) || (daysAfterRange > 0 && daysAfterRange <= toleranceDays)) {
     return {
-      status: "warn",
+      status: "pass",
       errors: [],
-      warnings: [`Event Date is one day outside tournament range: ${eventDate} not within ${tournamentDateRange}`]
+      warnings: []
     };
   }
 
@@ -208,6 +209,14 @@ function isDashPlaceholder(value) {
 
 function isOnlineScheduleEvent(event) {
   return /online|flight\s+[a-z]/i.test(`${event.eventName || ""} ${event.lateRegText || ""}`);
+}
+
+function parseRankPosition(value) {
+  const text = normalizeText(value);
+  const match = text.match(/\b(\d{1,5})(?:st|nd|rd|th)?\b/);
+  if (!match) return null;
+  const rank = Number(match[1]);
+  return Number.isFinite(rank) ? rank : null;
 }
 
 function formatRunTimestamp(date = new Date()) {
@@ -359,34 +368,31 @@ function classifyTournamentEventMode(hasResultLink) {
 
 function validateCaseBEvent(event, tournament = {}) {
   // Validate fields for schedule: Date, Event, Buy-in, Chips, Clock, Late Reg
-  const errors = [];
   const warnings = [];
+  const minorIssues = [];
   const dateCheck = validateEventDateInTournamentRange(event.date, tournament.dateRange, tournament.year);
-  errors.push(...dateCheck.errors);
+  minorIssues.push(...dateCheck.errors);
   warnings.push(...dateCheck.warnings);
-  if (!event.eventName) errors.push("Missing Event Name");
-  if (event.buyIn === null || event.buyIn === undefined) errors.push("Invalid or missing Buy-in");
+  if (!event.eventName) minorIssues.push("Missing Event Name");
+  if (event.buyIn === null || event.buyIn === undefined) minorIssues.push("Invalid or missing Buy-in");
 
   const onlineEvent = isOnlineScheduleEvent(event);
   if (event.chips === null || event.chips === undefined || event.chips <= 0) {
     if (onlineEvent && isDashPlaceholder(event.chipsText)) {
-      warnings.push(`Online/Flight event has no Chips value: ${event.chipsText || "-"}`);
+      minorIssues.push(`Online/Flight event has no Chips value: ${event.chipsText || "-"}`);
     } else {
-      errors.push(`Invalid Chips: ${event.chipsText}`);
+      minorIssues.push(`Invalid Chips: ${event.chipsText}`);
     }
   }
   if (event.clock === null || event.clock === undefined || event.clock <= 0) {
-    if (onlineEvent && isDashPlaceholder(event.clockText)) {
-      warnings.push(`Online/Flight event has no Clock value: ${event.clockText || "-"}`);
-    } else {
-      errors.push(`Invalid Clock: ${event.clockText}`);
-    }
+    minorIssues.push(`Invalid or missing Clock: ${event.clockText || "-"}`);
   }
 
   return {
-    status: validationStatus(errors, warnings),
-    errors,
-    warnings
+    status: minorIssues.length > 0 ? "minor" : validationStatus([], warnings),
+    errors: [],
+    warnings,
+    minorIssues
   };
 }
 
@@ -428,11 +434,17 @@ function verifyPayoutDetails(event, payoutDetails) {
       errors.push(`Winner mismatch: list="${event.winner}", payoutDetail="${payoutDetails.winner}"`);
     }
   }
-  if (payoutDetails.tableWinner && event.winner) {
+  const tableWinners = (payoutDetails.tableWinners || []).length > 0
+    ? payoutDetails.tableWinners
+    : (payoutDetails.tableWinner ? [payoutDetails.tableWinner] : []);
+  if (tableWinners.length > 0 && event.winner) {
     const listWinnerNorm = normalizeComparable(event.winner);
-    const tableWinnerNorm = normalizeComparable(payoutDetails.tableWinner);
-    if (!tableWinnerNorm.includes(listWinnerNorm) && !listWinnerNorm.includes(tableWinnerNorm)) {
-      errors.push(`Table 1st Place Player mismatch: list="${event.winner}", tablePlayer="${payoutDetails.tableWinner}"`);
+    const matchingTableWinner = tableWinners.some((tableWinner) => {
+      const tableWinnerNorm = normalizeComparable(tableWinner);
+      return tableWinnerNorm.includes(listWinnerNorm) || listWinnerNorm.includes(tableWinnerNorm);
+    });
+    if (!matchingTableWinner) {
+      errors.push(`Table 1st Place Player mismatch: list="${event.winner}", tablePlayers="${tableWinners.join(" | ")}"`);
     }
   }
 
@@ -452,11 +464,12 @@ function writeJson(filePath, payload) {
 }
 
 function writeCsv(filePath, defects) {
-  const headers = ["type", "tournament", "event", "item", "expected", "actual", "url", "detail"];
+  const headers = ["type", "severity", "tournament", "event", "item", "expected", "actual", "url", "detail"];
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
   const rows = defects.map(d => [
     d.type,
+    d.severity || (String(d.type || "").toLowerCase().includes("minor") ? "minor" : "fail"),
     d.tournament,
     d.event || "-",
     d.item || "-",
@@ -503,6 +516,7 @@ function writeEventsCsv(filePath, report) {
     "crossCheckStatus",
     "errors",
     "warnings",
+    "minorIssues",
     "crossCheckErrors"
   ];
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -553,6 +567,7 @@ function writeEventsCsv(filePath, report) {
         event?.crossCheck?.status || "-",
         (event?.errors || []).join(" | "),
         (event?.warnings || []).join(" | "),
+        (event?.minorIssues || []).join(" | "),
         (event?.crossCheck?.errors || []).join(" | ")
       ]);
     }
@@ -644,6 +659,7 @@ function buildTournamentReport({
   targetCards,
   tournamentsResult,
   passedCount,
+  minorCount = 0,
   failedCount,
   totalDefectsCount,
   runStatus = "complete",
@@ -652,6 +668,7 @@ function buildTournamentReport({
   const totalTournaments = targetCards.length;
   const completedTournaments = tournamentsResult.length;
   const warnedTournaments = tournamentsResult.filter(t => t?.status === "warn").length;
+  const minorTournaments = tournamentsResult.filter(t => t?.status === "minor").length;
   return {
     summary: {
       year: args.year,
@@ -667,6 +684,7 @@ function buildTournamentReport({
       completedTournaments,
       pendingTournaments: Math.max(0, totalTournaments - completedTournaments),
       passedTournaments: passedCount,
+      minorTournaments: minorCount || minorTournaments,
       warnedTournaments,
       failedTournaments: failedCount,
       totalDefects: totalDefectsCount
@@ -688,7 +706,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
   const eventLimit = summary.eventLimit ?? summary.resultLimit ?? 0;
   const runStatus = summary.runStatus || "complete";
   const warnedTournaments = summary.warnedTournaments ?? (report.tournaments || []).filter(t => t.status === "warn").length;
-  const reportStatus = summary.failedTournaments > 0 ? "fail" : (warnedTournaments > 0 || runStatus !== "complete" ? "warn" : "pass");
+  const minorTournaments = summary.minorTournaments ?? (report.tournaments || []).filter(t => t.status === "minor").length;
+  const reportStatus = summary.failedTournaments > 0 ? "fail" : (warnedTournaments > 0 || runStatus !== "complete" ? "warn" : (minorTournaments > 0 ? "minor" : "pass"));
   const completedTournaments = summary.completedTournaments ?? (report.tournaments || []).length;
   const totalTournaments = summary.totalTournaments ?? completedTournaments;
   const tList = report.tournaments || [];
@@ -721,6 +740,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     filterPass: isKo ? "통과" : "Pass",
     filterFail: isKo ? "실패" : "Fail",
     filterWarn: isKo ? "주의" : "Warn",
+    filterMinor: isKo ? "경미" : "Minor",
     noDefects: isKo ? "발견된 결함 후보가 없습니다." : "No defect candidates found.",
     statusText: isKo ? "상태" : "Status",
     detailText: isKo ? "상세 정보" : "Detail",
@@ -742,6 +762,20 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       ["Scenario 3: Case B (No Result)", "Classifies the event table as Case B when no Result/Payout link exists. Collects Event, Date, Buy-in, Chips, Clock, Late Reg, and validates that each event Date falls within the tournament date range. Offline schedule rows require positive Chips/Clock values; Online/Flight rows with '-' Chips/Clock are reported as Warn instead of Fail."]
     ]
   };
+
+  t.rulesData = isKo ? [
+    ["시나리오 1: 헤더 검증", "목록 카드 정보(브랜드, 시리즈명, 기간, 장소, 국가)와 상세 페이지 상단 비주얼 영역(.kv-contents)을 1:1로 비교합니다. 불일치 시 Fail로 판정합니다."],
+    ["시나리오 2: Case A (Result 있음)", "이벤트 테이블에 Result/Payout 링크가 있으면 Case A로 분류합니다. Date, Event, Buy-in, Entries, ITM, Prize, Winner를 수집하고 이벤트 날짜가 대회 기간과 겹치거나 시리즈 기간 기준 앞뒤 3일 이내인지 검증합니다. Payout 페이지에서는 Entries, Prize Pool, Winner를 교차 검증하며, Result 표의 1위가 동률로 여러 row에 표시될 경우 1위 row 중 하나라도 Winner와 일치하면 Pass입니다."],
+    ["시나리오 3: Case B (Result 없음)", "이벤트 테이블에 Result/Payout 링크가 없으면 Case B로 분류합니다. Case B는 Result가 없는 임시 일정 데이터일 수 있으므로 Date, Event, Buy-in, Chips, Clock, Late Reg. 불일치/누락은 Fail이 아닌 Minor 후보로 남깁니다. Clock이 없거나 0인 경우도 Minor입니다."],
+    ["날짜 합격 기준", "이벤트 기간이 대회 기간과 하루라도 겹치면 Pass입니다. 이벤트 날짜가 시리즈 기간 밖이어도 앞뒤 3일 이내이면 원본 표기/시간대 차이 가능성으로 보고 Pass로 허용합니다. 날짜가 하나만 표시된 경우는 단일일 범위로 해석합니다. 대회 기간 자체가 ClubGG Qualifiers처럼 날짜로 파싱되지 않으면 Warn으로 남깁니다."],
+    ["상태 판정 기준", "Fail은 확정 정합성 오류, Warn은 날짜 범위 파싱 불가 등 검토 필요 항목, Minor는 Case B 임시 일정 데이터의 추적 후보입니다. Minor는 결함 후보 목록과 CSV에 남지만 실패 집계로 올리지 않습니다."]
+  ] : [
+    ["Scenario 1: Header Check", "Compares listing card data (Brand, Series Name, Dates, Venue, Country) with the detail page visual header layout (.kv-contents) 1:1. Mismatches are reported as Fail."],
+    ["Scenario 2: Case A (Result exists)", "Classifies the event table as Case A when a Result/Payout link exists. Collects Event, Date, Buy-in, Entries, ITM, Prize, Winner, and validates that each event Date overlaps the tournament range or falls within a +/- 3 day tolerance. The payout page cross-check compares Entries, Prize Pool, and Winner. If the Result table has tied 1st-place rows, any matching 1st-place player is accepted as Pass."],
+    ["Scenario 3: Case B (No Result)", "Classifies the event table as Case B when no Result/Payout link exists. Because Case B can be temporary schedule data, Date/Event/Buy-in/Chips/Clock/Late Reg mismatches or missing values are tracked as Minor instead of Fail. Missing or zero Clock is Minor."],
+    ["Date Pass Criteria", "Event ranges pass when they overlap the tournament range. Event dates up to 3 days before or after the series range are allowed as Pass for source/timezone drift. Single event dates are parsed as a one-day range. If the tournament range itself cannot be parsed, such as ClubGG Qualifiers, the item is reported as Warn."],
+    ["Status Criteria", "Fail means confirmed integrity mismatch, Warn means review needed such as unparseable tournament date range, and Minor means a Case B temporary schedule-data candidate. Minor items remain in defect candidates and CSV output but do not count as failed tournaments."]
+  ];
 
   const reportJson = JSON.stringify(report).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 
@@ -773,6 +807,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       --danger-bg: rgba(248, 81, 73, 0.14);
       --warning: #d29922;
       --warning-bg: rgba(210, 153, 34, 0.14);
+      --minor: #58a6ff;
+      --minor-bg: rgba(88, 166, 255, 0.14);
       --shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
       --card-border: 1px solid #30363d;
     }
@@ -805,6 +841,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .status-badge.pass { background-color: var(--success-bg); color: var(--success); }
     .status-badge.fail { background-color: var(--danger-bg); color: var(--danger); }
     .status-badge.warn { background-color: var(--warning-bg); color: var(--warning); }
+    .status-badge.minor { background-color: var(--minor-bg); color: var(--minor); }
     .status-badge.skipped { background-color: rgba(148, 163, 184, 0.08); color: var(--text-muted); }
     .header-actions .status-badge { font-size: 14px; padding: 8px 20px; font-weight: 800; letter-spacing: 1px; }
 
@@ -835,6 +872,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .summary-line span { background: var(--bg-card-hover); border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; }
     .bar { height: 14px; border-radius: 999px; overflow: hidden; background: var(--bg-input); border: 1px solid var(--border); display: flex; margin-top: 18px; }
     .bar-pass { background: var(--success); }
+    .bar-minor { background: var(--minor); }
     .bar-fail { background: var(--danger); }
     .note { border-left: 4px solid var(--primary-hover); background: var(--warning-bg); padding: 12px 14px; border-radius: 8px; color: var(--text-main); }
 
@@ -969,11 +1007,15 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="kpi-label">${isKo ? "주의 대회" : "Warned"}</div>
         <div class="kpi-value" style="color: var(--warning);">${warnedTournaments}</div>
       </div>
+      <div class="kpi-card" onclick="filterByStatus('minor')">
+        <div class="kpi-label">${isKo ? "경미 대상" : "Minor"}</div>
+        <div class="kpi-value" style="color: var(--minor);">${minorTournaments}</div>
+      </div>
       <div class="kpi-card" onclick="filterByStatus('fail')">
         <div class="kpi-label">${isKo ? "실패한 대회" : "Failed"}</div>
         <div class="kpi-value" style="color: var(--danger);">${summary.failedTournaments}</div>
       </div>
-      <div class="kpi-card" onclick="filterByStatus('fail')">
+      <div class="kpi-card" onclick="filterByStatus('all')">
         <div class="kpi-label">${escapeHtml(t.defectCandidates)}</div>
         <div class="kpi-value" style="color: ${summary.totalDefects > 0 ? "var(--danger)" : "inherit"};">${summary.totalDefects}</div>
       </div>
@@ -1025,6 +1067,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           </div>
           <div class="bar" aria-label="정합성 비율">
             <div class="bar-pass" style="width:${(summary.passedTournaments / (summary.totalTournaments || 1)) * 100}%"></div>
+            <div class="bar-minor" style="width:${(minorTournaments / (summary.totalTournaments || 1)) * 100}%"></div>
             <div class="bar-fail" style="width:${(summary.failedTournaments / (summary.totalTournaments || 1)) * 100}%"></div>
           </div>
         </div>
@@ -1095,6 +1138,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           <button class="filter-btn active" data-filter="all" onclick="filterByStatus('all')">${escapeHtml(t.filterAll)}</button>
           <button class="filter-btn" data-filter="pass" onclick="filterByStatus('pass')">${escapeHtml(t.filterPass)}</button>
           <button class="filter-btn" data-filter="warn" onclick="filterByStatus('warn')">${escapeHtml(t.filterWarn)}</button>
+          <button class="filter-btn" data-filter="minor" onclick="filterByStatus('minor')">${escapeHtml(t.filterMinor)}</button>
           <button class="filter-btn" data-filter="fail" onclick="filterByStatus('fail')">${escapeHtml(t.filterFail)}</button>
         </div>
         <select class="select-dropdown" id="brand-filter" onchange="filterByBrand(this.value)">
@@ -1233,7 +1277,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             return (b.defects?.length || 0) - (a.defects?.length || 0);
           }
           if (state.sortBy === 'status-desc') {
-            const order = { fail: 3, warn: 2, pass: 1 };
+            const order = { fail: 4, warn: 3, minor: 2, pass: 1 };
             const aOrder = order[a.status] || 0;
             const bOrder = order[b.status] || 0;
             return bOrder - aOrder;
@@ -1336,7 +1380,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                         <tbody>
                           \${rows.map(row => \`
                             <tr class="clickable-row" onclick="inspectTournament('\${escapeHtml(row.tournamentKey)}')">
-                              <td class="nowrap"><span class="status-badge fail" style="font-size:10px; padding:2px 6px;">\${escapeHtml(isKo ? formatKoreanDefectType(row.type) : row.type)}</span></td>
+                              <td class="nowrap"><span class="status-badge \${escapeHtml(row.severity || 'fail')}" style="font-size:10px; padding:2px 6px;">\${escapeHtml(isKo ? formatKoreanDefectType(row.type) : row.type)}</span></td>
                               <td>\${escapeHtml(row.item)}</td>
                               <td><code>\${escapeHtml(row.expected)}</code></td>
                               <td><code class="text-danger">\${escapeHtml(row.actual)}</code></td>
@@ -1520,6 +1564,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           const evStatus = event.status || "pass";
           const errorsDetail = (event.errors || []).join(", ");
           const warningsDetail = (event.warnings || []).join(", ");
+          const minorDetail = (event.minorIssues || []).join(", ");
           
           if (isCaseA) {
             const crossStatus = event.crossCheck ? event.crossCheck.status : "pending";
@@ -1542,6 +1587,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   <span class="status-badge \${evStatus}">\${escapeHtml(formatStatus(evStatus))}</span>
                   \${errorsDetail ? \`<div class="error-detail" style="color:var(--danger); font-size:10px; margin-top:2px;">\${escapeHtml(errorsDetail)}</div>\` : ""}
                   \${warningsDetail ? \`<div class="warning-detail" style="color:var(--warning); font-size:10px; margin-top:2px;">\${escapeHtml(warningsDetail)}</div>\` : ""}
+                  \${minorDetail ? \`<div class="minor-detail" style="color:var(--minor); font-size:10px; margin-top:2px;">\${escapeHtml(minorDetail)}</div>\` : ""}
                 </td>
               </tr>
             \`;
@@ -1558,6 +1604,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                   <span class="status-badge \${evStatus}">\${escapeHtml(formatStatus(evStatus))}</span>
                   \${errorsDetail ? \`<div class="error-detail" style="color:var(--danger); font-size:10px; margin-top:2px;">\${escapeHtml(errorsDetail)}</div>\` : ""}
                   \${warningsDetail ? \`<div class="warning-detail" style="color:var(--warning); font-size:10px; margin-top:2px;">\${escapeHtml(warningsDetail)}</div>\` : ""}
+                  \${minorDetail ? \`<div class="minor-detail" style="color:var(--minor); font-size:10px; margin-top:2px;">\${escapeHtml(minorDetail)}</div>\` : ""}
                 </td>
               </tr>
             \`;
@@ -1831,18 +1878,20 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         const integrityData = {
           passed: ${summary.passedTournaments},
           warned: ${warnedTournaments},
+          minor: ${minorTournaments},
           failed: ${summary.failedTournaments}
         };
 
         statusChartInstance = new Chart(ctx1, {
           type: 'doughnut',
           data: {
-            labels: isKo ? ['통과', '주의', '실패'] : ['Passed', 'Warned', 'Failed'],
+            labels: isKo ? ['통과', '주의', '경미', '실패'] : ['Passed', 'Warned', 'Minor', 'Failed'],
             datasets: [{
-              data: [integrityData.passed, integrityData.warned, integrityData.failed],
+              data: [integrityData.passed, integrityData.warned, integrityData.minor, integrityData.failed],
               backgroundColor: [
                 style.getPropertyValue('--success').trim() || '#2ea043',
                 style.getPropertyValue('--warning').trim() || '#d29922',
+                style.getPropertyValue('--minor').trim() || '#58a6ff',
                 style.getPropertyValue('--danger').trim() || '#f85149'
               ],
               borderWidth: 2,
@@ -1971,8 +2020,9 @@ function runSelfTest() {
       completedTournaments: 5,
       pendingTournaments: 0,
       passedTournaments: 1,
+      minorTournaments: 1,
       warnedTournaments: 1,
-      failedTournaments: 3,
+      failedTournaments: 2,
       totalDefects: 3
     },
     tournaments: [
@@ -2038,7 +2088,7 @@ function runSelfTest() {
         country: "Unknown Country",
         countryDisplay: "Unknown Country",
         url: "https://www.wsop.com/tournaments/mock-wsop-online/",
-        status: "fail", // Event Error
+        status: "minor", // Temporary Case B data candidate
         mode: "Case B (Schedule)",
         headerCheck: { status: "pass", errors: [] },
         events: [
@@ -2051,13 +2101,15 @@ function runSelfTest() {
             clockText: "30",
             clock: 30,
             lateRegText: "Level 8",
-            status: "fail",
-            errors: ["Invalid Chips: 0"]
+            status: "minor",
+            errors: [],
+            minorIssues: ["Invalid Chips: 0"]
           }
         ],
         defects: [
           {
-            type: "Schedule data invalid",
+            type: "Schedule data minor",
+            severity: "minor",
             event: "Event #2: $1000 NLH",
             item: "Chips",
             expected: "> 0",
@@ -2185,8 +2237,8 @@ function runSelfTest() {
     "Feb 20 2025 - Mar 03 2025",
     "2025"
   );
-  if (oneDayBoundaryDateTest.status !== "warn") {
-    throw new Error("Self-test: one-day date boundary drift should warn");
+  if (oneDayBoundaryDateTest.status !== "pass") {
+    throw new Error("Self-test: date boundary drift within 3 days should pass");
   }
 
   const scheduleTest2 = validateCaseBEvent({
@@ -2198,7 +2250,9 @@ function runSelfTest() {
     clock: 30,
     clockText: "30"
   }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
-  if (scheduleTest2.status !== "fail") throw new Error("Self-test: validateCaseBEvent failed to catch 0 chips");
+  if (scheduleTest2.status !== "minor" || !scheduleTest2.minorIssues.includes("Invalid Chips: 0")) {
+    throw new Error("Self-test: Case B 0 chips should be tracked as minor");
+  }
 
   const onlineScheduleTest = validateCaseBEvent({
     date: "Oct 25",
@@ -2209,8 +2263,8 @@ function runSelfTest() {
     clock: null,
     clockText: "-"
   }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
-  if (onlineScheduleTest.status !== "warn" || onlineScheduleTest.warnings.length !== 2) {
-    throw new Error("Self-test: online/flight schedule dash Chips/Clock should warn");
+  if (onlineScheduleTest.status !== "minor" || onlineScheduleTest.minorIssues.length !== 2) {
+    throw new Error("Self-test: online/flight schedule dash Chips/Clock should be minor");
   }
 
   const outOfRangeScheduleTest = validateCaseBEvent({
@@ -2222,8 +2276,8 @@ function runSelfTest() {
     clock: 30,
     clockText: "30"
   }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
-  if (outOfRangeScheduleTest.status !== "fail") {
-    throw new Error("Self-test: schedule event date outside tournament range should fail");
+  if (outOfRangeScheduleTest.status !== "minor") {
+    throw new Error("Self-test: Case B schedule event date outside tournament range should be minor");
   }
 
   const resultTest1 = validateCaseAEvent({
@@ -2263,6 +2317,12 @@ function runSelfTest() {
     { entries: 138, prize: 44850, winner: "Daniel Dodet", tableWinner: "Daniel Dodet" }
   );
   if (crossTest1.status !== "pass") throw new Error("Self-test: verifyPayoutDetails failed on correct match");
+
+  const tiedRankCrossTest = verifyPayoutDetails(
+    { entries: 138, prize: 44850, winner: "Daniel Dodet" },
+    { entries: 138, prize: 44850, winner: "Daniel Dodet", tableWinners: ["Alex Sample", "Daniel Dodet"] }
+  );
+  if (tiedRankCrossTest.status !== "pass") throw new Error("Self-test: tied 1st-place result rows should pass when any winner matches");
 
   const crossTest2 = verifyPayoutDetails(
     { entries: 138, prize: 44850, winner: "Daniel Dodet" },
@@ -2422,6 +2482,7 @@ Options:
 
   const tournamentsResult = [];
   let passedCount = 0;
+  let minorCount = 0;
   let failedCount = 0;
   let totalDefectsCount = 0;
   let stopRequested = false;
@@ -2447,6 +2508,7 @@ Options:
       targetCards,
       tournamentsResult,
       passedCount,
+      minorCount,
       failedCount,
       totalDefectsCount,
       runStatus,
@@ -2596,7 +2658,7 @@ Options:
 
                 // Parse entries, prize, winner from .list-detail
                 const listDetail = crossPage.locator("div.list-detail").first();
-                const payoutData = { entries: null, prize: null, winner: "", tableWinner: "" };
+                const payoutData = { entries: null, prize: null, winner: "", tableWinner: "", tableWinners: [] };
 
                 if (await listDetail.isVisible()) {
                   const detailText = await listDetail.innerText();
@@ -2621,11 +2683,11 @@ Options:
                   const rows = await resTable.locator("tbody tr, tr").all();
                   for (const row of rows) {
                     const cells = await row.locator("th, td").allInnerTexts();
-                    if (cells.length >= 2 && cells[0].trim() === "1") {
-                      payoutData.tableWinner = normalizeText(cells[1]); // 2nd column is Player name
-                      break;
+                    if (cells.length >= 2 && parseRankPosition(cells[0]) === 1) {
+                      payoutData.tableWinners.push(normalizeText(cells[1])); // 2nd column is Player name
                     }
                   }
+                  payoutData.tableWinner = payoutData.tableWinners[0] || "";
                 }
 
                 const crossCheckResult = verifyPayoutDetails(eventObj, payoutData);
@@ -2694,7 +2756,8 @@ Options:
               lateRegText: normalizeText(rawLateReg),
               status: "pass",
               errors: [],
-              warnings: []
+              warnings: [],
+              minorIssues: []
             };
 
             // Validate fields [Scenario 3]
@@ -2718,6 +2781,22 @@ Options:
               eventObj.status = "warn";
               if (status === "pass") status = "warn";
               eventObj.warnings = eventVal.warnings;
+            } else if (eventVal.status === "minor") {
+              eventObj.status = "minor";
+              if (status === "pass") status = "minor";
+              eventObj.warnings = eventVal.warnings;
+              eventObj.minorIssues = eventVal.minorIssues;
+              eventVal.minorIssues.forEach(issue => {
+                defects.push({
+                  type: "Schedule data minor",
+                  severity: "minor",
+                  event: eventObj.eventName,
+                  item: "Case B temporary schedule data",
+                  expected: "Tracked until temporary schedule data is finalized",
+                  actual: issue,
+                  detail: `Case B schedule row is treated as Minor because no Result data exists yet: ${issue}`
+                });
+              });
             }
 
             events.push(eventObj);
@@ -2744,6 +2823,7 @@ Options:
     }
 
     if (status === "pass") passedCount++;
+    else if (status === "minor") minorCount++;
     else if (status === "fail") failedCount++;
     totalDefectsCount += defects.length;
 

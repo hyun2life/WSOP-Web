@@ -664,7 +664,8 @@ RUN_BRAND_COMPARE_LATEST.bat "LIVE_DATA_JSON" "STAGE_DATA_JSON"
 - `standings-only` collects standings target URLs only and skips player profile/result validation.
 - `profile-only` collects standings targets, then validates profile summary/tabs/events while skipping Result detail pages.
 - In the web dashboard, selecting `Standings Only` disables and clears profile-side filters (`Profile Brand Filter`, `Profile Season Filter`) and `Result Limit`.
-- Selecting `Profile Only` disables and clears `Result Limit`; standings/profile filters can still be used to choose the target set and profile-page filter state.
+- Selecting `Profile Only` disables and clears standings-side filters (`Standings Brand Filter`, `Standings Season Filter`) and `Result Limit`.
+- Phase 3 forces `Standings Only`; all profile-side options stay disabled in that phase.
 - When Brand Filter is enabled with `profile-only`, the crawler reviews the first-page target set from the three brand-filtered standings categories: `All-Time Earnings - Men`, `All-Time Earnings - Women`, and `All Player Stats`.
 - Keep the crawler's Playwright `__name` init helper in place when running through `tsx`; esbuild can wrap `page.evaluate` functions with `__name(...)`, and profile summary/tab extraction will fail before DOM collection if the helper is missing.
 
