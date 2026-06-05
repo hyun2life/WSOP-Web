@@ -27,5 +27,9 @@
   "nick-schulman": {
     "reason": "Nick Schulman is listed as 'Nick Schulman' in HOF but his active profile uses 'Nicholas Schulman'. Allow nickname variation search and name check warning.",
     "warningOnly": true
+  },
+  "historical-hof-profile-missing": {
+    "reason": "Historical Poker Hall of Fame inductees can be listed on the Hall of Fame page as image-only entries without stable active WSOP player profile links. Treat missing profile/search resolution as warning.",
+    "warningOnly": true
   }
 }

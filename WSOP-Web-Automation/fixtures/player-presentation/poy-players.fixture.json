@@ -85,6 +85,7 @@
     "searchKeyword": "Daniel Negreanu",
     "profileUrl": "/players/daniel-negreanu/",
     "poyYears": [
+      2004,
       2013
     ],
     "knownExceptionKey": "daniel-negreanu"
@@ -135,6 +136,22 @@
     "profileUrl": "/players/tom-schneider/",
     "poyYears": [
       2007
+    ]
+  },
+  {
+    "displayName": "Jeffrey Madsen",
+    "searchKeyword": "Jeff Madsen",
+    "profileUrl": "/players/jeff-madsen/",
+    "poyYears": [
+      2006
+    ]
+  },
+  {
+    "displayName": "Allen Cunningham",
+    "searchKeyword": "Allen Cunningham",
+    "profileUrl": "/players/allen-cunningham/",
+    "poyYears": [
+      2005
     ]
   }
 ]

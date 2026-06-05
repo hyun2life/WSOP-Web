@@ -180,6 +180,11 @@
     "profileUrl": "/players/billy-baxter/"
   },
   {
+    "displayName": "Jack Binion",
+    "searchKeyword": "Jack Binion",
+    "knownExceptionKey": "non-player"
+  },
+  {
     "displayName": "Crandall Addington",
     "searchKeyword": "Crandall Addington",
     "profileUrl": "/players/crandall-addington/"
@@ -220,6 +225,11 @@
     "profileUrl": "/players/jack-keller/"
   },
   {
+    "displayName": "Julius Oral \"Little Man\" Popwell",
+    "searchKeyword": "Julius Oral \"Little Man\" Popwell",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
     "displayName": "Thomas Austin \"Amarillo Slim\" Preston",
     "searchKeyword": "Thomas Austin \"Amarillo Slim\" Preston",
     "profileUrl": "/players/amarillo-slim-preston/"
@@ -251,9 +261,74 @@
     "profileUrl": "/players/doyle-brunson/"
   },
   {
+    "displayName": "Walter Clyde \"Puggy\" Pearson",
+    "searchKeyword": "Walter Clyde \"Puggy\" Pearson",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Henry Green",
+    "searchKeyword": "Henry Green",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Red Hodges",
+    "searchKeyword": "Red Hodges",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Murph Harrold",
+    "searchKeyword": "Murph Harrold",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
     "displayName": "Joe Bernstein",
     "searchKeyword": "Joe Bernstein",
     "profileUrl": "/players/joe-bernstein/"
+  },
+  {
+    "displayName": "Tom Abdo",
+    "searchKeyword": "Tom Abdo",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Bill Boyd",
+    "searchKeyword": "Bill Boyd",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "T \"Blondie\" Forbes",
+    "searchKeyword": "T \"Blondie\" Forbes",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Nick \"The Greek\" Dandolos",
+    "searchKeyword": "Nick \"The Greek\" Dandolos",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Red Winn",
+    "searchKeyword": "Red Winn",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Sid Wyman",
+    "searchKeyword": "Sid Wyman",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Felton \"Corky\" McCorquodale",
+    "searchKeyword": "Felton \"Corky\" McCorquodale",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "James Butler \"Wild Bill\" Hickok",
+    "searchKeyword": "James Butler \"Wild Bill\" Hickok",
+    "knownExceptionKey": "historical-hof-profile-missing"
+  },
+  {
+    "displayName": "Edmond Hoyle",
+    "searchKeyword": "Edmond Hoyle",
+    "knownExceptionKey": "historical-hof-profile-missing"
   },
   {
     "displayName": "Johnny Moss",
