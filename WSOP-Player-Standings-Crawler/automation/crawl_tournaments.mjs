@@ -11,7 +11,8 @@ import { chromium } from "playwright";
 // 3. Crawl cards: Image, Brand, Series Name, Dates, Venue/Location, Country Flag
 // 4. Navigate into detail page:
 //    - Compare card metadata with detail visual header (.kv-contents) [Scenario 1]
-//    - Classify event list: Case A (with Results) or Case B (with Schedule/no results)
+//    - Classify event list by actual Result link presence:
+//      Case A (with Results) or Case B (no Result links)
 //    - Case A: Extract event row details + click Payout/Result link -> Cross-check Entries, Prize, Winner [Scenario 2]
 //    - Case B: Extract schedule rows -> Validate formats of Buy-in, Chips, Clock, Late Reg. [Scenario 3]
 // 5. Generate JSON, Korean HTML Dashboard, and Defects CSV
@@ -22,6 +23,8 @@ const MAX_CONCURRENCY = 8;
 const DEFAULT_OUT_PATH = "automation/output/wsop-tournament-crawler-data.json";
 const DEFAULT_HTML_PATH = "automation/output/wsop-tournament-crawler-report.html";
 const DEFAULT_DEFECTS_PATH = "automation/output/wsop-tournament-crawler-defects.csv";
+const DEFAULT_CSV_PATH = "automation/output/wsop-tournament-crawler-events.csv";
+const RESULT_LINK_SELECTOR = "a[href*='/tournaments/result'], a[href*='/tournaments/results']";
 
 // Helper utilities
 function normalizeText(value) {
@@ -124,29 +127,35 @@ function parseMonthDay(value, fallbackYear, fallbackMonthIndex = null) {
 }
 
 function parseTournamentDateRange(dateRange, fallbackYear) {
-  const text = normalizeText(dateRange);
+  return parseDateRange(dateRange, fallbackYear);
+}
+
+function parseDateRange(value, fallbackYear, fallbackMonthIndex = null) {
+  const text = normalizeText(value);
   const yearMatches = text.match(/\b(20\d{2}|19\d{2})\b/g);
   const rangeYear = yearMatches ? Number(yearMatches[yearMatches.length - 1]) : Number(fallbackYear);
   if (!Number.isFinite(rangeYear)) return null;
 
-  const parts = text.split(/\s*(?:-|–|—)\s*/);
+  const parts = text.split(/\s*(?:~|-|–|—|\bto\b)\s*/i).map(part => normalizeText(part)).filter(Boolean);
   if (parts.length < 2) {
-    const single = parseMonthDay(text, rangeYear);
+    const single = parseMonthDay(text, rangeYear, fallbackMonthIndex);
     return single ? { start: single, end: single } : null;
   }
 
-  const start = parseMonthDay(parts[0], rangeYear);
-  const end = parseMonthDay(parts.slice(1).join(" - "), rangeYear, start?.monthIndex ?? null);
+  const start = parseMonthDay(parts[0], rangeYear, fallbackMonthIndex);
+  const end = parseMonthDay(parts.slice(1).join(" - "), rangeYear, start?.monthIndex ?? fallbackMonthIndex);
   if (!start || !end) return null;
 
   let endDayNumber = end.dayNumber;
+  let endYear = end.year;
   if (start.dayNumber > end.dayNumber) {
-    endDayNumber = utcDay(end.year + 1, end.monthIndex, end.day);
+    endYear = end.year + 1;
+    endDayNumber = utcDay(endYear, end.monthIndex, end.day);
   }
 
   return {
     start,
-    end: { ...end, dayNumber: endDayNumber }
+    end: { ...end, year: endYear, dayNumber: endDayNumber }
   };
 }
 
@@ -158,25 +167,39 @@ function validateEventDateInTournamentRange(eventDate, tournamentDateRange, fall
     return { status: "warn", errors: [], warnings: [`Tournament date range could not be parsed: ${tournamentDateRange || "-"}`] };
   }
 
-  const parsedEventDate = parseMonthDay(eventDate, range.start.year);
-  if (!parsedEventDate) {
+  const eventRange = parseDateRange(eventDate, range.start.year, range.start.monthIndex);
+  if (!eventRange) {
     return { status: "fail", errors: [`Event Date could not be parsed: ${eventDate}`], warnings: [] };
   }
 
-  let eventDayNumber = parsedEventDate.dayNumber;
-  if (eventDayNumber < range.start.dayNumber && range.end.year > range.start.year) {
-    eventDayNumber = utcDay(parsedEventDate.year + 1, parsedEventDate.monthIndex, parsedEventDate.day);
+  const tournamentCrossesYear = range.end.dayNumber > range.start.dayNumber && range.end.monthIndex < range.start.monthIndex;
+  let eventStartDayNumber = eventRange.start.dayNumber;
+  let eventEndDayNumber = eventRange.end.dayNumber;
+  if (tournamentCrossesYear && eventEndDayNumber < range.start.dayNumber && eventRange.start.monthIndex <= range.end.monthIndex) {
+    eventStartDayNumber = utcDay(eventRange.start.year + 1, eventRange.start.monthIndex, eventRange.start.day);
+    eventEndDayNumber = utcDay(eventRange.end.year + 1, eventRange.end.monthIndex, eventRange.end.day);
   }
 
-  if (eventDayNumber < range.start.dayNumber || eventDayNumber > range.end.dayNumber) {
+  const overlapsTournamentRange = eventStartDayNumber <= range.end.dayNumber && eventEndDayNumber >= range.start.dayNumber;
+  if (overlapsTournamentRange) {
+    return { status: "pass", errors: [], warnings: [] };
+  }
+
+  const daysBeforeRange = range.start.dayNumber - eventEndDayNumber;
+  const daysAfterRange = eventStartDayNumber - range.end.dayNumber;
+  if (daysBeforeRange === 1 || daysAfterRange === 1) {
     return {
-      status: "fail",
-      errors: [`Event Date out of tournament range: ${eventDate} not within ${tournamentDateRange}`],
-      warnings: []
+      status: "warn",
+      errors: [],
+      warnings: [`Event Date is one day outside tournament range: ${eventDate} not within ${tournamentDateRange}`]
     };
   }
 
-  return { status: "pass", errors: [], warnings: [] };
+  return {
+    status: "fail",
+    errors: [`Event Date out of tournament range: ${eventDate} not within ${tournamentDateRange}`],
+    warnings: []
+  };
 }
 
 function isDashPlaceholder(value) {
@@ -223,7 +246,8 @@ function parseArgs(argv) {
     out: DEFAULT_OUT_PATH,
     html: DEFAULT_HTML_PATH,
     defects: DEFAULT_DEFECTS_PATH,
-    outputPathOverrides: { out: false, html: false, defects: false },
+    csv: DEFAULT_CSV_PATH,
+    outputPathOverrides: { out: false, html: false, defects: false, csv: false },
     selfTest: false,
     limit: 0,
     eventLimit: 0,
@@ -260,6 +284,10 @@ function parseArgs(argv) {
       args.defects = argv[++i];
       args.outputPathOverrides.defects = true;
     }
+    else if (arg === "--csv") {
+      args.csv = argv[++i];
+      args.outputPathOverrides.csv = true;
+    }
   }
 
   // Auto timestamp overrides
@@ -271,6 +299,7 @@ function parseArgs(argv) {
     if (!args.outputPathOverrides.out) args.out = `automation/output/${tag}-data.json`;
     if (!args.outputPathOverrides.html) args.html = `automation/output/${tag}-report.html`;
     if (!args.outputPathOverrides.defects) args.defects = `automation/output/${tag}-defects.csv`;
+    if (!args.outputPathOverrides.csv) args.csv = `automation/output/${tag}-events.csv`;
   }
 
   return args;
@@ -322,6 +351,10 @@ function validationStatus(errors, warnings) {
   if (errors.length > 0) return "fail";
   if (warnings.length > 0) return "warn";
   return "pass";
+}
+
+function classifyTournamentEventMode(hasResultLink) {
+  return hasResultLink ? "Case A (Results)" : "Case B (Schedule)";
 }
 
 function validateCaseBEvent(event, tournament = {}) {
@@ -441,6 +474,98 @@ function writeCsv(filePath, defects) {
   fs.writeFileSync(filePath, csvContent, "utf8");
 }
 
+function writeEventsCsv(filePath, report) {
+  const headers = [
+    "runStatus",
+    "year",
+    "brand",
+    "tournament",
+    "tournamentStatus",
+    "mode",
+    "tournamentUrl",
+    "dateRange",
+    "location",
+    "country",
+    "headerStatus",
+    "eventName",
+    "eventStatus",
+    "eventDate",
+    "buyInText",
+    "buyIn",
+    "entries",
+    "itm",
+    "prize",
+    "winner",
+    "chips",
+    "clock",
+    "lateReg",
+    "payoutUrl",
+    "crossCheckStatus",
+    "errors",
+    "warnings",
+    "crossCheckErrors"
+  ];
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+  const summary = report.summary || {};
+  const rows = [];
+  for (const tournament of report.tournaments || []) {
+    const base = {
+      runStatus: summary.runStatus || "-",
+      year: summary.year || "-",
+      brand: tournament.brand || summary.brand || "-",
+      tournament: tournament.seriesName || "-",
+      tournamentStatus: tournament.status || "-",
+      mode: tournament.mode || "-",
+      tournamentUrl: tournament.url || "-",
+      dateRange: tournament.dateRange || "-",
+      location: tournament.location || "-",
+      country: tournament.country || tournament.countryDisplay || "-",
+      headerStatus: tournament.headerCheck?.status || "-"
+    };
+    const events = tournament.events && tournament.events.length > 0 ? tournament.events : [null];
+    for (const event of events) {
+      rows.push([
+        base.runStatus,
+        base.year,
+        base.brand,
+        base.tournament,
+        base.tournamentStatus,
+        base.mode,
+        base.tournamentUrl,
+        base.dateRange,
+        base.location,
+        base.country,
+        base.headerStatus,
+        event?.eventName || "-",
+        event?.status || "-",
+        event?.date || "-",
+        event?.buyInText || "-",
+        event?.buyIn ?? "-",
+        event?.entries ?? "-",
+        event?.itm ?? "-",
+        event?.prize ?? "-",
+        event?.winner || "-",
+        event?.chips ?? "-",
+        event?.clock ?? "-",
+        event?.lateRegText || "-",
+        event?.payoutUrl || "-",
+        event?.crossCheck?.status || "-",
+        (event?.errors || []).join(" | "),
+        (event?.warnings || []).join(" | "),
+        (event?.crossCheck?.errors || []).join(" | ")
+      ]);
+    }
+  }
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map(row => row.map(cell => csvEscape(cell)).join(","))
+  ].join("\n") + "\n";
+
+  fs.writeFileSync(filePath, csvContent, "utf8");
+}
+
 function getPastHtmlReports(htmlReportPath, isKo = false) {
   try {
     const dir = path.dirname(htmlReportPath);
@@ -482,7 +607,14 @@ function koreanHtmlPath(htmlPath) {
   return path.join(parsed.dir, `${parsed.name}-ko${parsed.ext || ".html"}`);
 }
 
+function eventsCsvPath(outPath) {
+  const parsed = path.parse(outPath || DEFAULT_OUT_PATH);
+  const baseName = parsed.name.endsWith("-data") ? parsed.name.slice(0, -5) : parsed.name;
+  return path.join(parsed.dir || path.dirname(DEFAULT_CSV_PATH), `${baseName}-events.csv`);
+}
+
 function writeReportArtifacts(args, report) {
+  if (!args.csv) args.csv = eventsCsvPath(args.out);
   writeJson(args.out, report);
   fs.mkdirSync(path.dirname(args.html), { recursive: true });
 
@@ -500,6 +632,7 @@ function writeReportArtifacts(args, report) {
     });
   });
   writeCsv(args.defects, allDefects);
+  writeEventsCsv(args.csv, report);
 
   return koreanHtml;
 }
@@ -598,12 +731,12 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     searchEventsPlaceholder: isKo ? "이벤트명 검색..." : "Search events...",
     rulesData: isKo ? [
       ["시나리오 1: 헤더 검증", "과거 대회 목록 카드 정보(브랜드, 시리즈명, 시간, 장소, 국가)와 대회 상세 페이지 상단 비주얼 영역(.kv-contents)의 데이터를 1:1로 비교합니다. 불일치 시 Fail 판정합니다."],
-      ["시나리오 2: Case A (결과 있음)", "개별 이벤트 목록에서 Date, Event, Buy-in, Entries, ITM, Prize, Winner 데이터를 수집하고, 이벤트 Date가 대회 기간 안에 포함되는지 검증합니다. Payout 페이지로 이동하여 실제 총참가자 수(Entries), 총상금(Prize Pool), 우승자(Winner)와 1:1 대조 교차 검증을 수행합니다."],
-      ["시나리오 3: Case B (결과 없음/일정)", "이벤트의 Date, Event, Buy-in, Chips, Clock, Late Reg. 정보를 수집하며, 이벤트 Date가 대회 기간 안에 포함되는지와 필수 필드 포맷을 검증합니다. 일반 오프라인 일정은 Chips/Clock이 양수여야 하며, Online/Flight 이벤트에서 Chips/Clock이 '-'인 경우는 Fail이 아닌 Warn으로 처리합니다."]
+      ["시나리오 2: Case A (Result 있음)", "이벤트 테이블 안에 Result/Payout 링크가 존재하면 Case A로 분류합니다. Date, Event, Buy-in, Entries, ITM, Prize, Winner 데이터를 수집하고, 이벤트 Date가 대회 기간 안에 포함되는지 검증합니다. Payout 페이지로 이동하여 실제 총참가자 수(Entries), 총상금(Prize Pool), 우승자(Winner)와 1:1 대조 교차 검증을 수행합니다."],
+      ["시나리오 3: Case B (Result 없음)", "이벤트 테이블 안에 Result/Payout 링크가 없으면 Case B로 분류합니다. 이벤트의 Date, Event, Buy-in, Chips, Clock, Late Reg. 정보를 수집하며, 이벤트 Date가 대회 기간 안에 포함되는지와 필수 필드 포맷을 검증합니다. 일반 오프라인 일정은 Chips/Clock이 양수여야 하며, Online/Flight 이벤트에서 Chips/Clock이 '-'인 경우는 Fail이 아닌 Warn으로 처리합니다."]
     ] : [
       ["Scenario 1: Header Check", "Compares listing card data (Brand, Series Name, Dates, Venue, Country) with detail page visual header layout (.kv-contents) 1:1. Reports defects on mismatch."],
-      ["Scenario 2: Case A (Results)", "Collects Event, Date, Buy-in, Entries, ITM, Prize, Winner, and validates that each event Date falls within the tournament date range. Navigates to the detailed Results/Payout page and cross-checks Entries, Prize Pool, and Winner with collected rows."],
-      ["Scenario 3: Case B (Schedule)", "Collects Event, Date, Buy-in, Chips, Clock, Late Reg, and validates that each event Date falls within the tournament date range. Offline schedule rows require positive Chips/Clock values; Online/Flight rows with '-' Chips/Clock are reported as Warn instead of Fail."]
+      ["Scenario 2: Case A (Result exists)", "Classifies the event table as Case A when a Result/Payout link exists. Collects Event, Date, Buy-in, Entries, ITM, Prize, Winner, and validates that each event Date falls within the tournament date range. Navigates to the detailed Results/Payout page and cross-checks Entries, Prize Pool, and Winner with collected rows."],
+      ["Scenario 3: Case B (No Result)", "Classifies the event table as Case B when no Result/Payout link exists. Collects Event, Date, Buy-in, Chips, Clock, Late Reg, and validates that each event Date falls within the tournament date range. Offline schedule rows require positive Chips/Clock values; Online/Flight rows with '-' Chips/Clock are reported as Warn instead of Fail."]
     ]
   };
 
@@ -998,7 +1131,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     };
 
     const state = {
-      tournaments: reportData.tournaments || [],
+      tournaments: (reportData.tournaments || []).map((tournament, index) => ({
+        ...tournament,
+        reportKey: 'tournament-' + index
+      })),
       searchQuery: '',
       statusFilter: 'all',
       brandFilter: 'all',
@@ -1113,13 +1249,15 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       const filtered = getFilteredAndSortedTournaments();
       const defectsContainer = document.getElementById('defects-grouped-container');
       
-      const defectsList = filtered.flatMap(t => (t.defects || []).map(d => ({ ...d, tournament: t.seriesName })));
+      const defectsList = filtered.flatMap(t => (t.defects || []).map(d => ({ ...d, tournament: t.seriesName, tournamentKey: t.reportKey })));
 
       if (defectsList.length) {
         const grouped = {};
+        const groupLabels = {};
         defectsList.forEach(row => {
-          const tKey = row.tournament || "Unknown Tournament";
+          const tKey = row.tournamentKey || row.tournament || "Unknown Tournament";
           if (!grouped[tKey]) grouped[tKey] = {};
+          groupLabels[tKey] = row.tournament || "Unknown Tournament";
           const eKey = row.event || (isKo ? "대회 공통 메타데이터" : "Tournament Metadata");
           if (!grouped[tKey][eKey]) grouped[tKey][eKey] = [];
           grouped[tKey][eKey].push(row);
@@ -1127,7 +1265,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
         let html = '';
         let tIndex = 0;
-        Object.entries(grouped).forEach(([tournamentName, eventsObj]) => {
+        Object.entries(grouped).forEach(([tournamentKey, eventsObj]) => {
+          const tournamentName = groupLabels[tournamentKey] || tournamentKey;
           const typeKey = 't-' + tIndex;
           tIndex++;
           const totalRowsCount = Object.values(eventsObj).reduce((sum, arr) => sum + arr.length, 0);
@@ -1163,7 +1302,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                         </thead>
                         <tbody>
                           \${rows.map(row => \`
-                            <tr class="clickable-row" onclick="inspectTournament('\${escapeHtml(row.tournament)}')">
+                            <tr class="clickable-row" onclick="inspectTournament('\${escapeHtml(row.tournamentKey)}')">
                               <td class="nowrap"><span class="status-badge fail" style="font-size:10px; padding:2px 6px;">\${escapeHtml(isKo ? formatKoreanDefectType(row.type) : row.type)}</span></td>
                               <td>\${escapeHtml(row.item)}</td>
                               <td><code>\${escapeHtml(row.expected)}</code></td>
@@ -1197,9 +1336,40 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             </div>
           \`;
         });
-        defectsContainer.innerHTML = html;
+        defectsContainer.innerHTML = \`
+          <div class="group-card">
+            <div class="group-header" onclick="toggleGroupCollapse('defectsRoot', 'all')">
+              <div class="group-header-left">
+                <span class="status-badge fail" style="background-color: var(--danger-bg); color: var(--danger);">\${escapeHtml(isKo ? "결함 후보 목록" : "Defect Candidates List")}</span>
+                <span class="item-count-badge">\${Object.keys(grouped).length} \${isKo ? '개 대회' : 'tournaments'}</span>
+                <span class="item-count-badge">\${defectsList.length} \${isKo ? '건' : 'items'}</span>
+              </div>
+              <svg class="group-arrow-icon" id="defectsRoot-group-arrow-all" viewBox="0 0 24 24" style="transform: rotate(180deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+            </div>
+            <div class="group-body" id="defectsRoot-group-body-all">
+              <div class="group-body-inner" style="padding: 10px 0 0 0;">
+                \${html}
+              </div>
+            </div>
+          </div>
+        \`;
       } else {
-        defectsContainer.innerHTML = \`<div class="panel" style="padding: 20px; text-align: center; color: var(--text-muted);">\${labels.noDefects}</div>\`;
+        defectsContainer.innerHTML = \`
+          <div class="group-card">
+            <div class="group-header" onclick="toggleGroupCollapse('defectsRoot', 'all')">
+              <div class="group-header-left">
+                <span class="status-badge pass">\${escapeHtml(isKo ? "결함 후보 목록" : "Defect Candidates List")}</span>
+                <span class="item-count-badge">0 \${isKo ? '건' : 'items'}</span>
+              </div>
+              <svg class="group-arrow-icon" id="defectsRoot-group-arrow-all" viewBox="0 0 24 24" style="transform: rotate(180deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+            </div>
+            <div class="group-body" id="defectsRoot-group-body-all">
+              <div class="group-body-inner">
+                <div class="panel" style="padding: 20px; text-align: center; color: var(--text-muted);">\${labels.noDefects}</div>
+              </div>
+            </div>
+          </div>
+        \`;
       }
     }
 
@@ -1221,8 +1391,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       icon.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)';
     }
 
-    function toggleAccordion(tournamentName) {
-      const card = document.querySelector(\`.player-card[data-name="\${tournamentName}"]\`);
+    function toggleAccordion(tournamentKey) {
+      const card = document.querySelector(\`.player-card[data-key="\${tournamentKey}"]\`);
       if (!card) return;
       const content = card.querySelector('.accordion-content');
       const icon = card.querySelector('.arrow-icon');
@@ -1236,14 +1406,14 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         icon.style.transform = 'rotate(180deg)';
         
         // 서브 탭 초기화 연동
-        const activeTab = activeSubTabs[tournamentName] || 'summary';
-        setTimeout(() => switchSubTab(tournamentName, activeTab), 10);
+        const activeTab = activeSubTabs[tournamentKey] || 'summary';
+        setTimeout(() => switchSubTab(tournamentKey, activeTab), 10);
       }
     }
 
-    function switchSubTab(tournamentName, tabName) {
-      activeSubTabs[tournamentName] = tabName;
-      const card = document.querySelector(\`.player-card[data-name="\${tournamentName}"]\`);
+    function switchSubTab(tournamentKey, tabName) {
+      activeSubTabs[tournamentKey] = tabName;
+      const card = document.querySelector(\`.player-card[data-key="\${tournamentKey}"]\`);
       if (!card) return;
 
       card.querySelectorAll('.sub-tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -1263,27 +1433,27 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       }
 
       if (tabName === 'events') {
-        if (!eventPages[tournamentName]) eventPages[tournamentName] = 1;
-        renderTournamentEvents(tournamentName);
+        if (!eventPages[tournamentKey]) eventPages[tournamentKey] = 1;
+        renderTournamentEvents(tournamentKey);
       }
     }
 
-    function renderTournamentEvents(tName) {
-      const card = document.querySelector(\`.player-card[data-name="\${tName}"]\`);
+    function renderTournamentEvents(tKey) {
+      const card = document.querySelector(\`.player-card[data-key="\${tKey}"]\`);
       if (!card) return;
       const tbody = card.querySelector('.events-tbody');
       const pageInfo = card.querySelector('.events-page-info');
       const prevBtn = card.querySelector('.events-prev-btn');
       const nextBtn = card.querySelector('.events-next-btn');
 
-      const tObj = state.tournaments.find(t => t.seriesName === tName);
+      const tObj = state.tournaments.find(t => t.reportKey === tKey);
       if (!tObj) return;
 
       const events = tObj.events || [];
-      const searchQuery = (eventSearchQuery[tName] || '').toLowerCase();
+      const searchQuery = (eventSearchQuery[tKey] || '').toLowerCase();
       const filtered = events.filter(e => e.eventName.toLowerCase().includes(searchQuery));
 
-      const page = eventPages[tName] || 1;
+      const page = eventPages[tKey] || 1;
       const pageSize = 10;
       const totalPages = Math.ceil(filtered.length / pageSize) || 1;
       const startIndex = (page - 1) * pageSize;
@@ -1348,21 +1518,22 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       if (nextBtn) nextBtn.disabled = page === totalPages;
     }
 
-    function changeEventPage(tName, direction) {
-      let page = eventPages[tName] || 1;
-      const total = Math.ceil((state.tournaments.find(t => t.seriesName === tName)?.events || []).length / 10) || 1;
+    function changeEventPage(tKey, direction) {
+      let page = eventPages[tKey] || 1;
+      const total = Math.ceil((state.tournaments.find(t => t.reportKey === tKey)?.events || []).length / 10) || 1;
       page = Math.max(1, Math.min(total, page + direction));
-      eventPages[tName] = page;
-      renderTournamentEvents(tName);
+      eventPages[tKey] = page;
+      renderTournamentEvents(tKey);
     }
 
-    function searchEvents(tName, query) {
-      eventSearchQuery[tName] = query;
-      eventPages[tName] = 1;
-      renderTournamentEvents(tName);
+    function searchEvents(tKey, query) {
+      eventSearchQuery[tKey] = query;
+      eventPages[tKey] = 1;
+      renderTournamentEvents(tKey);
     }
 
     function buildTournamentCard(tObj) {
+      const tKey = tObj.reportKey;
       const hasDefects = tObj.defects && tObj.defects.length > 0;
       const statusText = formatStatus(tObj.status);
       const totalEvents = tObj.events?.length || 0;
@@ -1372,8 +1543,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       const isCaseA = tObj.mode === "Case A (Results)";
 
       return \`
-        <div class="player-card" data-status="\${tObj.status}" data-name="\${escapeHtml(tObj.seriesName)}">
-          <div class="player-header" onclick="toggleAccordion('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}')">
+        <div class="player-card" data-status="\${tObj.status}" data-key="\${escapeHtml(tKey)}" data-name="\${escapeHtml(tObj.seriesName)}">
+          <div class="player-header" onclick="toggleAccordion('\${escapeHtml(tKey)}')">
             <div class="player-info-left">
               <h3>\${highlightText(tObj.seriesName, state.searchQuery)} <span class="brand-badge" style="background:#1e3a8a; margin-left:8px;">\${escapeHtml(tObj.brand)}</span></h3>
               <div class="player-meta-info">
@@ -1395,8 +1566,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
             <div class="accordion-inner">
               <div class="player-body-wrapper" style="padding-top:20px;">
                 <div class="sub-tabs-container">
-                  <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
-                  <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', 'events')">\${isKo ? "2. 개별 이벤트 검증" : "2. Event Verification"}</button>
+                  <button class="sub-tab-btn" data-tab="summary" onclick="switchSubTab('\${escapeHtml(tKey)}', 'summary')">\${isKo ? "1. 요약 메트릭 검증" : "1. Summary Checks"}</button>
+                  <button class="sub-tab-btn" data-tab="events" onclick="switchSubTab('\${escapeHtml(tKey)}', 'events')">\${isKo ? "2. 개별 이벤트 검증" : "2. Event Verification"}</button>
                   <div class="tab-active-bar"></div>
                 </div>
 
@@ -1437,7 +1608,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                       <h4 style="margin:0; font-family:'Outfit',sans-serif;">Events List Verification (개별 이벤트 검증)</h4>
                       <div class="search-box" style="min-width:200px; flex:0 1 250px; margin:0;">
                         <svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
-                        <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', this.value)" style="padding-top:8px; padding-bottom:8px;">
+                        <input type="text" class="events-search-input" placeholder="\${labels.searchEventsPlaceholder}" oninput="searchEvents('\${escapeHtml(tKey)}', this.value)" style="padding-top:8px; padding-bottom:8px;">
                       </div>
                     </div>
 
@@ -1473,9 +1644,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                     </div>
 
                     <div class="pagination-bar">
-                      <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', -1)">◀ Prev</button>
+                      <button class="mini-btn events-prev-btn" onclick="changeEventPage('\${escapeHtml(tKey)}', -1)">◀ Prev</button>
                       <span class="events-page-info">1 / 1 (0)</span>
-                      <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(tObj.seriesName).replace(/'/g, "\\\\'")}', 1)">Next ▶</button>
+                      <button class="mini-btn events-next-btn" onclick="changeEventPage('\${escapeHtml(tKey)}', 1)">Next ▶</button>
                     </div>
                   </div>
                 </div>
@@ -1498,11 +1669,11 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       container.innerHTML = filtered.map(buildTournamentCard).join("");
 
       filtered.forEach(t => {
-        const card = document.querySelector(\`.player-card[data-name="\${t.seriesName}"]\`);
+        const card = document.querySelector(\`.player-card[data-key="\${t.reportKey}"]\`);
         const content = card?.querySelector('.accordion-content');
         if (content && content.classList.contains('open')) {
-          renderTournamentEvents(t.seriesName);
-          switchSubTab(t.seriesName, activeSubTabs[t.seriesName] || 'summary');
+          renderTournamentEvents(t.reportKey);
+          switchSubTab(t.reportKey, activeSubTabs[t.reportKey] || 'summary');
         }
       });
     }
@@ -1543,7 +1714,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       renderFilteredViews();
     });
 
-    function inspectTournament(tName) {
+    function inspectTournament(tKey) {
       searchInput.value = '';
       state.searchQuery = '';
       state.statusFilter = 'all';
@@ -1560,7 +1731,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       renderFilteredViews();
 
       setTimeout(() => {
-        const card = document.querySelector(\`.player-card[data-name="\${tName}"]\`);
+        const card = document.querySelector(\`.player-card[data-key="\${tKey}"]\`);
         if (card) {
           card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
@@ -1570,7 +1741,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
           if (!content.classList.contains('open')) {
             content.classList.add('open');
             icon.style.transform = 'rotate(180deg)';
-            renderTournamentEvents(tName);
+            renderTournamentEvents(tKey);
           }
 
           card.classList.remove('pulse-glow');
@@ -1737,11 +1908,11 @@ function runSelfTest() {
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
       runStatus: "complete",
-      totalTournaments: 3,
-      completedTournaments: 3,
+      totalTournaments: 4,
+      completedTournaments: 4,
       pendingTournaments: 0,
-      passedTournaments: 2,
-      failedTournaments: 1,
+      passedTournaments: 1,
+      failedTournaments: 3,
       totalDefects: 3
     },
     tournaments: [
@@ -1834,6 +2005,46 @@ function runSelfTest() {
             detail: "Chips count cannot be zero in schedule"
           }
         ]
+      },
+      {
+        brand: "CIRCUIT",
+        seriesName: "Mock Circuit Paris",
+        dateRange: "Dec 01 - Dec 12, 2026",
+        location: "Paris Casino Duplicate",
+        country: "France",
+        countryDisplay: "France",
+        url: "https://www.wsop.com/tournaments/mock-circuit-paris-duplicate/",
+        status: "fail",
+        mode: "Case A (Results)",
+        headerCheck: { status: "pass", errors: [] },
+        events: [
+          {
+            eventName: "Event #9: Duplicate Name Check",
+            date: "Dec 02",
+            buyIn: 600,
+            entries: 0,
+            entriesText: "0",
+            itm: 10,
+            itmText: "10",
+            prize: 50000,
+            prizeText: "$50,000",
+            winner: "Jane Doe",
+            payoutUrl: "/tournaments/result/mock-duplicate/",
+            status: "fail",
+            errors: ["Invalid Entries count: 0"],
+            crossCheck: { status: "pass", errors: [] }
+          }
+        ],
+        defects: [
+          {
+            type: "Event metadata invalid",
+            event: "Event #9: Duplicate Name Check",
+            item: "Entries",
+            expected: "> 0",
+            actual: "0",
+            detail: "Duplicate tournament name should still open the correct accordion card"
+          }
+        ]
       }
     ]
   };
@@ -1853,6 +2064,13 @@ function runSelfTest() {
     throw new Error("Self-test: verifyHeader failed to report brand mismatch");
   }
 
+  if (classifyTournamentEventMode(true) !== "Case A (Results)") {
+    throw new Error("Self-test: Result link should classify as Case A");
+  }
+  if (classifyTournamentEventMode(false) !== "Case B (Schedule)") {
+    throw new Error("Self-test: missing Result link should classify as Case B");
+  }
+
   const scheduleTest1 = validateCaseBEvent({
     date: "Oct 24",
     eventName: "Event #1",
@@ -1863,6 +2081,24 @@ function runSelfTest() {
     clockText: "30"
   }, { dateRange: "Oct 24 - Nov 04, 2026", year: "2026" });
   if (scheduleTest1.status !== "pass") throw new Error("Self-test: validateCaseBEvent failed on normal schedule");
+
+  const overlappingEventRangeTest = validateEventDateInTournamentRange(
+    "Jan 05 12:00 PM ~ Jan 06 12:00 PM",
+    "Jan 06 2025 - Jan 20 2025",
+    "2025"
+  );
+  if (overlappingEventRangeTest.status !== "pass") {
+    throw new Error("Self-test: event date range overlapping tournament start should pass");
+  }
+
+  const oneDayBoundaryDateTest = validateEventDateInTournamentRange(
+    "Feb 19 02:00 PM ~ Feb 19 02:00 PM",
+    "Feb 20 2025 - Mar 03 2025",
+    "2025"
+  );
+  if (oneDayBoundaryDateTest.status !== "warn") {
+    throw new Error("Self-test: one-day date boundary drift should warn");
+  }
 
   const scheduleTest2 = validateCaseBEvent({
     date: "Oct 24",
@@ -1949,14 +2185,16 @@ function runSelfTest() {
   const mockOut = "automation/output/wsop-tournament-crawler-self-test-data.json";
   const mockHtml = "automation/output/wsop-tournament-crawler-self-test-report.html";
   const mockCsv = "automation/output/wsop-tournament-crawler-self-test-defects.csv";
+  const mockEventsCsv = "automation/output/wsop-tournament-crawler-self-test-events.csv";
 
-  const mockArgs = { out: mockOut, html: mockHtml, defects: mockCsv };
+  const mockArgs = { out: mockOut, html: mockHtml, defects: mockCsv, csv: mockEventsCsv };
   const mockKoHtml = writeReportArtifacts(mockArgs, testReport);
 
   console.log(`Self-Test reports successfully written to:`);
   console.log(` - JSON: ${mockOut}`);
   console.log(` - HTML: ${mockHtml}`);
-  console.log(` - CSV:  ${mockCsv}`);
+  console.log(` - Events CSV:  ${mockEventsCsv}`);
+  console.log(` - Defects CSV: ${mockCsv}`);
   console.log("=== Self-Test Completed Successfully ===");
 }
 
@@ -1984,6 +2222,7 @@ Options:
   --self-test           Run offline validation logic self-tests.
   --out <path>          JSON report path.
   --html <path>         Korean HTML dashboard path.
+  --csv <path>          Flattened tournament/event CSV report path.
   --defects <path>      Defects list CSV path.
 `);
     return;
@@ -2177,22 +2416,18 @@ Options:
         });
       }
 
-      // 2. Classify event table type
+      // 2. Classify event table type by actual Result link presence
       const eventTable = detPage.locator("table").first();
       if (await eventTable.isVisible()) {
-        const tableHeaders = await eventTable.locator("th, td.header").allInnerTexts();
-        const headerText = tableHeaders.join(" | ");
-
-        // Detect Mode
-        const isCaseA = tableHeaders.some(h => /entries|prize|winner|payout/i.test(h));
-        const isCaseB = tableHeaders.some(h => /chips|clock|late reg/i.test(h));
+        const resultLinkCount = await eventTable.locator(RESULT_LINK_SELECTOR).count();
+        const isCaseA = resultLinkCount > 0;
 
         if (isCaseA) {
-          mode = "Case A (Results)";
+          mode = classifyTournamentEventMode(true);
           // Gather rows
           const rows = await eventTable.locator("tbody tr, tr").all();
           // The first row is headers if 'tbody' was not strictly defined, skip index 0 if header matches
-          const startIndex = (await rows[0].locator("th").count()) > 0 ? 1 : 0;
+          const startIndex = rows.length > 0 && (await rows[0].locator("th").count()) > 0 ? 1 : 0;
 
           let crossCheckCount = 0;
           for (let rIdx = startIndex; rIdx < rows.length; rIdx++) {
@@ -2209,8 +2444,8 @@ Options:
             const rawPrize = cells[5] || "";
             const rawWinner = cells[6] || "";
 
-            const payoutLink = rows[rIdx].locator("a[href*='/tournaments/result'], a[href*='/tournaments/results']").first();
-            const payoutHref = await payoutLink.isVisible() ? await payoutLink.getAttribute("href") : "";
+            const payoutLink = rows[rIdx].locator(RESULT_LINK_SELECTOR).first();
+            const payoutHref = (await payoutLink.count()) > 0 ? await payoutLink.getAttribute("href") : "";
 
             const eventObj = {
               eventName: normalizeText(rawEvent),
@@ -2340,10 +2575,10 @@ Options:
 
             events.push(eventObj);
           }
-        } else if (isCaseB) {
-          mode = "Case B (Schedule)";
+        } else {
+          mode = classifyTournamentEventMode(false);
           const rows = await eventTable.locator("tbody tr, tr").all();
-          const startIndex = (await rows[0].locator("th").count()) > 0 ? 1 : 0;
+          const startIndex = rows.length > 0 && (await rows[0].locator("th").count()) > 0 ? 1 : 0;
 
           for (let rIdx = startIndex; rIdx < rows.length; rIdx++) {
             const cells = await rows[rIdx].locator("td").allInnerTexts();
@@ -2398,9 +2633,6 @@ Options:
 
             events.push(eventObj);
           }
-        } else {
-          console.warn(`    [경고] 테이블 헤더가 Case A/B 유형 중 어느 쪽과도 매칭되지 않습니다: "${headerText}"`);
-          status = "warn";
         }
       } else {
         console.warn(`    [경고] 대회 상세 페이지 내에 테이블(table)이 존재하지 않습니다.`);
@@ -2458,6 +2690,7 @@ Options:
   console.log(`[완료] JSON 데이터 저장 완료: ${args.out}`);
   console.log(`[완료] 영문 HTML 리포트 저장 완료: ${args.html}`);
   console.log(`[완료] 국문 HTML 리포트 저장 완료: ${koreanHtml}`);
+  console.log(`[완료] 이벤트 CSV 저장 완료: ${args.csv}`);
   console.log(`[완료] 결함 CSV 저장 완료: ${args.defects}`);
 
   console.log(`\n=== 검증 최종 요약 ===`);

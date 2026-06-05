@@ -639,9 +639,10 @@ Generated HTML reports include a Brand Filter dropdown in the player directory c
 
 - **메인 목록-상세 헤더 검증**: 목록 카드 정보(이미지, 브랜드, 시리즈명, 시간, 장소, 국가)와 상세 페이지 비주얼 헤더(.kv-contents) 정보의 1:1 일치 여부 검증
 - **결과 유무에 따른 동적 케이스 분류 및 검증**:
-  - **Case A (결과가 있는 대회)**: 개별 이벤트 목록의 데이터(`Date`, `Event`, `Buy-in`, `Entries`, `ITM`, `Prize`, `Winner`) 포맷 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증, Payout 링크로 이동하여 우승자/참가자수/총상금 교차 정합성 검증
-  - **Case B (결과가 없는 대회 / 일정 전용)**: 일정 목록의 데이터(`Date`, `Event`, `Buy-in`, `Chips`, `Clock`, `Late Reg`) 유효성 및 누락 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증
+  - **Case A (Result가 존재하는 대회)**: 이벤트 테이블 안에 Result/Payout 링크가 1개 이상 존재하면 Case A로 분류합니다. 개별 이벤트 목록의 데이터(`Date`, `Event`, `Buy-in`, `Entries`, `ITM`, `Prize`, `Winner`) 포맷 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증, Payout 링크로 이동하여 우승자/참가자수/총상금 교차 정합성 검증
+  - **Case B (Result가 없는 대회)**: 이벤트 테이블 안에 Result/Payout 링크가 없으면 Case B로 분류합니다. 일정 목록의 데이터(`Date`, `Event`, `Buy-in`, `Chips`, `Clock`, `Late Reg`) 유효성 및 누락 검증, 이벤트 `Date`가 대회 기간 안에 포함되는지 검증
   - **온라인/Flight 일정 예외**: 일반 오프라인 일정은 `Chips`와 `Clock`이 양수여야 하지만, 이벤트명이 `Online` 또는 `Flight A/B/C` 등으로 식별되고 `Chips`/`Clock` 값이 `-`인 경우는 의도적 미표기 가능성으로 보고 Fail이 아닌 Warn으로 처리
+- **날짜 검증 기준**: 이벤트 날짜가 `Jan 05 ~ Jan 06`처럼 기간으로 표시되면 대회 기간과 하루라도 겹치는지 검증합니다. 이벤트 기간이 대회 기간과 겹치면 Pass이며, WSOP 원본 표기/시간대 차이로 보이는 1일 경계 이탈은 Fail이 아닌 Warn으로 처리합니다.
 
 ### 실행 방법
 
@@ -665,6 +666,26 @@ node automation/crawl_tournaments.mjs --year 2024 --brand CIRCUIT --limit 10
 # 오프라인 검증 로직 자체 테스트 (모크 데이터 기반)
 node automation/crawl_tournaments.mjs --self-test
 ```
+
+### CSV 리포트
+
+토너먼트 크롤러는 JSON 리포트와 함께 엑셀/Google Sheets에서 바로 열 수 있는 이벤트 단위 CSV를 생성합니다.
+
+- 기본 저장 위치: `automation/output/wsop-tournament-crawler-*-events.csv`
+- 직접 경로 지정: `--csv <path>`
+- 한 행은 `대회 1개 + 이벤트 1개` 기준입니다.
+- 이벤트가 수집되지 않은 대회도 대회 메타데이터 확인을 위해 1행으로 남깁니다.
+- 주요 컬럼: `tournament`, `tournamentStatus`, `mode`, `eventName`, `eventStatus`, `eventDate`, `buyIn`, `entries`, `itm`, `prize`, `winner`, `chips`, `clock`, `lateReg`, `payoutUrl`, `crossCheckStatus`, `errors`, `warnings`
+- 생성 타이밍: 시작 직후의 running 리포트, 각 대회 처리 후 갱신 리포트, `Ctrl+C` 중단 시 interrupted 리포트, 최종 complete 리포트 모두 같은 방식으로 `*-events.csv`를 남깁니다.
+
+### 결함 후보 목록 아코디언
+
+HTML 리포트의 결함 후보 목록은 목록이 많아도 확인하기 쉽도록 계층형 아코디언으로 표시합니다.
+
+- 1단계: 결함 후보 목록 전체
+- 2단계: 대회명
+- 3단계: 이벤트명 또는 대회 공통 메타데이터
+- 4단계: 결함 상세 결과 테이블
 
 주요 제한 옵션:
 
