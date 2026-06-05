@@ -539,6 +539,38 @@ body {
   gap: 10px 14px;
 }
 
+/* 플레이어 크롤러 레이아웃 순서 및 노출 설정 */
+.options-grid.mode-player .row-standingsonly { order: 1; }
+.options-grid.mode-player .row-profileonly { order: 2; }
+.options-grid.mode-player .row-season { order: 3; }
+.options-grid.mode-player .row-brand { order: 4; }
+.options-grid.mode-player .row-profile-season { order: 5; }
+.options-grid.mode-player .row-profile-brand { order: 6; }
+.options-grid.mode-player .row-auth { order: 7; }
+.options-grid.mode-player .row-limit { order: 8; }
+.options-grid.mode-player .row-concurrency { order: 9; }
+.options-grid.mode-player .row-reslimit { order: 10; }
+
+.options-grid.mode-player .row-year {
+  display: none !important;
+}
+
+/* 토너먼트 크롤러 레이아웃 순서 및 노출 설정 */
+.options-grid.mode-tournament .row-auth { order: 1; }
+.options-grid.mode-tournament .row-limit { order: 2; }
+.options-grid.mode-tournament .row-concurrency { order: 3; }
+.options-grid.mode-tournament .row-reslimit { order: 4; }
+.options-grid.mode-tournament .row-year { order: 5; grid-column: span 2; }
+
+.options-grid.mode-tournament .row-standingsonly,
+.options-grid.mode-tournament .row-profileonly,
+.options-grid.mode-tournament .row-season,
+.options-grid.mode-tournament .row-brand,
+.options-grid.mode-tournament .row-profile-season,
+.options-grid.mode-tournament .row-profile-brand {
+  display: none !important;
+}
+
 .option-row {
   display: flex;
   justify-content: space-between;

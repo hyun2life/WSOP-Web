@@ -787,8 +787,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     .group-header-left { display: flex; align-items: center; gap: 15px; }
     .item-count-badge { background: var(--bg-input); border: var(--card-border); color: var(--text-muted); font-size: 11px; padding: 3px 10px; border-radius: 99px; font-weight: 700; }
     .group-arrow-icon { width: 20px; height: 20px; fill: var(--text-muted); transition: transform 0.3s; }
-    .group-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.3s; }
-    .group-body.collapsed { grid-template-rows: 0fr; }
+    .group-body, .nested-group-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.3s; }
+    .group-body.collapsed, .nested-group-body.collapsed { grid-template-rows: 0fr; }
     .group-body-inner { overflow: hidden; }
 
     .brand-badge { background-color: #312e81; color: #c7d2fe; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 9999px; display: inline-block; }
@@ -1118,44 +1118,80 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       if (defectsList.length) {
         const grouped = {};
         defectsList.forEach(row => {
-          const type = row.type || "Other Defects";
-          if (!grouped[type]) grouped[type] = [];
-          grouped[type].push(row);
+          const tKey = row.tournament || "Unknown Tournament";
+          if (!grouped[tKey]) grouped[tKey] = {};
+          const eKey = row.event || (isKo ? "대회 공통 메타데이터" : "Tournament Metadata");
+          if (!grouped[tKey][eKey]) grouped[tKey][eKey] = [];
+          grouped[tKey][eKey].push(row);
         });
 
         let html = '';
-        Object.entries(grouped).forEach(([type, rows]) => {
-          const typeKey = type.replace(/[^a-zA-Z0-9]/g, '-');
+        let tIndex = 0;
+        Object.entries(grouped).forEach(([tournamentName, eventsObj]) => {
+          const typeKey = 't-' + tIndex;
+          tIndex++;
+          const totalRowsCount = Object.values(eventsObj).reduce((sum, arr) => sum + arr.length, 0);
+
+          let eventsHtml = '';
+          let eIndex = 0;
+          Object.entries(eventsObj).forEach(([eventName, rows]) => {
+            const eventKey = 'e-' + eIndex;
+            eIndex++;
+            eventsHtml += \`
+              <div class="nested-group-card" style="margin-top: 10px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 10px;">
+                <div class="nested-group-header" onclick="toggleNestedGroupCollapse('defects', '\${typeKey}', '\${eventKey}')" style="padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03);">
+                  <div style="font-size: 13px; font-weight: 600; color: var(--primary-hover); display: flex; align-items: center; gap: 8px;">
+                    <span style="border-left: 3px solid var(--primary); padding-left: 8px;">\${escapeHtml(eventName)}</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="item-count-badge" style="font-size: 10px; padding: 2px 8px;">\${rows.length} \${isKo ? '건' : 'items'}</span>
+                    <svg class="group-arrow-icon" id="defects-nested-arrow-\${typeKey}-\${eventKey}" viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: var(--text-muted); transition: transform 0.3s; transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+                  </div>
+                </div>
+                <div class="nested-group-body collapsed" id="defects-nested-body-\${typeKey}-\${eventKey}">
+                  <div class="group-body-inner">
+                    <div class="table-container" style="border-top: 1px solid var(--border); border-radius: 0;">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th class="nowrap" style="width: 150px;">\${isKo ? '결함 유형' : 'Defect Type'}</th>
+                            <th>Item</th>
+                            <th>Expected</th>
+                            <th>Actual</th>
+                            <th>Detail</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          \${rows.map(row => \`
+                            <tr class="clickable-row" onclick="inspectTournament('\${escapeHtml(row.tournament)}')">
+                              <td class="nowrap"><span class="status-badge fail" style="font-size:10px; padding:2px 6px;">\${escapeHtml(isKo ? formatKoreanDefectType(row.type) : row.type)}</span></td>
+                              <td>\${escapeHtml(row.item)}</td>
+                              <td><code>\${escapeHtml(row.expected)}</code></td>
+                              <td><code class="text-danger">\${escapeHtml(row.actual)}</code></td>
+                              <td style="max-width:350px; font-size:11px; color:var(--text-muted); word-break:break-all;">\${escapeHtml(row.detail || "")}</td>
+                            </tr>
+                          \`).join("")}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            \`;
+          });
+
           html += \`
             <div class="group-card">
               <div class="group-header" onclick="toggleGroupCollapse('defects', '\${typeKey}')">
                 <div class="group-header-left">
-                  <span class="status-badge fail">\${escapeHtml(isKo ? formatKoreanDefectType(type) : type)}</span>
-                  <span class="item-count-badge">\${rows.length} \${isKo ? '건' : 'items'}</span>
+                  <span class="status-badge fail" style="background-color: var(--danger-bg); color: var(--danger);">\${escapeHtml(tournamentName)}</span>
+                  <span class="item-count-badge">\${totalRowsCount} \${isKo ? '건' : 'items'}</span>
                 </div>
                 <svg class="group-arrow-icon" id="defects-group-arrow-\${typeKey}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
               </div>
               <div class="group-body collapsed" id="defects-group-body-\${typeKey}">
-                <div class="group-body-inner">
-                  <div class="table-container" style="border-top: 1px solid var(--border);">
-                    <table>
-                      <thead>
-                        <tr><th>Tournament</th><th>Event Context</th><th>Item</th><th>Expected</th><th>Actual</th><th>Detail</th></tr>
-                      </thead>
-                      <tbody>
-                        \${rows.map(row => \`
-                          <tr class="clickable-row" onclick="inspectTournament('\${escapeHtml(row.tournament)}')">
-                            <td class="nowrap"><strong>\${escapeHtml(row.tournament)}</strong></td>
-                            <td><code>\${escapeHtml(row.event)}</code></td>
-                            <td>\${escapeHtml(row.item)}</td>
-                            <td><code>\${escapeHtml(row.expected)}</code></td>
-                            <td><code class="text-danger">\${escapeHtml(row.actual)}</code></td>
-                            <td style="max-width:350px; font-size:11px; color:var(--text-muted); word-break:break-all;">\${escapeHtml(row.detail || "")}</td>
-                          </tr>
-                        \`).join("")}
-                      </tbody>
-                    </table>
-                  </div>
+                <div class="group-body-inner" style="padding: 10px 20px 20px 20px;">
+                  \${eventsHtml}
                 </div>
               </div>
             </div>
@@ -1170,6 +1206,15 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     function toggleGroupCollapse(type, groupKey) {
       const body = document.getElementById(\`\${type}-group-body-\${groupKey}\`);
       const icon = document.getElementById(\`\${type}-group-arrow-\${groupKey}\`);
+      if (!body || !icon) return;
+
+      const isCollapsed = body.classList.toggle('collapsed');
+      icon.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)';
+    }
+
+    function toggleNestedGroupCollapse(type, parentKey, eventKey) {
+      const body = document.getElementById(\`\${type}-nested-body-\${parentKey}-\${eventKey}\`);
+      const icon = document.getElementById(\`\${type}-nested-arrow-\${parentKey}-\${eventKey}\`);
       if (!body || !icon) return;
 
       const isCollapsed = body.classList.toggle('collapsed');

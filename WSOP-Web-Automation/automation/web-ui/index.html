@@ -108,7 +108,7 @@
               <div id="crawler-options" class="options-panel hidden">
                 <span class="options-panel-title">Crawler Options</span>
                 <div class="options-grid">
-                  <div class="option-row" id="opt-year-row" style="flex-wrap: wrap;">
+                  <div class="option-row row-year" id="opt-year-row" style="flex-wrap: wrap;">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-year-check" checked>
                       <span class="checkmark"></span>
@@ -118,7 +118,7 @@
                       <!-- JS로 렌더링 -->
                     </div>
                   </div>
-                  <div class="option-row" id="opt-season-row" style="flex-wrap: wrap;">
+                  <div class="option-row row-season" id="opt-season-row" style="flex-wrap: wrap;">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-season-check">
                       <span class="checkmark"></span>
@@ -128,7 +128,7 @@
                       <!-- JS로 렌더링 -->
                     </div>
                   </div>
-                  <div class="option-row">
+                  <div class="option-row row-limit">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-limit-check">
                       <span class="checkmark"></span>
@@ -136,7 +136,7 @@
                     </label>
                     <input type="number" id="opt-limit-input" value="50" min="1" disabled class="form-input">
                   </div>
-                  <div class="option-row">
+                  <div class="option-row row-auth">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-auth-check">
                       <span class="checkmark"></span>
@@ -144,7 +144,7 @@
                     </label>
                     <input type="number" id="opt-auth-input" value="300000" min="1000" disabled class="form-input">
                   </div>
-                  <div class="option-row">
+                  <div class="option-row row-concurrency">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-concurrency-check">
                       <span class="checkmark"></span>
@@ -152,7 +152,7 @@
                     </label>
                     <input type="number" id="opt-concurrency-input" value="10" min="1" disabled class="form-input">
                   </div>
-                  <div class="option-row">
+                  <div class="option-row row-reslimit">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-reslimit-check">
                       <span class="checkmark"></span>
@@ -160,7 +160,7 @@
                     </label>
                     <input type="number" id="opt-reslimit-input" value="0" min="0" disabled class="form-input">
                   </div>
-                  <div class="option-row" style="flex-wrap: wrap;">
+                  <div class="option-row row-brand" style="flex-wrap: wrap;">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-brand-check">
                       <span class="checkmark"></span>
@@ -188,7 +188,7 @@
                       <input type="text" id="custom-brand-input" placeholder="브랜드명 직접 입력 (예: Triton)" disabled class="form-input" style="width: 100%; font-size: 0.8rem; padding: 6px 10px; border-radius: 4px; height: 30px; text-align: left;">
                     </div>
                   </div>
-                  <div class="option-row" id="opt-profile-brand-row" style="flex-wrap: wrap;">
+                  <div class="option-row row-profile-brand" id="opt-profile-brand-row" style="flex-wrap: wrap;">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-profile-brand-check">
                       <span class="checkmark"></span>
@@ -216,7 +216,7 @@
                       <input type="text" id="custom-profile-brand-input" placeholder="프로필 브랜드명 직접 입력 (예: Triton)" disabled class="form-input" style="width: 100%; font-size: 0.8rem; padding: 6px 10px; border-radius: 4px; height: 30px; text-align: left;">
                     </div>
                   </div>
-                  <div class="option-row" id="opt-profile-season-row">
+                  <div class="option-row row-profile-season" id="opt-profile-season-row">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-profile-season-check">
                       <span class="checkmark"></span>
@@ -224,7 +224,7 @@
                     </label>
                     <input type="text" id="opt-profile-season-input" value="2024" disabled class="form-input" placeholder="Profile Season (eg. 2024)">
                   </div>
-                  <div class="option-row">
+                  <div class="option-row row-standingsonly">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-standingsonly-check">
                       <span class="checkmark"></span>
@@ -232,7 +232,7 @@
                     </label>
                     <input type="text" id="opt-standingsonly-input" value="true" style="display: none;">
                   </div>
-                  <div class="option-row">
+                  <div class="option-row row-profileonly">
                     <label class="custom-checkbox">
                       <input type="checkbox" id="opt-profileonly-check">
                       <span class="checkmark"></span>

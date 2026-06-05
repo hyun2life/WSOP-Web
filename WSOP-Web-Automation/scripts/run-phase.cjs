@@ -125,6 +125,16 @@ function runPhasePromise(phase, rawArgs) {
       env.UI = 'false';
 
       parseArgsToEnv(passthrough, env);
+
+      // Escape special characters for Windows batch files to prevent syntax crash
+      if (process.platform === 'win32') {
+        const keysToEscape = ['BRAND', 'SEASON', 'PROFILE_BRAND', 'PROFILE_SEASON', 'FROM_REPORT'];
+        keysToEscape.forEach((key) => {
+          if (env[key]) {
+            env[key] = env[key].replace(/([&|()<>^])/g, '^$1');
+          }
+        });
+      }
     } else if (phase.runnerType === 'node') {
       // Node script runner (e.g. for Standings Crawler)
       const scriptPath = phase.scriptPath;

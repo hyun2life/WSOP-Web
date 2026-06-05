@@ -570,20 +570,11 @@ document.addEventListener('DOMContentLoaded', () => {
     pwOptionsPanel.classList.toggle('hidden', phase.id === 'crawler' || phase.id === 'tournament-crawler' || phase.id === 'all');
 
     const isTournament = phase.id === 'tournament-crawler';
-    const yearRow = document.getElementById('opt-year-row');
-    if (yearRow) yearRow.classList.toggle('hidden', !isTournament);
-    const seasonRow = document.getElementById('opt-season-row');
-    if (seasonRow) seasonRow.classList.toggle('hidden', isTournament);
-
-    const profileBrandRow = document.getElementById('opt-profile-brand-row');
-    if (profileBrandRow) profileBrandRow.classList.toggle('hidden', isTournament);
-    const profileSeasonRow = document.getElementById('opt-profile-season-row');
-    if (profileSeasonRow) profileSeasonRow.classList.toggle('hidden', isTournament);
-
-    if (crawlerOpts.reslimit?.chk) crawlerOpts.reslimit.chk.closest('.option-row').classList.remove('hidden');
-    if (crawlerOpts.standingsOnly?.chk) crawlerOpts.standingsOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
-    if (crawlerOpts.profileOnly?.chk) crawlerOpts.profileOnly.chk.closest('.option-row').classList.toggle('hidden', isTournament);
-    if (crawlerOpts.brand?.chk) crawlerOpts.brand.chk.closest('.option-row').classList.toggle('hidden', isTournament);
+    const optionsGrid = crawlerOptionsPanel.querySelector('.options-grid');
+    if (optionsGrid) {
+      optionsGrid.classList.toggle('mode-tournament', isTournament);
+      optionsGrid.classList.toggle('mode-player', !isTournament);
+    }
 
     updateLabelsAndTooltips(isTournament);
 
