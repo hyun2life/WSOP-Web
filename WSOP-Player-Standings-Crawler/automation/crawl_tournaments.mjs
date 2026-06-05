@@ -651,6 +651,7 @@ function buildTournamentReport({
 }) {
   const totalTournaments = targetCards.length;
   const completedTournaments = tournamentsResult.length;
+  const warnedTournaments = tournamentsResult.filter(t => t?.status === "warn").length;
   return {
     summary: {
       year: args.year,
@@ -666,6 +667,7 @@ function buildTournamentReport({
       completedTournaments,
       pendingTournaments: Math.max(0, totalTournaments - completedTournaments),
       passedTournaments: passedCount,
+      warnedTournaments,
       failedTournaments: failedCount,
       totalDefects: totalDefectsCount
     },
@@ -685,7 +687,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
   const summary = report.summary;
   const eventLimit = summary.eventLimit ?? summary.resultLimit ?? 0;
   const runStatus = summary.runStatus || "complete";
-  const reportStatus = summary.failedTournaments > 0 ? "fail" : (runStatus !== "complete" ? "warn" : "pass");
+  const warnedTournaments = summary.warnedTournaments ?? (report.tournaments || []).filter(t => t.status === "warn").length;
+  const reportStatus = summary.failedTournaments > 0 ? "fail" : (warnedTournaments > 0 || runStatus !== "complete" ? "warn" : "pass");
   const completedTournaments = summary.completedTournaments ?? (report.tournaments || []).length;
   const totalTournaments = summary.totalTournaments ?? completedTournaments;
   const tList = report.tournaments || [];
@@ -962,6 +965,10 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="kpi-label">${isKo ? "통과한 대회" : "Passed"}</div>
         <div class="kpi-value" style="color: var(--success);">${summary.passedTournaments}</div>
       </div>
+      <div class="kpi-card" onclick="filterByStatus('warn')">
+        <div class="kpi-label">${isKo ? "주의 대회" : "Warned"}</div>
+        <div class="kpi-value" style="color: var(--warning);">${warnedTournaments}</div>
+      </div>
       <div class="kpi-card" onclick="filterByStatus('fail')">
         <div class="kpi-label">${isKo ? "실패한 대회" : "Failed"}</div>
         <div class="kpi-value" style="color: var(--danger);">${summary.failedTournaments}</div>
@@ -973,10 +980,6 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       <div class="kpi-card">
         <div class="kpi-label">${isKo ? "실행 연도" : "Target Year"}</div>
         <div class="kpi-value" style="font-size:16px; word-break:break-all; white-space:normal; line-height:1.3;">${escapeHtml(summary.year.replace(/[|_]/g, ', '))}</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">${isKo ? "브랜드 필터" : "Brand Filter"}</div>
-        <div class="kpi-value" style="font-size:22px;">${escapeHtml(summary.brand || (isKo ? "전체" : "All"))}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">${isKo ? "이벤트 검증 제한" : "Event Limit"}</div>
@@ -1031,8 +1034,8 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="panel-body">
           <div class="note">
             ${isKo ?
-      (summary.totalDefects > 0 ? "검사 결과 정합성 오류가 검출되었습니다. 아래 결함 후보 목록에서 원인을 확인하십시오." : "모든 대회 및 일정 데이터의 정합성 검증이 완료되었으며, 검출된 결함이 없습니다.") :
-      (summary.totalDefects > 0 ? "Some data integrity defects were detected. Please check the Defect Candidates List below." : "All checked tournaments passed verification. No defects found.")
+      (summary.totalDefects > 0 ? "검사 결과 정합성 오류가 검출되었습니다. 아래 결함 후보 목록에서 원인을 확인하십시오." : (warnedTournaments > 0 ? "실패 결함은 없지만 주의 항목이 있습니다. 날짜 범위 검증 불가 또는 경계일 차이 같은 검토 항목을 대회별 결과에서 확인하십시오." : "모든 대회 및 일정 데이터의 정합성 검증이 완료되었으며, 검출된 결함이 없습니다.")) :
+      (summary.totalDefects > 0 ? "Some data integrity defects were detected. Please check the Defect Candidates List below." : (warnedTournaments > 0 ? "No blocking defects were found, but warning items need review in the tournament detail cards." : "All checked tournaments passed verification. No defects found."))
     }
           </div>
         </div>
@@ -1071,6 +1074,11 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       <svg viewBox="0 0 24 24"><path d="M12,2L1,21H23M12,6L19.8,20H4.2M11,10V14H13V10M11,16V18H13V16"/></svg>
       ${escapeHtml(t.defectList)}
     </h2>
+    <div class="filter-controls" style="margin-bottom: 16px;">
+      <select class="select-dropdown" id="defect-category-filter" onchange="filterByDefectCategory(this.value)">
+        <option value="all">${isKo ? "모든 결함 카테고리" : "All Defect Categories"}</option>
+      </select>
+    </div>
     <div id="defects-grouped-container"></div>
 
     <div class="search-filter-bar" id="tournament-directory">
@@ -1086,6 +1094,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         <div class="filter-group">
           <button class="filter-btn active" data-filter="all" onclick="filterByStatus('all')">${escapeHtml(t.filterAll)}</button>
           <button class="filter-btn" data-filter="pass" onclick="filterByStatus('pass')">${escapeHtml(t.filterPass)}</button>
+          <button class="filter-btn" data-filter="warn" onclick="filterByStatus('warn')">${escapeHtml(t.filterWarn)}</button>
           <button class="filter-btn" data-filter="fail" onclick="filterByStatus('fail')">${escapeHtml(t.filterFail)}</button>
         </div>
         <select class="select-dropdown" id="brand-filter" onchange="filterByBrand(this.value)">
@@ -1139,6 +1148,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       statusFilter: 'all',
       brandFilter: 'all',
       modeFilter: 'all',
+      defectCategoryFilter: 'all',
       sortBy: 'name-asc'
     };
 
@@ -1242,6 +1252,15 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
         brandSelect.appendChild(opt);
       });
 
+      const defectCategorySelect = document.getElementById('defect-category-filter');
+      const defectCategories = [...new Set(allDefects.map(d => String(d.type || 'Unknown Defect')))].filter(Boolean).sort();
+      defectCategories.forEach(category => {
+        const opt = document.createElement('option');
+        opt.value = category;
+        opt.textContent = isKo ? formatKoreanDefectType(category) : category;
+        defectCategorySelect.appendChild(opt);
+      });
+
       renderInspectorLists();
     }
 
@@ -1249,34 +1268,48 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       const filtered = getFilteredAndSortedTournaments();
       const defectsContainer = document.getElementById('defects-grouped-container');
       
-      const defectsList = filtered.flatMap(t => (t.defects || []).map(d => ({ ...d, tournament: t.seriesName, tournamentKey: t.reportKey })));
+      let defectsList = filtered.flatMap(t => (t.defects || []).map(d => ({ ...d, tournament: t.seriesName, tournamentKey: t.reportKey })));
+      if (state.defectCategoryFilter !== 'all') {
+        defectsList = defectsList.filter(d => String(d.type || 'Unknown Defect') === state.defectCategoryFilter);
+      }
 
       if (defectsList.length) {
         const grouped = {};
         const groupLabels = {};
         defectsList.forEach(row => {
+          const categoryKey = row.type || "Unknown Defect";
+          if (!grouped[categoryKey]) grouped[categoryKey] = {};
           const tKey = row.tournamentKey || row.tournament || "Unknown Tournament";
-          if (!grouped[tKey]) grouped[tKey] = {};
+          if (!grouped[categoryKey][tKey]) grouped[categoryKey][tKey] = {};
           groupLabels[tKey] = row.tournament || "Unknown Tournament";
           const eKey = row.event || (isKo ? "대회 공통 메타데이터" : "Tournament Metadata");
-          if (!grouped[tKey][eKey]) grouped[tKey][eKey] = [];
-          grouped[tKey][eKey].push(row);
+          if (!grouped[categoryKey][tKey][eKey]) grouped[categoryKey][tKey][eKey] = [];
+          grouped[categoryKey][tKey][eKey].push(row);
         });
 
         let html = '';
-        let tIndex = 0;
-        Object.entries(grouped).forEach(([tournamentKey, eventsObj]) => {
-          const tournamentName = groupLabels[tournamentKey] || tournamentKey;
-          const typeKey = 't-' + tIndex;
-          tIndex++;
-          const totalRowsCount = Object.values(eventsObj).reduce((sum, arr) => sum + arr.length, 0);
+        let cIndex = 0;
+        Object.entries(grouped).forEach(([categoryName, tournamentsObj]) => {
+          const categoryKey = 'c-' + cIndex;
+          cIndex++;
+          const categoryRowsCount = Object.values(tournamentsObj).reduce((categorySum, eventsObj) => {
+            return categorySum + Object.values(eventsObj).reduce((sum, arr) => sum + arr.length, 0);
+          }, 0);
 
-          let eventsHtml = '';
-          let eIndex = 0;
-          Object.entries(eventsObj).forEach(([eventName, rows]) => {
-            const eventKey = 'e-' + eIndex;
-            eIndex++;
-            eventsHtml += \`
+          let tournamentsHtml = '';
+          let tIndex = 0;
+          Object.entries(tournamentsObj).forEach(([tournamentKey, eventsObj]) => {
+            const tournamentName = groupLabels[tournamentKey] || tournamentKey;
+            const typeKey = categoryKey + '-t-' + tIndex;
+            tIndex++;
+            const totalRowsCount = Object.values(eventsObj).reduce((sum, arr) => sum + arr.length, 0);
+
+            let eventsHtml = '';
+            let eIndex = 0;
+            Object.entries(eventsObj).forEach(([eventName, rows]) => {
+              const eventKey = 'e-' + eIndex;
+              eIndex++;
+              eventsHtml += \`
               <div class="nested-group-card" style="margin-top: 10px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 10px;">
                 <div class="nested-group-header" onclick="toggleNestedGroupCollapse('defects', '\${typeKey}', '\${eventKey}')" style="padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03);">
                   <div style="font-size: 13px; font-weight: 600; color: var(--primary-hover); display: flex; align-items: center; gap: 8px;">
@@ -1317,9 +1350,9 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                 </div>
               </div>
             \`;
-          });
+            });
 
-          html += \`
+            tournamentsHtml += \`
             <div class="group-card">
               <div class="group-header" onclick="toggleGroupCollapse('defects', '\${typeKey}')">
                 <div class="group-header-left">
@@ -1335,13 +1368,32 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
               </div>
             </div>
           \`;
+          });
+
+          html += \`
+            <div class="group-card">
+              <div class="group-header" onclick="toggleGroupCollapse('defectCategory', '\${categoryKey}')">
+                <div class="group-header-left">
+                  <span class="status-badge fail" style="background-color: var(--danger-bg); color: var(--danger);">\${escapeHtml(isKo ? formatKoreanDefectType(categoryName) : categoryName)}</span>
+                  <span class="item-count-badge">\${Object.keys(tournamentsObj).length} \${isKo ? '개 대회' : 'tournaments'}</span>
+                  <span class="item-count-badge">\${categoryRowsCount} \${isKo ? '건' : 'items'}</span>
+                </div>
+                <svg class="group-arrow-icon" id="defectCategory-group-arrow-\${categoryKey}" viewBox="0 0 24 24" style="transform: rotate(0deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+              </div>
+              <div class="group-body collapsed" id="defectCategory-group-body-\${categoryKey}">
+                <div class="group-body-inner" style="padding: 10px 20px 20px 20px;">
+                  \${tournamentsHtml}
+                </div>
+              </div>
+            </div>
+          \`;
         });
         defectsContainer.innerHTML = \`
           <div class="group-card">
             <div class="group-header" onclick="toggleGroupCollapse('defectsRoot', 'all')">
               <div class="group-header-left">
                 <span class="status-badge fail" style="background-color: var(--danger-bg); color: var(--danger);">\${escapeHtml(isKo ? "결함 후보 목록" : "Defect Candidates List")}</span>
-                <span class="item-count-badge">\${Object.keys(grouped).length} \${isKo ? '개 대회' : 'tournaments'}</span>
+                <span class="item-count-badge">\${Object.keys(grouped).length} \${isKo ? '개 카테고리' : 'categories'}</span>
                 <span class="item-count-badge">\${defectsList.length} \${isKo ? '건' : 'items'}</span>
               </div>
               <svg class="group-arrow-icon" id="defectsRoot-group-arrow-all" viewBox="0 0 24 24" style="transform: rotate(180deg);"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
@@ -1703,6 +1755,11 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       renderFilteredViews();
     }
 
+    function filterByDefectCategory(category) {
+      state.defectCategoryFilter = category;
+      renderInspectorLists();
+    }
+
     function sortTournaments(sortBy) {
       state.sortBy = sortBy;
       renderFilteredViews();
@@ -1720,6 +1777,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       state.statusFilter = 'all';
       state.brandFilter = 'all';
       state.modeFilter = 'all';
+      state.defectCategoryFilter = 'all';
 
       document.querySelectorAll('.filter-btn').forEach(btn => {
         if (btn.getAttribute('data-filter') === 'all') btn.classList.add('active');
@@ -1727,6 +1785,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       });
       document.getElementById('brand-filter').value = 'all';
       document.getElementById('mode-filter').value = 'all';
+      document.getElementById('defect-category-filter').value = 'all';
 
       renderFilteredViews();
 
@@ -1771,7 +1830,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
 
         const integrityData = {
           passed: ${summary.passedTournaments},
-          warned: state.tournaments.filter(t => t.status === 'warn').length,
+          warned: ${warnedTournaments},
           failed: ${summary.failedTournaments}
         };
 
@@ -1908,10 +1967,11 @@ function runSelfTest() {
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
       runStatus: "complete",
-      totalTournaments: 4,
-      completedTournaments: 4,
+      totalTournaments: 5,
+      completedTournaments: 5,
       pendingTournaments: 0,
       passedTournaments: 1,
+      warnedTournaments: 1,
       failedTournaments: 3,
       totalDefects: 3
     },
@@ -2045,6 +2105,35 @@ function runSelfTest() {
             detail: "Duplicate tournament name should still open the correct accordion card"
           }
         ]
+      },
+      {
+        brand: "CLUBGG",
+        seriesName: "Mock ClubGG Qualifiers",
+        dateRange: "ClubGG Qualifiers",
+        location: "Online",
+        country: "USA",
+        countryDisplay: "USA",
+        url: "https://www.wsop.com/tournaments/mock-clubgg-qualifiers/",
+        status: "warn",
+        mode: "Case B (Schedule)",
+        headerCheck: { status: "pass", errors: [] },
+        events: [
+          {
+            eventName: "Qualifier Event",
+            date: "Dec 01",
+            buyIn: 0,
+            buyInText: "$0",
+            chipsText: "30,000",
+            chips: 30000,
+            clockText: "30",
+            clock: 30,
+            lateRegText: "Level 6",
+            status: "warn",
+            errors: [],
+            warnings: ["Tournament date range could not be parsed: ClubGG Qualifiers"]
+          }
+        ],
+        defects: []
       }
     ]
   };
