@@ -1219,6 +1219,18 @@ function deduplicateComparisonEvents(events) {
   return { uniqueEvents, duplicateEvents };
 }
 
+function duplicateEventEvidence(events, limit = 5) {
+  const { duplicateEvents } = deduplicateComparisonEvents(events || []);
+  return duplicateEvents.slice(0, limit).map((event) => ({
+    eventName: event.eventName,
+    date: event.date,
+    rank: event.rank,
+    earnings: event.earnings,
+    resultUrl: event.resultUrl || event.disabledResultUrl || "",
+    rowText: event.rowText
+  }));
+}
+
 function expectedCashesCount(summary) {
   const cashes = summary?.cashes;
   return Number.isFinite(cashes) && cashes > 0 ? cashes : null;
@@ -2993,6 +3005,9 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   } else if (expected && expansion.stoppedReason === "not-started") {
     expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : (expected && events.length < expected ? "load-more-not-found" : "complete");
   }
+  expansion.finalVisibleRows = visibleEvents.length;
+  expansion.renderedDuplicateRows = deduplicateComparisonEvents(visibleEvents).duplicateEvents.length;
+  expansion.renderedDuplicateSamples = duplicateEventEvidence(visibleEvents);
 
   return { events, expansion };
 }
@@ -3078,6 +3093,9 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
     check.duplicates = selectedVariant.name.includes("deduped") ? dedupedTabEvents.duplicateEvents.length : 0;
     check.rawRows = tabEvents.length;
     check.comparableRows = rawComparableTabEvents.length;
+    check.renderedRows = expansion.finalVisibleRows ?? tabEvents.length;
+    check.renderedDuplicateRows = expansion.renderedDuplicateRows || 0;
+    check.renderedDuplicateSamples = expansion.renderedDuplicateSamples || [];
     check.countStrategy = selectedVariant.name;
     const detailParts = [
       `${check.selectedTab} tab rows=${check.actual}`,
@@ -3085,6 +3103,15 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
     ];
     if (selectedVariant.name !== "raw") detailParts.push(`strategy=${selectedVariant.name}`);
     if (check.duplicates) detailParts.push(`duplicates ignored=${check.duplicates}`);
+    if (check.renderedRows !== check.rawRows) detailParts.push(`rendered=${check.renderedRows}`);
+    if (check.renderedDuplicateRows) {
+      const duplicateLabels = check.renderedDuplicateSamples
+        .map((event) => [event.eventName, event.date, event.rank ? `rank ${event.rank}` : ""].filter(Boolean).join(" / "))
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(" | ");
+      detailParts.push(`rendered duplicates=${check.renderedDuplicateRows}${duplicateLabels ? ` (${duplicateLabels})` : ""}`);
+    }
     if (selectedVariant.skippedCount) detailParts.push(`disabled skipped=${selectedVariant.skippedCount}`);
     if (selectedVariant.name !== "raw" && check.rawRows !== check.actual) detailParts.push(`raw=${check.rawRows}`);
     if (selectedVariant.name === "all-tab-conditional-fallback") detailParts.push(`fallbackFromAll=${dedupedAllTabConditionalEvents.uniqueEvents.length}`);
@@ -6883,6 +6910,10 @@ function runSelfTest() {
   const dedupedCalculated = calculateFromEvents(dedupedSplit.comparisonEvents);
   if (deduped.duplicateEvents.length !== 1 || dedupedCalculated.titles !== 3 || dedupedCalculated.finalTables !== 4 || dedupedCalculated.cashes !== 5) {
     throw new Error("Duplicate event rows should be removed before applying profile Cashes overflow");
+  }
+  const duplicateEvidence = duplicateEventEvidence(pauliusLikeEvents);
+  if (duplicateEvidence.length !== 1 || !/Alternate label/i.test(duplicateEvidence[0].eventName)) {
+    throw new Error("Duplicate event evidence should expose the duplicated rendered row for report review");
   }
   const sameDateRankPrizeA = normalizeEvent({ rowIndex: 10, text: "Distinct Event A #9 $10,000 Result", cells: ["Distinct Event A", "#9", "$10,000"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/a", hasResultControl: true });
   sameDateRankPrizeA.date = "Jan 01 2024";
