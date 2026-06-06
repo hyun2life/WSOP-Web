@@ -517,6 +517,8 @@ function renderDashboard(report, isKo, pastReports = []) {
       </div>
     </section>
 
+    ${renderReportStepGuide(report.suite, isKo)}
+
     ${playerCoverage ? renderPlayerPresentationCoverage(playerCoverage, t) : ''}
 
     <section class="panel">
@@ -774,6 +776,34 @@ function renderEmptyPanel(title, body) {
   return `<section class="panel"><h2><svg viewBox="0 0 24 24" style="fill: var(--success); width: 20px; height: 20px; flex-shrink: 0;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>${escapeHtml(title)}</h2><div class="panel-body"><div class="note">${escapeHtml(body)}</div></div></section>`;
 }
 
+function renderReportStepGuide(suite, isKo) {
+  const guide = getReportStepGuide(suite, isKo);
+  if (!guide) return '';
+
+  return `<section class="panel">
+    <h2><svg viewBox="0 0 24 24" style="fill: var(--primary-hover); width: 20px; height: 20px; flex-shrink: 0;"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h12v2H3v-2z"/></svg>${escapeHtml(guide.title)}</h2>
+    <div class="panel-body">
+      <div class="note" style="margin-bottom:14px;">${escapeHtml(guide.note)}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>${escapeHtml(isKo ? '순서' : 'Step')}</th>
+            <th>${escapeHtml(isKo ? '무엇을 하는가' : 'What It Does')}</th>
+            <th>${escapeHtml(isKo ? '리포트에서 확인할 것' : 'What To Check In Report')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${guide.steps.map((step, index) => `<tr>
+            <td class="nowrap"><strong>${index + 1}</strong></td>
+            <td>${escapeHtml(step.action)}</td>
+            <td>${escapeHtml(step.check)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </section>`;
+}
+
 function renderSuite(suite, items, t) {
   const failed = items.filter((item) => ['failed', 'timedOut', 'interrupted'].includes(item.status)).length;
   const skipped = items.filter((item) => item.status === 'skipped').length;
@@ -832,7 +862,7 @@ function renderTestStepsKo(item) {
   if (!steps || steps.length === 0) return '';
   return `
     <div class="test-steps-ko" style="margin-top: 8px; padding: 8px 12px; background: rgba(255,255,255,0.02); border-left: 3px solid var(--primary-hover); border-radius: 4px; font-size: 12px;">
-      <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 4px; font-size: 11px;">[상세 검증 시나리오]</div>
+      <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 4px; font-size: 11px;">[Playwright 실행 행동]</div>
       <ol style="margin: 0; padding-left: 18px; color: var(--text-muted); line-height: 1.6;">
         ${steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}
       </ol>
@@ -845,7 +875,7 @@ function renderTestStepsEn(item) {
   if (!steps || steps.length === 0) return '';
   return `
     <div class="test-steps-en" style="margin-top: 8px; padding: 8px 12px; background: rgba(255,255,255,0.02); border-left: 3px solid var(--primary-hover); border-radius: 4px; font-size: 12px;">
-      <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 4px; font-size: 11px;">[Detailed Verification Steps]</div>
+      <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 4px; font-size: 11px;">[Playwright Actions]</div>
       <ol style="margin: 0; padding-left: 18px; color: var(--text-muted); line-height: 1.6;">
         ${steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}
       </ol>
@@ -853,9 +883,147 @@ function renderTestStepsEn(item) {
   `;
 }
 
+function getReportStepGuide(suite = '', isKo = true) {
+  const key = inferReportSuiteKey(suite);
+  const ko = {
+    smoke: {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 1은 Playwright가 공개 페이지를 직접 열고, 핵심 UI와 콘솔/링크 상태를 빠르게 확인한 결과입니다.',
+      steps: [
+        { action: 'Playwright가 대상 공개 URL로 이동합니다.', check: '페이지가 정상 응답하고 기본 렌더링이 끝났는지 확인합니다.' },
+        { action: 'Playwright가 핵심 텍스트와 주요 UI locator를 찾습니다.', check: '홈, 스케줄, 스탠딩, 검색, 뉴스 등 페이지별 핵심 영역이 보이는지 확인합니다.' },
+        { action: 'Playwright가 상단 메뉴 또는 주요 링크를 클릭합니다.', check: '클릭 후 브라우저 URL과 화면 제목이 기대 페이지와 맞는지 확인합니다.' },
+        { action: 'Playwright가 console 이벤트를 수집합니다.', check: '알려진 외부 스크립트 소음을 제외한 치명적인 JavaScript 오류가 있는지 확인합니다.' },
+        { action: 'Playwright/API 요청으로 내부 링크 샘플을 확인합니다.', check: '샘플 링크가 400 이상 응답으로 깨지지 않는지 확인합니다.' }
+      ]
+    },
+    functional: {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 2는 Playwright가 사용자가 실제로 할 법한 탐색 흐름을 클릭/입력 중심으로 재현한 결과입니다.',
+      steps: [
+        { action: 'Playwright가 Tournament Schedule 화면을 열고 필터/목록을 조작합니다.', check: '필터 조작 후 목록이 유지되고 상세 페이지로 이동 가능한지 확인합니다.' },
+        { action: 'Playwright가 Player Search 입력창에 선수명을 입력하거나 추천 선수를 선택합니다.', check: '검색 결과 또는 자동완성에서 올바른 프로필로 이동하는지 확인합니다.' },
+        { action: 'Playwright가 Player Standings의 랭킹 row에서 선수 링크를 클릭합니다.', check: '선수 프로필 페이지가 열리고 대상 선수 정보가 보이는지 확인합니다.' },
+        { action: 'Playwright가 News 목록의 첫 기사 링크를 클릭합니다.', check: '상세 기사 페이지에서 제목과 본문이 로드되는지 확인합니다.' },
+        { action: 'Playwright가 각 흐름의 실패 지점과 첨부 자료를 저장합니다.', check: '어느 클릭/입력 단계에서 실패했는지 리포트에서 확인합니다.' }
+      ]
+    },
+    'player-presentation': {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 3은 Playwright가 standings-only 대상자를 화면에서 찾아, 선수 표현 UI가 깨지지 않았는지 확인한 결과입니다.',
+      steps: [
+        { action: 'Playwright 실행 전에 standings-only 크롤러 대상 JSON을 준비합니다.', check: '리포트의 대상 선수 수와 카테고리가 비어 있지 않은지 확인합니다.' },
+        { action: 'Playwright가 Standings 화면에서 선수 row locator를 찾습니다.', check: '이름, rank, 프로필 링크가 화면에 표시되는지 확인합니다.' },
+        { action: 'Playwright가 국가/국기와 이미지 후보 locator를 확인합니다.', check: '국가 표시나 이미지가 누락되었는지, 환경 차이 warning인지 확인합니다.' },
+        { action: 'Playwright가 Player Search에서 선수 검색/프로필 이동을 수행합니다.', check: '검색 결과가 대상 선수 프로필로 연결되는지 확인합니다.' },
+        { action: 'Playwright가 HOF, POY, Legend 특수 프로필을 직접 엽니다.', check: '특수 페이지 신호나 표시 마크가 보이는지 확인합니다.' }
+      ]
+    },
+    'search-filter-sort': {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 4는 Playwright가 검색어 입력, 탭 전환, 필터 선택, 정렬, 페이지 이동을 실제 조작한 결과입니다.',
+      steps: [
+        { action: 'Playwright가 Player Search 입력창에 다양한 검색어를 입력합니다.', check: '소문자, 부분 검색, 공백, 결과 없음, 비영문 검색이 화면을 깨뜨리지 않는지 확인합니다.' },
+        { action: 'Playwright가 검색 탭과 섹션 버튼을 클릭합니다.', check: 'Trending, Winners, POY, Hall of Fame 영역 전환이 정상인지 확인합니다.' },
+        { action: 'Playwright가 Standings 카테고리와 브랜드/필터 UI를 조작합니다.', check: '필터 적용 뒤 목록이 정상 갱신되는지 확인합니다.' },
+        { action: 'Playwright가 정렬 컬럼, pagination, Load More를 클릭합니다.', check: '목록이 멈추거나 페이지 수가 비정상 증가하지 않는지 확인합니다.' },
+        { action: 'Playwright가 no-result 상태와 로딩 상태를 관찰합니다.', check: '빈 결과가 정상 UI로 표시되는지, selector 오류와 구분합니다.' }
+      ]
+    },
+    'result-detail': {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 5는 Playwright가 프로필 결과 row에서 Result 상세 페이지로 이동하고 다시 프로필로 돌아오는 링크 흐름을 확인한 결과입니다.',
+      steps: [
+        { action: 'Playwright가 선수 프로필 페이지를 엽니다.', check: 'Results 목록과 대상 row가 보이는지 확인합니다.' },
+        { action: 'Playwright가 프로필 Results row의 Result 링크를 클릭합니다.', check: 'Result 상세 페이지가 404/5xx 없이 로드되는지 확인합니다.' },
+        { action: 'Playwright가 상세 페이지의 결과 테이블 locator를 찾습니다.', check: '선수명, 순위, 상금 같은 핵심 셀이 보이는지 확인합니다.' },
+        { action: 'Playwright가 상세 페이지의 선수 링크를 클릭합니다.', check: '올바른 선수 프로필로 되돌아가는지 확인합니다.' },
+        { action: 'Playwright가 링크 실패와 데이터 미노출을 분리해 기록합니다.', check: '라우팅 문제인지 row 탐색 문제인지 리포트 상세를 확인합니다.' }
+      ]
+    },
+    'data-integrity': {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 6은 Playwright가 화면 값을 읽고, fixture 또는 crawler snapshot 같은 기준 데이터와 비교한 결과입니다.',
+      steps: [
+        { action: 'Playwright가 기준 데이터 파일 또는 crawler snapshot을 로드합니다.', check: 'expected 데이터가 준비되었는지 확인합니다.' },
+        { action: 'Playwright가 Standings/Profile/Result 화면을 열고 값을 추출합니다.', check: '비교 대상 텍스트와 숫자가 실제 UI에서 읽혔는지 확인합니다.' },
+        { action: 'Playwright가 playerId, onepassId, profile URL 매핑을 비교합니다.', check: '대상 선수가 서로 다른 사람으로 매핑되지 않았는지 확인합니다.' },
+        { action: 'Playwright가 표시값과 기준값을 비교합니다.', check: 'Bracelets, Rings, Earnings, Cashes 등 expected/actual 차이를 확인합니다.' },
+        { action: 'Playwright가 stale fixture 가능성과 실제 mismatch를 구분해 기록합니다.', check: '데이터 갱신 필요인지 제품 오류인지 리포트 상세를 확인합니다.' }
+      ]
+    },
+    'performance-stability': {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 7은 Playwright가 주요 흐름을 반복 실행하면서 로딩 시간, 느린 요청, 실패 요청을 측정한 결과입니다.',
+      steps: [
+        { action: 'Playwright가 주요 페이지를 열고 load timing을 측정합니다.', check: '페이지 로드 시간이 warning/fail 기준을 넘는지 확인합니다.' },
+        { action: 'Playwright가 Standings to Profile, Search to Profile 같은 흐름을 실행합니다.', check: '클릭/입력 후 다음 화면까지 걸린 시간을 확인합니다.' },
+        { action: 'Playwright가 request/response 이벤트를 감시합니다.', check: '느린 API, 깨진 이미지, 외부 스크립트 실패를 확인합니다.' },
+        { action: 'Playwright가 같은 흐름을 반복 실행합니다.', check: '반복 중 flaky failure 또는 누적 지연이 발생하는지 확인합니다.' },
+        { action: 'Playwright가 제품 경로와 서드파티 경로를 분리해 기록합니다.', check: 'release blocker인지 review item인지 확인합니다.' }
+      ]
+    },
+    'visual-regression': {
+      title: 'Playwright가 실행한 테스트 스텝',
+      note: 'Phase 8은 Playwright가 대상 화면을 캡처하고 baseline 이미지와 비교한 결과입니다. baseline 갱신은 자동으로 하지 않습니다.',
+      steps: [
+        { action: 'Playwright가 정해진 viewport로 대상 페이지를 엽니다.', check: 'desktop/mobile 조건으로 화면이 준비되었는지 확인합니다.' },
+        { action: 'Playwright가 동적 영역을 마스킹한 뒤 screenshot을 찍습니다.', check: '광고, 날짜, 계속 변하는 영역이 비교를 방해하지 않는지 확인합니다.' },
+        { action: 'Playwright가 현재 screenshot과 baseline을 비교합니다.', check: '허용 오차를 넘는 픽셀 차이가 있는지 확인합니다.' },
+        { action: 'Playwright가 diff attachment를 저장합니다.', check: '차이가 실제 깨짐인지 의도된 UI 변경인지 확인합니다.' },
+        { action: 'Playwright는 baseline update를 수행하지 않습니다.', check: 'baseline missing은 제품 버그가 아니라 관리 항목인지 확인합니다.' }
+      ]
+    }
+  };
+
+  const en = {};
+  for (const [suiteKey, guide] of Object.entries(ko)) {
+    en[suiteKey] = {
+      title: 'Playwright Actions In This Report',
+      note: 'This section explains the browser actions Playwright performed before producing the report.',
+      steps: guide.steps.map((step) => ({
+        action: step.action
+          .replace(/^Playwright가 /, 'Playwright ')
+          .replace(/합니다\.$/, '.')
+          .replace(/확인합니다\.$/, 'checks.'),
+        check: step.check
+      }))
+    };
+  }
+
+  return (isKo ? ko : en)[key] || null;
+}
+
+function inferReportSuiteKey(value = '') {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('smoke') || text.includes('phase 1')) return 'smoke';
+  if (text.includes('functional') || text.includes('phase 2')) return 'functional';
+  if (text.includes('player-presentation') || text.includes('player presentation') || text.includes('phase 3')) return 'player-presentation';
+  if (text.includes('search-filter-sort') || text.includes('search') || text.includes('phase 4')) return 'search-filter-sort';
+  if (text.includes('result-detail') || text.includes('result detail') || text.includes('phase 5')) return 'result-detail';
+  if (text.includes('data-integrity') || text.includes('data integrity') || text.includes('phase 6')) return 'data-integrity';
+  if (text.includes('performance-stability') || text.includes('performance') || text.includes('phase 7')) return 'performance-stability';
+  if (text.includes('visual-regression') || text.includes('visual') || text.includes('phase 8')) return 'visual-regression';
+  if (text.includes('regression') || text.includes('phase 9')) return 'regression';
+  return '';
+}
+
+function getStandardTestSteps(title = '', suiteTitle = '', isKo = true) {
+  const suiteKey = inferReportSuiteKey(`${suiteTitle} ${title}`);
+  const guide = getReportStepGuide(suiteKey, isKo);
+  if (!guide) return [];
+  const target = title || (isKo ? '대상 테스트' : 'target test');
+  return [
+    isKo ? `Playwright 테스트 케이스: ${target}` : `Playwright test case: ${target}`,
+    ...guide.steps.map((step) => `${step.action} ${step.check}`)
+  ];
+}
+
 function getTestStepsEn(title = '', suiteTitle = '') {
   const t = title.trim();
   const s = suiteTitle.toLowerCase();
+  const standardSteps = getStandardTestSteps(t, suiteTitle, false);
+  if (standardSteps.length) return standardSteps;
 
   const pageMap = {
     'home': 'Home page',
@@ -1059,6 +1227,8 @@ function getTestStepsEn(title = '', suiteTitle = '') {
 function getTestStepsKo(title = '', suiteTitle = '') {
   const t = title.trim();
   const s = suiteTitle.toLowerCase();
+  const standardSteps = getStandardTestSteps(t, suiteTitle, true);
+  if (standardSteps.length) return standardSteps;
 
   // 대상 페이지명 추출 및 한글화 맵
   const pageMap = {

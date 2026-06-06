@@ -4873,7 +4873,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     resultPages: isKo ? "Result 페이지 확인" : "Result Pages Checked",
     defectCandidates: isKo ? "결함 후보" : "Defect Candidates",
     reviewNotesList: isKo ? "주의/건너뜀 목록" : "Warnings / Skipped Checks",
-    validationRules: isKo ? "검증 규칙 및 기준" : "Validation Rules",
+    validationRules: isKo ? "Playwright 크롤러 실행 스텝" : "Playwright Crawler Steps",
     ruleItem: isKo ? "항목" : "Item",
     ruleRule: isKo ? "규칙" : "Rule",
     coverage: isKo ? "Standings 수집 범위" : "Standings Coverage",
@@ -4914,31 +4914,25 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     backToSimple: isKo ? "기존 단순 리포트 보기" : "View Simple Report",
     searchEventsPlaceholder: isKo ? "이벤트명 검색..." : "Search events...",
     rulesData: isKo ? [
-      ["Standings/Profile", "All-Time Earnings - Men/Women의 Earnings, All-Time Bracelets의 Bracelets, All-Time Rings의 Rings를 프로필 요약값과 비교합니다."],
-      ["Standings 카테고리", `${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}에서 상위 선수를 수집합니다.`],
-      ["Title", "프로필 요약값을 기준으로 Title 전용 탭의 표시 row 수를 비교합니다. ALL 탭 계산값은 참고값으로 남깁니다."],
-      ["Bracelets Badge", "뱃지의 표시 개수를 프로필 상단 Bracelets 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
-      ["Rings Badge", "뱃지의 표시 개수를 프로필 상단 Rings 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
-      ["Additional Badge", "GGPoker/WPT 등 추가 뱃지는 기존 브랜드/Profile Brand 필터 범위에서 ALL 탭의 1위 row 수와 UI 뱃지 수를 비교합니다."],
-      ["Final Tables", "프로필 요약값을 기준으로 Final Tables 전용 탭의 표시 row 수를 비교합니다. ALL 탭 계산값은 참고값으로 남깁니다."],
-      ["Cashes", "Load more로 펼친 ALL 탭 row를 프로필 Cashes와 비교합니다. 프로필 Cashes까지 수집하지 못하면 수집 미완료 주의로 표시합니다."],
-      ["Total Earnings", "프로필 Total Earnings와 ALL 탭 계산 합계가 다르면 환율/통화/원본값 차이 가능성이 있어 주의로 표시하고 실패 집계에서는 제외합니다."],
-      ["Profile tabs", "Title, Bracelets, Rings, Final Tables 탭을 눌러 표시 row 수와 프로필 요약값을 비교합니다."],
-      ["Country flag", "Standings, Profile, Result에서 수집 가능한 국기 이미지의 국가코드만 비교합니다. 코드 누락 또는 코드 불일치는 실패가 아닌 경미 이슈로 표시합니다."],
-      ["Result", "Result 페이지를 열어 최종 결과표에서 No, 선수명, 상금이 모두 정확히 맞는지 확인합니다."]
+      ["1. Standings 화면 열기", `Playwright가 Player Standings 화면을 열고 ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")} 카테고리에서 대상 선수 row를 수집합니다.`],
+      ["2. 브랜드/시즌 필터 적용", "설정된 Brand, Season, Profile Brand 값이 있으면 Playwright가 화면 필터를 적용한 뒤 실제 표시 row를 다시 읽습니다."],
+      ["3. 선수 프로필 이동", "Playwright가 수집된 선수 링크를 열고 프로필 상단 요약값, Badge, 국가/국기, 탭 영역을 읽습니다."],
+      ["4. ALL 탭 펼치기", "Playwright가 Load More를 설정된 횟수까지 클릭해 ALL 탭 row를 가능한 범위까지 펼칩니다."],
+      ["5. 전용 탭 클릭", "Playwright가 Title, Bracelets, Rings, Final Tables 탭을 클릭하고 화면에 렌더링된 row 수를 프로필 요약값과 비교합니다."],
+      ["6. Badge count 확인", "Bracelets/Rings 및 추가 Badge가 있으면 Playwright가 UI Badge 수와 브랜드 필터 범위의 ALL 탭 1위 row 수를 비교합니다. Badge가 없으면 skip으로 남깁니다."],
+      ["7. 중복 row 표시", "같은 이벤트 row가 화면에 중복 렌더링되면 rendered duplicates로 sample을 남깁니다. 이 항목은 숨기지 않고 오류 후보로 확인합니다."],
+      ["8. Result 상세 확인", "기본 모드에서는 Playwright가 Result 페이지를 열어 No, 선수명, 상금이 맞는지 확인합니다. profile-only/standings-only에서는 이 단계를 생략합니다."],
+      ["9. 리포트 생성", "Playwright가 수집한 HTML/JSON/CSV 결과를 저장하고 mismatch, missing, skipped, duplicate evidence를 리포트에 표시합니다."]
     ] : [
-      ["Standings categories", `Collect top players from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
-      ["Standings/Profile", "Compare All-Time Earnings - Men/Women Earnings, All-Time Bracelets Bracelets, and All-Time Rings Rings against the profile summary values."],
-      ["Title", "Compare the Title profile tab visible row count against the profile summary value. Keep the ALL-tab calculated value as reference only."],
-      ["Bracelets Badge", "Compare the displayed count with the profile Bracelets value, and report mismatches as defect candidates."],
-      ["Rings Badge", "Compare the displayed count with the profile Rings value, and report mismatches as defect candidates."],
-      ["Additional Badge", "For GGPoker/WPT/etc. badges, compare the UI badge count with ALL-tab first-place rows under the existing Brand/Profile Brand filter scope."],
-      ["Final Tables", "Compare the Final Tables profile tab visible row count against the profile summary value. Keep the ALL-tab calculated value as reference only."],
-      ["Cashes", "Compare ALL-tab rows against profile Cashes. If collection stops before the profile Cashes count, mark it as an incomplete-collection warning."],
-      ["Total Earnings", "If profile Total Earnings differs from the ALL-tab calculated total, mark it as Warn because currency/rate/source differences can occur, and exclude it from failure totals."],
-      ["Profile tabs", "Click Title, Bracelets, Rings, and Final Tables tabs and compare visible row counts with profile stats."],
-      ["Country flag", "Compare only country codes from flag images across Standings, Profile, and Result when available. Missing codes and code mismatches are reported as Minor, not Fail."],
-      ["Result", "Open Results and verify that No, Player, and Earnings all match exactly."]
+      ["1. Open Standings", `Playwright opens Player Standings and collects target player rows from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
+      ["2. Apply filters", "If Brand, Season, or Profile Brand is configured, Playwright applies the filter and reads the visible rows again."],
+      ["3. Open player profiles", "Playwright opens each collected player profile and reads summary values, badges, country/flag, and tab areas."],
+      ["4. Expand ALL tab", "Playwright clicks Load More up to the configured limit and expands available ALL-tab rows."],
+      ["5. Click profile tabs", "Playwright clicks Title, Bracelets, Rings, and Final Tables tabs and compares rendered row counts with profile summary values."],
+      ["6. Check badge counts", "For Bracelets/Rings and additional badges, Playwright compares UI badge counts with ALL-tab first-place rows under the selected brand scope. Missing badges are skipped."],
+      ["7. Report duplicate rows", "If the same event row is rendered more than once, the report shows rendered duplicates with sample evidence."],
+      ["8. Check Result details", "In full mode, Playwright opens Result pages and checks No, Player, and Earnings. profile-only and standings-only skip this stage."],
+      ["9. Generate report", "Playwright writes HTML, JSON, and CSV outputs with mismatch, missing, skipped, and duplicate evidence."]
     ]
   };
 
@@ -5342,7 +5336,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
     </div>
 
-    <!-- Validation Rules Collapsible Card -->
+    <!-- Playwright Crawler Steps Collapsible Card -->
     <div class="group-card" style="margin-bottom: 40px;">
       <div class="group-header" onclick="toggleGroupCollapse('metadata', 'rules')">
         <div class="group-header-left">

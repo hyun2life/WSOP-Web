@@ -248,7 +248,7 @@ export function formatMarkdownSummary(
   md.push('| **Phase 3 (Player UI)** | 플레이어 프로필 식별자 렌더링 검사 | 선수 이미지 박스, 국기 아이콘 및 뱃지 UI 정상 매핑 확인 |');
   md.push('| **Phase 4 (Search/Sort)** | 필터링 및 리스트 정렬의 조작 안정성 | 부분 검색/대소문자 처리 시 정상 노출 및 정렬 조작 시 레이아웃 무결 |');
   md.push('| **Phase 5 (Result Detail)** | 대회 결과 상세 페이지와 프로필 간 연결 | 상세 결과에 대상 선수의 순위/상금 존재 및 원래 프로필로 백링크 연결 |');
-  md.push('| **Phase 6 (Data Integrity)**| API/크롤러 원천 데이터 vs 화면 실시간 대조| 금반지/팔찌 획득 수 및 상금 합산 총액 수치가 기대 데이터와 100% 일치 |');
+  md.push('| **Phase 6 (Data Integrity)**| Playwright가 기준 데이터와 공개 UI 값을 수집해 비교| expected/actual 차이와 stale fixture 가능성을 함께 확인 |');
   md.push('| **Phase 7 (Performance)** | 페이지 최초 로딩 속도 안정성 측정 | 주요 페이지 최초 로드 타임이 5.0초 임계치를 초과하지 않을 것 |');
   md.push('| **Phase 8 (Visual)** | 스크린샷 baseline 이미지 대비 회귀 분석 | 컴포넌트 픽셀 오차율이 1.5% 미만이어야 함 (동적 영역 마스킹 적용) |');
   md.push('| **Phase 9 (Regression)** | 최종 릴리즈 게이트 전체 조율 스위트 | 필수(Required) 단계(Phase 1,2,3,5,6) 100% 통과 및 경고(Warning) 로깅 확인 |');
@@ -611,6 +611,56 @@ export function formatHtmlSummary(
       </div>
     </section>
 
+    <section class="panel">
+      <h2>
+        <svg viewBox="0 0 24 24" style="fill: var(--primary-hover); width: 20px; height: 20px; flex-shrink: 0;"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h12v2H3v-2z"/></svg>
+        ${escapeHtml(isKo ? 'Regression Runner가 실행한 스텝' : 'Regression Runner Steps')}
+      </h2>
+      <div class="panel-body">
+        <div class="note" style="margin-bottom:14px;">
+          ${escapeHtml(isKo
+            ? 'Phase 9는 브라우저 동작 하나를 직접 검증하는 리포트가 아니라, 선택한 suite에 포함된 Playwright Phase 명령들을 순서대로 실행하고 release gate 결과를 합산하는 리포트입니다.'
+            : 'Phase 9 does not represent one browser action. It runs the Playwright phase commands included in the selected suite and aggregates release-gate status.')}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>${escapeHtml(isKo ? '순서' : 'Step')}</th>
+              <th>${escapeHtml(isKo ? 'Runner가 한 일' : 'Runner Action')}</th>
+              <th>${escapeHtml(isKo ? '리포트에서 확인할 것' : 'What To Check')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1</strong></td>
+              <td>${escapeHtml(isKo ? '선택한 regression suite 설정을 읽습니다.' : 'Read the selected regression suite configuration.')}</td>
+              <td>${escapeHtml(isKo ? 'suite 이름과 실행 대상 phase 목록을 확인합니다.' : 'Check suite name and included phase list.')}</td>
+            </tr>
+            <tr>
+              <td><strong>2</strong></td>
+              <td>${escapeHtml(isKo ? '각 step의 npm 명령이 package.json에 실제 존재하는지 확인합니다.' : 'Verify each npm command exists in package.json.')}</td>
+              <td>${escapeHtml(isKo ? '없는 명령이나 baseline update 명령이 섞이지 않았는지 확인합니다.' : 'Check missing commands and blocked baseline-update commands.')}</td>
+            </tr>
+            <tr>
+              <td><strong>3</strong></td>
+              <td>${escapeHtml(isKo ? '필수/선택 정책에 따라 Phase 명령을 순서대로 실행합니다.' : 'Run phase commands in order according to required/optional policy.')}</td>
+              <td>${escapeHtml(isKo ? '각 phase의 command, required 여부, 실행 시간을 확인합니다.' : 'Review command, required flag, and duration for each phase.')}</td>
+            </tr>
+            <tr>
+              <td><strong>4</strong></td>
+              <td>${escapeHtml(isKo ? '실패 로그를 known exception 정책으로 분류합니다.' : 'Classify failures using known-exception policy.')}</td>
+              <td>${escapeHtml(isKo ? 'failed, warning, optionalFailed 중 무엇으로 처리됐는지 확인합니다.' : 'Check whether each result is failed, warning, or optionalFailed.')}</td>
+            </tr>
+            <tr>
+              <td><strong>5</strong></td>
+              <td>${escapeHtml(isKo ? 'release-gate-result.json을 생성합니다.' : 'Generate release-gate-result.json.')}</td>
+              <td>${escapeHtml(isKo ? 'PASSED, REQUIRES_REVIEW, FAILED와 ci.shouldFailBuild 값을 확인합니다.' : 'Review PASSED, REQUIRES_REVIEW, FAILED, and ci.shouldFailBuild.')}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- Details Table -->
     <section class="panel">
       <h2>
@@ -647,56 +697,56 @@ export function formatHtmlSummary(
         <table style="font-size: 12px;">
           <thead>
             <tr>
-              <th style="width: 150px;">Phase 단계</th>
-              <th style="width: 250px;">검증 시나리오 및 주요 확인 사항</th>
-              <th>합격 검수 기준 (Acceptance Criteria)</th>
+              <th style="width: 150px;">${escapeHtml(isKo ? 'Phase 단계' : 'Phase')}</th>
+              <th style="width: 250px;">${escapeHtml(isKo ? 'Playwright 실행 행동' : 'Playwright Action')}</th>
+              <th>${escapeHtml(isKo ? '리포트에서 확인할 기준' : 'What To Check')}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><strong>Phase 1 (Smoke)</strong></td>
-              <td>주요 공개 페이지 접근 및 콘솔 오류</td>
-              <td>모든 대상 페이지 HTTP status 200 및 화이트리스트 외 JS 런타임 에러 전무</td>
+              <td>${escapeHtml(isKo ? '공개 URL을 열고 핵심 locator, 콘솔, 내부 링크 샘플을 확인' : 'Open public URLs and check key locators, console, and sampled links')}</td>
+              <td>${escapeHtml(isKo ? '페이지 접근 실패, 치명 콘솔 오류, 깨진 내부 링크가 있는지 확인' : 'Check page access failures, critical console errors, and broken internal links')}</td>
             </tr>
             <tr>
               <td><strong>Phase 2 (Functional)</strong></td>
-              <td>일정 탐색, 플레이어 검색 등 기능 흐름</td>
-              <td>탭 전환 시 화면 목록 정상 노출 및 상세 페이지 정상 진입 성공</td>
+              <td>${escapeHtml(isKo ? 'Schedule/Search/Standings/News에서 클릭과 입력 흐름을 수행' : 'Run click and input flows across Schedule/Search/Standings/News')}</td>
+              <td>${escapeHtml(isKo ? '어느 사용자 흐름에서 이동이 끊겼는지 확인' : 'Check which user flow breaks, if any')}</td>
             </tr>
             <tr>
               <td><strong>Phase 3 (Player UI)</strong></td>
-              <td>플레이어 프로필 식별자 렌더링 검사</td>
-              <td>선수 이미지 박스, 국기 아이콘 및 뱃지 UI 정상 매핑 확인</td>
+              <td>${escapeHtml(isKo ? 'standings-only 대상자의 row, 프로필 링크, 국가/국기, 이미지 표시를 확인' : 'Check row, profile link, country/flag, and image display for standings-only targets')}</td>
+              <td>${escapeHtml(isKo ? 'UI 표시 문제인지 환경 자산 warning인지 구분' : 'Separate UI display defects from environment asset warnings')}</td>
             </tr>
             <tr>
               <td><strong>Phase 4 (Search/Sort)</strong></td>
-              <td>필터링 및 리스트 정렬의 조작 안정성</td>
-              <td>부분 검색/대소문자 처리 시 정상 노출 및 정렬 조작 시 레이아웃 무결</td>
+              <td>${escapeHtml(isKo ? '검색어 입력, 탭 전환, 필터, 정렬, pagination, Load More를 조작' : 'Operate search input, tabs, filters, sort, pagination, and Load More')}</td>
+              <td>${escapeHtml(isKo ? '조작 후 목록이 멈추거나 깨지지 않는지 확인' : 'Check list remains usable and visually intact after interaction')}</td>
             </tr>
             <tr>
               <td><strong>Phase 5 (Result Detail)</strong></td>
-              <td>대회 결과 상세 페이지와 프로필 간 연결</td>
-              <td>상세 결과에 대상 선수의 순위/상금 존재 및 원래 프로필로 백링크 연결</td>
+              <td>${escapeHtml(isKo ? '프로필 Results row에서 Result 상세로 이동하고 프로필 백링크를 클릭' : 'Navigate from profile Results row to Result detail and back to profile')}</td>
+              <td>${escapeHtml(isKo ? '라우팅 실패와 상세 row 미노출을 구분' : 'Separate routing failures from missing detail rows')}</td>
             </tr>
             <tr>
               <td><strong>Phase 6 (Data Integrity)</strong></td>
-              <td>API/크롤러 원천 데이터 vs 화면 실시간 대조</td>
-              <td>금반지/팔찌 획득 수 및 상금 합산 총액 수치가 기대 데이터와 100% 일치</td>
+              <td>${escapeHtml(isKo ? '기준 데이터와 화면에서 읽은 값을 비교' : 'Compare expected data with values read from public UI')}</td>
+              <td>${escapeHtml(isKo ? 'expected/actual 차이와 stale fixture 가능성을 확인' : 'Review expected/actual differences and stale fixture possibility')}</td>
             </tr>
             <tr>
               <td><strong>Phase 7 (Performance)</strong></td>
-              <td>페이지 최초 로딩 속도 안정성 측정</td>
-              <td>주요 페이지 최초 로드 타임이 5.0초 임계치를 초과하지 않을 것</td>
+              <td>${escapeHtml(isKo ? '주요 페이지와 핵심 흐름을 실행하며 시간과 요청 상태를 측정' : 'Measure timing and request status while running key pages and flows')}</td>
+              <td>${escapeHtml(isKo ? '느린 요청이 제품 경로인지 서드파티 경로인지 확인' : 'Check whether slow requests belong to product paths or third-party paths')}</td>
             </tr>
             <tr>
               <td><strong>Phase 8 (Visual)</strong></td>
-              <td>스크린샷 baseline 이미지 대비 회귀 분석</td>
-              <td>컴포넌트 픽셀 오차율이 1.5% 미만이어야 함 (동적 영역 마스킹 적용)</td>
+              <td>${escapeHtml(isKo ? '대상 화면을 캡처하고 baseline screenshot과 비교' : 'Capture target pages and compare with baseline screenshots')}</td>
+              <td>${escapeHtml(isKo ? '실제 화면 깨짐인지 의도된 UI 변경인지 확인' : 'Check whether differences are defects or intended UI changes')}</td>
             </tr>
             <tr>
               <td><strong>Phase 9 (Regression)</strong></td>
-              <td>최종 릴리즈 게이트 전체 조율 스위트</td>
-              <td>필수(Required) 단계(Phase 1,2,3,5,6) 100% 통과 및 경고(Warning) 로깅 확인</td>
+              <td>${escapeHtml(isKo ? '선택한 suite의 phase 명령을 순서대로 실행하고 결과를 집계' : 'Run configured phase commands in order and aggregate results')}</td>
+              <td>${escapeHtml(isKo ? 'required 실패, warning, optional 실패, ci.shouldFailBuild 값을 확인' : 'Check required failures, warnings, optional failures, and ci.shouldFailBuild')}</td>
             </tr>
           </tbody>
         </table>

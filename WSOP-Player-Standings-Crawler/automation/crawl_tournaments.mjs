@@ -730,7 +730,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     tournamentsChecked: isKo ? "확인한 대회" : "Tournaments Checked",
     eventsCrawled: isKo ? "이벤트 수집" : "Events Crawled",
     defectCandidates: isKo ? "결함 후보" : "Defect Candidates",
-    validationRules: isKo ? "검증 규칙 및 기준" : "Validation Rules",
+    validationRules: isKo ? "Playwright 크롤러 실행 스텝" : "Playwright Crawler Steps",
     ruleItem: isKo ? "항목" : "Item",
     ruleRule: isKo ? "규칙" : "Rule",
     defectList: isKo ? "결함 후보 목록" : "Defect Candidates List",
@@ -753,28 +753,44 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     finalFindingText: isKo ? "최종 확인 내용" : "Final Finding",
     searchEventsPlaceholder: isKo ? "이벤트명 검색..." : "Search events...",
     rulesData: isKo ? [
-      ["시나리오 1: 헤더 검증", "과거 대회 목록 카드 정보(브랜드, 시리즈명, 시간, 장소, 국가)와 대회 상세 페이지 상단 비주얼 영역(.kv-contents)의 데이터를 1:1로 비교합니다. 불일치 시 Fail 판정합니다."],
-      ["시나리오 2: Case A (Result 있음)", "이벤트 테이블 안에 Result/Payout 링크가 존재하면 Case A로 분류합니다. Date, Event, Buy-in, Entries, ITM, Prize, Winner 데이터를 수집하고, 이벤트 Date가 대회 기간 안에 포함되는지 검증합니다. Payout 페이지로 이동하여 실제 총참가자 수(Entries), 총상금(Prize Pool), 우승자(Winner)와 1:1 대조 교차 검증을 수행합니다."],
-      ["시나리오 3: Case B (Result 없음)", "이벤트 테이블 안에 Result/Payout 링크가 없으면 Case B로 분류합니다. 이벤트의 Date, Event, Buy-in, Chips, Clock, Late Reg. 정보를 수집하며, 이벤트 Date가 대회 기간 안에 포함되는지와 필수 필드 포맷을 검증합니다. 일반 오프라인 일정은 Chips/Clock이 양수여야 하며, Online/Flight 이벤트에서 Chips/Clock이 '-'인 경우는 Fail이 아닌 Warn으로 처리합니다."]
+      ["1. 과거 대회 목록 열기", "Playwright가 지정 연도/브랜드의 과거 대회 목록 페이지를 열고 대회 카드들을 수집합니다."],
+      ["2. 대회 상세 페이지 이동", "Playwright가 각 대회 카드 링크를 클릭해 상세 페이지로 이동합니다."],
+      ["3. 헤더 정보 비교", "목록 카드의 브랜드, 시리즈명, 기간, 장소, 국가와 상세 페이지 상단 비주얼 영역(.kv-contents)을 비교합니다."],
+      ["4. 이벤트 테이블 읽기", "Playwright가 상세 페이지의 이벤트 테이블 row를 읽고 Result/Payout 링크가 있는지 확인합니다."],
+      ["5. Case A 처리", "Result/Payout 링크가 있으면 Playwright가 Payout 페이지를 열고 Entries, Prize Pool, Winner를 이벤트 row와 교차 비교합니다."],
+      ["6. Case B 처리", "Result/Payout 링크가 없으면 일정 데이터로 보고 Date, Event, Buy-in, Chips, Clock, Late Reg. 필드를 읽습니다. 임시 일정성 누락은 Fail이 아니라 Minor 후보로 남깁니다."],
+      ["7. 날짜 허용 범위 확인", "이벤트 날짜가 대회 기간과 겹치거나 앞뒤 3일 허용 범위 안에 있는지 확인합니다."],
+      ["8. 리포트 생성", "Playwright가 대회별 상태, 결함 후보, Minor/Warn/Fail 사유를 HTML/JSON/CSV로 저장합니다."]
     ] : [
-      ["Scenario 1: Header Check", "Compares listing card data (Brand, Series Name, Dates, Venue, Country) with detail page visual header layout (.kv-contents) 1:1. Reports defects on mismatch."],
-      ["Scenario 2: Case A (Result exists)", "Classifies the event table as Case A when a Result/Payout link exists. Collects Event, Date, Buy-in, Entries, ITM, Prize, Winner, and validates that each event Date falls within the tournament date range. Navigates to the detailed Results/Payout page and cross-checks Entries, Prize Pool, and Winner with collected rows."],
-      ["Scenario 3: Case B (No Result)", "Classifies the event table as Case B when no Result/Payout link exists. Collects Event, Date, Buy-in, Chips, Clock, Late Reg, and validates that each event Date falls within the tournament date range. Offline schedule rows require positive Chips/Clock values; Online/Flight rows with '-' Chips/Clock are reported as Warn instead of Fail."]
+      ["1. Open past tournament list", "Playwright opens the past tournament list for the selected year/brand and collects tournament cards."],
+      ["2. Navigate to tournament detail", "Playwright clicks each tournament card link and opens the detail page."],
+      ["3. Compare header data", "Playwright compares listing card brand, series name, dates, venue, and country with the detail header area (.kv-contents)."],
+      ["4. Read event table", "Playwright reads event table rows and checks whether Result/Payout links exist."],
+      ["5. Handle Case A", "When Result/Payout links exist, Playwright opens the Payout page and cross-checks Entries, Prize Pool, and Winner."],
+      ["6. Handle Case B", "When Result/Payout links do not exist, Playwright treats the row as schedule data and reads Date, Event, Buy-in, Chips, Clock, and Late Reg. Temporary schedule gaps are reported as Minor, not Fail."],
+      ["7. Check date tolerance", "Playwright checks whether event dates overlap the tournament range or fall within the +/- 3 day tolerance."],
+      ["8. Generate report", "Playwright writes tournament status, defect candidates, and Minor/Warn/Fail reasons to HTML, JSON, and CSV."]
     ]
   };
 
   t.rulesData = isKo ? [
-    ["시나리오 1: 헤더 검증", "목록 카드 정보(브랜드, 시리즈명, 기간, 장소, 국가)와 상세 페이지 상단 비주얼 영역(.kv-contents)을 1:1로 비교합니다. 불일치 시 Fail로 판정합니다."],
-    ["시나리오 2: Case A (Result 있음)", "이벤트 테이블에 Result/Payout 링크가 있으면 Case A로 분류합니다. Date, Event, Buy-in, Entries, ITM, Prize, Winner를 수집하고 이벤트 날짜가 대회 기간과 겹치거나 시리즈 기간 기준 앞뒤 3일 이내인지 검증합니다. Payout 페이지에서는 Entries, Prize Pool, Winner를 교차 검증하며, Result 표의 1위가 동률로 여러 row에 표시될 경우 1위 row 중 하나라도 Winner와 일치하면 Pass입니다."],
-    ["시나리오 3: Case B (Result 없음)", "이벤트 테이블에 Result/Payout 링크가 없으면 Case B로 분류합니다. Case B는 Result가 없는 임시 일정 데이터일 수 있으므로 Date, Event, Buy-in, Chips, Clock, Late Reg. 불일치/누락은 Fail이 아닌 Minor 후보로 남깁니다. Clock이 없거나 0인 경우도 Minor입니다."],
-    ["날짜 합격 기준", "이벤트 기간이 대회 기간과 하루라도 겹치면 Pass입니다. 이벤트 날짜가 시리즈 기간 밖이어도 앞뒤 3일 이내이면 원본 표기/시간대 차이 가능성으로 보고 Pass로 허용합니다. 날짜가 하나만 표시된 경우는 단일일 범위로 해석합니다. 대회 기간 자체가 ClubGG Qualifiers처럼 날짜로 파싱되지 않으면 Warn으로 남깁니다."],
-    ["상태 판정 기준", "Fail은 확정 정합성 오류, Warn은 날짜 범위 파싱 불가 등 검토 필요 항목, Minor는 Case B 임시 일정 데이터의 추적 후보입니다. Minor는 결함 후보 목록과 CSV에 남지만 실패 집계로 올리지 않습니다."]
+    ["1. 과거 대회 목록 열기", "Playwright가 지정 연도/브랜드의 과거 대회 목록 페이지를 열고 대회 카드들을 수집합니다."],
+    ["2. 대회 상세 페이지 이동", "Playwright가 각 대회 카드 링크를 클릭해 상세 페이지로 이동합니다."],
+    ["3. 헤더 정보 비교", "목록 카드의 브랜드, 시리즈명, 기간, 장소, 국가와 상세 페이지 상단 비주얼 영역(.kv-contents)을 비교합니다."],
+    ["4. 이벤트 테이블 읽기", "Playwright가 상세 페이지의 이벤트 테이블 row를 읽고 Result/Payout 링크가 있는지 확인합니다."],
+    ["5. Case A 처리", "Result/Payout 링크가 있으면 Playwright가 Payout 페이지를 열고 Entries, Prize Pool, Winner를 이벤트 row와 교차 비교합니다. Result 표의 1위가 동률이면 1위 row 중 하나라도 Winner와 일치하면 Pass입니다."],
+    ["6. Case B 처리", "Result/Payout 링크가 없으면 일정 데이터로 보고 Date, Event, Buy-in, Chips, Clock, Late Reg. 필드를 읽습니다. 임시 일정성 누락은 Fail이 아니라 Minor 후보로 남깁니다."],
+    ["7. 날짜 허용 범위 확인", "이벤트 기간이 대회 기간과 하루라도 겹치거나 앞뒤 3일 허용 범위 안에 있으면 Pass로 봅니다. 대회 기간 자체를 파싱할 수 없으면 Warn으로 남깁니다."],
+    ["8. 상태와 산출물 기록", "Fail은 확정 정합성 오류, Warn은 검토 필요 항목, Minor는 추적 후보입니다. Playwright가 이 결과를 HTML/JSON/CSV에 저장합니다."]
   ] : [
-    ["Scenario 1: Header Check", "Compares listing card data (Brand, Series Name, Dates, Venue, Country) with the detail page visual header layout (.kv-contents) 1:1. Mismatches are reported as Fail."],
-    ["Scenario 2: Case A (Result exists)", "Classifies the event table as Case A when a Result/Payout link exists. Collects Event, Date, Buy-in, Entries, ITM, Prize, Winner, and validates that each event Date overlaps the tournament range or falls within a +/- 3 day tolerance. The payout page cross-check compares Entries, Prize Pool, and Winner. If the Result table has tied 1st-place rows, any matching 1st-place player is accepted as Pass."],
-    ["Scenario 3: Case B (No Result)", "Classifies the event table as Case B when no Result/Payout link exists. Because Case B can be temporary schedule data, Date/Event/Buy-in/Chips/Clock/Late Reg mismatches or missing values are tracked as Minor instead of Fail. Missing or zero Clock is Minor."],
-    ["Date Pass Criteria", "Event ranges pass when they overlap the tournament range. Event dates up to 3 days before or after the series range are allowed as Pass for source/timezone drift. Single event dates are parsed as a one-day range. If the tournament range itself cannot be parsed, such as ClubGG Qualifiers, the item is reported as Warn."],
-    ["Status Criteria", "Fail means confirmed integrity mismatch, Warn means review needed such as unparseable tournament date range, and Minor means a Case B temporary schedule-data candidate. Minor items remain in defect candidates and CSV output but do not count as failed tournaments."]
+    ["1. Open past tournament list", "Playwright opens the past tournament list for the selected year/brand and collects tournament cards."],
+    ["2. Navigate to tournament detail", "Playwright clicks each tournament card link and opens the detail page."],
+    ["3. Compare header data", "Playwright compares listing card brand, series name, dates, venue, and country with the detail header area (.kv-contents)."],
+    ["4. Read event table", "Playwright reads event table rows and checks whether Result/Payout links exist."],
+    ["5. Handle Case A", "When Result/Payout links exist, Playwright opens the Payout page and cross-checks Entries, Prize Pool, and Winner. If tied 1st-place rows exist, any matching 1st-place player is accepted as Pass."],
+    ["6. Handle Case B", "When Result/Payout links do not exist, Playwright treats the row as schedule data and reads Date, Event, Buy-in, Chips, Clock, and Late Reg. Temporary schedule gaps are reported as Minor, not Fail."],
+    ["7. Check date tolerance", "Event dates pass when they overlap the tournament range or fall within +/- 3 days. Unparseable tournament ranges are reported as Warn."],
+    ["8. Record status and outputs", "Fail means confirmed mismatch, Warn means review needed, and Minor means tracking candidate. Playwright writes these results to HTML, JSON, and CSV."]
   ];
 
   const reportJson = JSON.stringify(report).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
