@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 // WSOP 선수 순위 크롤러.
 //
@@ -51,10 +52,17 @@ const PROFILE_TAB_CHECKS = [
   { key: "finalTables", label: "Final Tables", summaryKey: "finalTables", tabLabels: ["FINAL TABLES", "FINAL TABLE"] }
 ];
 
-const PROFILE_BADGE_DEFS = [
-  { key: "bracelets", label: "Bracelets", fileName: "badge_WSOPBracelet.webp", altPattern: /wsop\s+bracelet/i },
-  { key: "rings", label: "Rings", fileName: "badge_WSOPRing.webp", altPattern: /wsop\s+ring/i }
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
+const BADGE_DEFINITIONS_CONFIG_PATH = path.join(PROJECT_ROOT, "automation", "config", "badge-definitions.json");
+
+const CORE_PROFILE_BADGE_DEFS = [
+  { key: "bracelets", label: "Bracelets", group: "WSOP Official Event", detailType: "Bracelet", kind: "core", fileName: "badge_WSOPBracelet.webp", altPattern: /wsop\s+bracelet/i },
+  { key: "rings", label: "Rings", group: "WSOP Official Event", detailType: "Ring", kind: "core", fileName: "badge_WSOPRing.webp", altPattern: /wsop\s+ring/i }
 ];
+
+const ADDITIONAL_PROFILE_BADGE_DEFS = loadAdditionalProfileBadgeDefs();
+const PROFILE_BADGE_DEFS = [...CORE_PROFILE_BADGE_DEFS, ...ADDITIONAL_PROFILE_BADGE_DEFS];
 
 const DEFAULT_STANDINGS_LIMIT = 50;
 const DEFAULT_CONCURRENCY = 5;
@@ -320,6 +328,58 @@ function insertBrandSuffix(filePath, suffix) {
   const ext = path.extname(filePath);
   const base = filePath.slice(0, filePath.length - ext.length);
   return `${base}-${suffix}${ext}`;
+}
+
+function safeBadgeKey(value, fallback) {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return key || fallback;
+}
+
+function normalizeAdditionalProfileBadgeDef(definition, index) {
+  if (!definition || typeof definition !== "object") return null;
+  const key = safeBadgeKey(definition.key || definition.detailType || definition.label, `additional-badge-${index + 1}`);
+  const label = String(definition.label || definition.detailType || key).trim();
+  const detailType = String(definition.detailType || label).trim();
+  const fileName = String(definition.fileName || "").trim();
+  const altPattern = String(definition.altPattern || "").trim();
+  const dataKey = String(definition.dataKey || "").trim();
+  const classPattern = String(definition.classPattern || "").trim();
+
+  // 추가 Badge는 실제 UI key가 확정된 뒤 활성화한다.
+  if (!fileName && !altPattern && !dataKey && !classPattern) return null;
+
+  return {
+    key,
+    label,
+    group: String(definition.group || "Additional Badge").trim(),
+    detailType,
+    brand: String(definition.brand || "").trim(),
+    kind: "additional",
+    countMode: "filtered-first-place-count",
+    fileName,
+    altPattern,
+    dataKey,
+    classPattern
+  };
+}
+
+function loadAdditionalProfileBadgeDefs() {
+  try {
+    if (!fs.existsSync(BADGE_DEFINITIONS_CONFIG_PATH)) return [];
+    const parsed = JSON.parse(fs.readFileSync(BADGE_DEFINITIONS_CONFIG_PATH, "utf8"));
+    const definitions = Array.isArray(parsed) ? parsed : parsed.additionalBadges;
+    if (!Array.isArray(definitions)) return [];
+    return definitions
+      .map((definition, index) => normalizeAdditionalProfileBadgeDef(definition, index))
+      .filter(Boolean);
+  } catch (error) {
+    console.warn(`[경고] Badge definition config를 읽지 못했습니다: ${BADGE_DEFINITIONS_CONFIG_PATH} (${error.message})`);
+    return [];
+  }
 }
 
 function printHelp() {
@@ -910,9 +970,23 @@ async function extractProfileBadgeCounts(page) {
           img.getAttribute("src"),
           img.getAttribute("srcset"),
           img.getAttribute("alt"),
-          img.currentSrc
+          img.currentSrc,
+          img.getAttribute("class"),
+          img.getAttribute("data-testid"),
+          img.getAttribute("data-badge"),
+          img.getAttribute("data-badge-key"),
+          img.parentElement?.getAttribute("class"),
+          img.parentElement?.getAttribute("data-testid"),
+          img.parentElement?.getAttribute("data-badge"),
+          img.parentElement?.getAttribute("data-badge-key")
         ].filter(Boolean).join(" "));
-        const badgeDef = badgeDefs.find((def) => sourceText.includes(def.fileName) || new RegExp(def.altPatternSource, "i").test(sourceText));
+        const badgeDef = badgeDefs.find((def) => {
+          if (def.fileName && sourceText.includes(def.fileName)) return true;
+          if (def.altPatternSource && new RegExp(def.altPatternSource, "i").test(sourceText)) return true;
+          if (def.dataKey && sourceText.toLowerCase().includes(String(def.dataKey).toLowerCase())) return true;
+          if (def.classPatternSource && new RegExp(def.classPatternSource, "i").test(sourceText)) return true;
+          return false;
+        });
         if (!badgeDef) continue;
 
         const count = readBadgeCount(img);
@@ -928,7 +1002,9 @@ async function extractProfileBadgeCounts(page) {
     }, PROFILE_BADGE_DEFS.map((badgeDef) => ({
       key: badgeDef.key,
       fileName: badgeDef.fileName,
-      altPatternSource: badgeDef.altPattern.source
+      altPatternSource: badgeDef.altPattern?.source || badgeDef.altPattern || "",
+      dataKey: badgeDef.dataKey || "",
+      classPatternSource: badgeDef.classPattern || ""
     })));
   } catch (error) {
     return {
@@ -1143,6 +1219,18 @@ function deduplicateComparisonEvents(events) {
   return { uniqueEvents, duplicateEvents };
 }
 
+function duplicateEventEvidence(events, limit = 5) {
+  const { duplicateEvents } = deduplicateComparisonEvents(events || []);
+  return duplicateEvents.slice(0, limit).map((event) => ({
+    eventName: event.eventName,
+    date: event.date,
+    rank: event.rank,
+    earnings: event.earnings,
+    resultUrl: event.resultUrl || event.disabledResultUrl || "",
+    rowText: event.rowText
+  }));
+}
+
 function expectedCashesCount(summary) {
   const cashes = summary?.cashes;
   return Number.isFinite(cashes) && cashes > 0 ? cashes : null;
@@ -1252,6 +1340,61 @@ function compareSummary(summary, calculated, badgeCounts = null) {
       status: exactMatch ? "pass" : stat.type === "money" ? "warn" : "fail"
     };
   });
+}
+
+function activeProfileBrandMatchesBadge(brandFilter, badgeDef) {
+  if (!badgeDef?.brand) return true;
+  const activeBrands = splitBrandArgument(brandFilter || "").map((brand) => normalizeComparable(brand));
+  if (!activeBrands.length) return false;
+  const expectedBrand = normalizeComparable(badgeDef.brand);
+  return activeBrands.includes(expectedBrand);
+}
+
+function buildAdditionalBadgeChecks({ badgeCounts = {}, events = [], brandFilter = null, badgeDefs = ADDITIONAL_PROFILE_BADGE_DEFS } = {}) {
+  return badgeDefs
+    .map((badgeDef) => {
+      const displayedCount = Number.isFinite(badgeCounts?.[badgeDef.key]) ? badgeCounts[badgeDef.key] : 0;
+      const hasVisibleBadge = displayedCount > 0;
+      const scopeMatches = activeProfileBrandMatchesBadge(brandFilter, badgeDef);
+      const shouldReport = scopeMatches || hasVisibleBadge;
+      if (!shouldReport) return null;
+
+      const firstPlaceEvents = scopeMatches ? (events || []).filter((event) => event.rank === 1) : [];
+      const firstPlaceCount = firstPlaceEvents.length;
+      let status = "pass";
+      let detail = `${badgeDef.detailType}: displayed=${displayedCount}, firstPlaceCount=${firstPlaceCount}, scope=${brandFilter || "All"}`;
+
+      if (!scopeMatches) {
+        status = "warn";
+        detail = `${badgeDef.detailType}: Badge is visible (${displayedCount}) but profile brand scope '${badgeDef.brand}' is not active. Re-run with PROFILE_BRAND=${badgeDef.brand}.`;
+      } else if (displayedCount !== firstPlaceCount) {
+        status = "warn";
+        detail = `${badgeDef.detailType}: displayed=${displayedCount}, filtered ALL first-place rows=${firstPlaceCount}, scope=${brandFilter || badgeDef.brand || "All"}`;
+      }
+
+      return {
+        group: badgeDef.group || "Additional Badge",
+        badgeType: badgeDef.key,
+        badgeLabel: badgeDef.label,
+        detailType: badgeDef.detailType,
+        brand: badgeDef.brand || brandFilter || "All",
+        filterScope: brandFilter || badgeDef.brand || "All",
+        countMode: badgeDef.countMode || "filtered-first-place-count",
+        displayedCount,
+        firstPlaceCount,
+        actualComparedCount: firstPlaceCount,
+        status,
+        detail,
+        rowSamples: firstPlaceEvents.slice(0, 5).map((event) => ({
+          eventName: event.eventName,
+          date: event.date,
+          rank: event.rank,
+          earnings: event.earnings,
+          resultUrl: event.resultUrl || event.disabledResultUrl || ""
+        }))
+      };
+    })
+    .filter(Boolean);
 }
 
 function reconcileSummaryComparisons(comparisons = [], tabChecks = [], expansion = {}) {
@@ -1427,6 +1570,20 @@ function buildDefects(player) {
     });
   }
 
+  for (const badgeCheck of player.additionalBadgeChecks || []) {
+    if (badgeCheck.status !== "fail") continue;
+    defects.push({
+      brand: badgeCheck.brand || playerBrands,
+      type: "Additional badge count mismatch",
+      player: player.name,
+      item: `${badgeCheck.group || "Additional Badge"} / ${badgeCheck.detailType || badgeCheck.badgeLabel}`,
+      expected: formatValue(badgeCheck.badgeLabel || "Badge", badgeCheck.displayedCount),
+      actual: formatValue(badgeCheck.badgeLabel || "Badge", badgeCheck.firstPlaceCount),
+      url: player.url,
+      detail: badgeCheck.detail
+    });
+  }
+
   for (const standingCheck of player.standingsChecks || []) {
     if (standingCheck.status !== "fail") continue;
     defects.push({
@@ -1485,7 +1642,7 @@ function playerStatus(player) {
   if (player?.error) return "fail";
   const defects = player?.defects?.length ? player.defects : buildDefects(player || {});
   if (defects.length) return "fail";
-  if ((player?.warnings || []).length || hasWarningStatus(player?.comparisons) || hasWarningStatus(player?.tabChecks) || hasWarningStatus(player?.standingsChecks) || (player?.events || []).some((event) => event.resultPage?.status === "warn")) {
+  if ((player?.warnings || []).length || hasWarningStatus(player?.comparisons) || hasWarningStatus(player?.tabChecks) || hasWarningStatus(player?.standingsChecks) || hasWarningStatus(player?.additionalBadgeChecks) || (player?.events || []).some((event) => event.resultPage?.status === "warn")) {
     return "warn";
   }
   if (hasMinorStatus(player?.countryChecks) || (player?.events || []).some((event) => event.resultPage?.status === "minor")) {
@@ -2848,6 +3005,9 @@ async function expandCurrentProfileTabRows(page, expectedRows, maxLoadMore) {
   } else if (expected && expansion.stoppedReason === "not-started") {
     expansion.stoppedReason = expansion.loadMoreClicks >= maxLoadMore ? "max-load-more-reached" : (expected && events.length < expected ? "load-more-not-found" : "complete");
   }
+  expansion.finalVisibleRows = visibleEvents.length;
+  expansion.renderedDuplicateRows = deduplicateComparisonEvents(visibleEvents).duplicateEvents.length;
+  expansion.renderedDuplicateSamples = duplicateEventEvidence(visibleEvents);
 
   return { events, expansion };
 }
@@ -2933,6 +3093,9 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
     check.duplicates = selectedVariant.name.includes("deduped") ? dedupedTabEvents.duplicateEvents.length : 0;
     check.rawRows = tabEvents.length;
     check.comparableRows = rawComparableTabEvents.length;
+    check.renderedRows = expansion.finalVisibleRows ?? tabEvents.length;
+    check.renderedDuplicateRows = expansion.renderedDuplicateRows || 0;
+    check.renderedDuplicateSamples = expansion.renderedDuplicateSamples || [];
     check.countStrategy = selectedVariant.name;
     const detailParts = [
       `${check.selectedTab} tab rows=${check.actual}`,
@@ -2940,6 +3103,15 @@ async function collectProfileTabChecks(page, summary, maxLoadMore, disabledResul
     ];
     if (selectedVariant.name !== "raw") detailParts.push(`strategy=${selectedVariant.name}`);
     if (check.duplicates) detailParts.push(`duplicates ignored=${check.duplicates}`);
+    if (check.renderedRows !== check.rawRows) detailParts.push(`rendered=${check.renderedRows}`);
+    if (check.renderedDuplicateRows) {
+      const duplicateLabels = check.renderedDuplicateSamples
+        .map((event) => [event.eventName, event.date, event.rank ? `rank ${event.rank}` : ""].filter(Boolean).join(" / "))
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(" | ");
+      detailParts.push(`rendered duplicates=${check.renderedDuplicateRows}${duplicateLabels ? ` (${duplicateLabels})` : ""}`);
+    }
     if (selectedVariant.skippedCount) detailParts.push(`disabled skipped=${selectedVariant.skippedCount}`);
     if (selectedVariant.name !== "raw" && check.rawRows !== check.actual) detailParts.push(`raw=${check.rawRows}`);
     if (selectedVariant.name === "all-tab-conditional-fallback") detailParts.push(`fallbackFromAll=${dedupedAllTabConditionalEvents.uniqueEvents.length}`);
@@ -4151,6 +4323,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     const rawSummaryEvents = splitEventsByExpectedCashes(events, summary).comparisonEvents;
     const { checks: tabChecks, tabEventsByKey } = await collectProfileTabChecks(page, summary, maxLoadMore, disabledResultMode, skippedUnavailableResultEvents, events);
     const calculated = calculateSummaryFromEvents(rawSummaryEvents, summary, events);
+    const additionalBadgeChecks = buildAdditionalBadgeChecks({ badgeCounts, events, brandFilter });
     // Summary는 ALL 탭 수집값으로, 각 탭은 자기 탭 수집값으로 독립 계산한다.
 
     // ALL 탭 기반 지표별 계산 수량과 개별 지표 탭 수집 수량 교차 정합성 검증 (Cross-Tab Validation)
@@ -4181,7 +4354,6 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     for (const tabCheck of tabChecks) {
       if (tabCheck.status === "warn") warnings.push(tabCheck.detail);
     }
-
     const player = {
       name,
       url,
@@ -4198,6 +4370,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       comparisonStrategy,
       tabChecks,
       tabEventsByKey,
+      additionalBadgeChecks,
       calculated,
       comparisons: [],
       standingsChecks: [],
@@ -4363,6 +4536,11 @@ async function crawlSnapshotPlayerResults(context, snapshotPlayer, timeout, resu
   player.summary = player.summary || {};
   player.events = player.events || [];
   player.tabChecks = player.tabChecks || [];
+  player.additionalBadgeChecks = player.additionalBadgeChecks || buildAdditionalBadgeChecks({
+    badgeCounts: player.badgeCounts || {},
+    events: player.events || [],
+    brandFilter: player.profileBrandFilter || player.brandFilter || null
+  });
   player.comparisons = player.comparisons || reconcileSummaryComparisons(
     compareSummary(player.summaryForComparison || player.summary, player.calculated || {}, player.badgeCounts),
     player.tabChecks,
@@ -4475,6 +4653,19 @@ function flattenReviewNotes(report) {
       });
     }
 
+    for (const badgeCheck of player.additionalBadgeChecks || []) {
+      if (badgeCheck.status === "pass" || badgeCheck.status === "skipped") continue;
+      notes.push({
+        brand: badgeCheck.brand || playerBrands,
+        status: badgeCheck.status || "warn",
+        type: "Additional badge count mismatch",
+        player: player.name,
+        item: `${badgeCheck.group || "Additional Badge"} / ${badgeCheck.detailType || badgeCheck.badgeLabel}`,
+        url: player.url,
+        detail: badgeCheck.detail || ""
+      });
+    }
+
     for (const event of player.events || []) {
       if (event.resultPage?.status === "warn") {
         notes.push({
@@ -4514,6 +4705,7 @@ function summarize(report) {
   const events = players.flatMap((player) => player.events || []);
   const resultPages = events.filter((event) => event.resultPage);
   const tabChecks = players.flatMap((player) => player.tabChecks || []);
+  const additionalBadgeChecks = players.flatMap((player) => player.additionalBadgeChecks || []);
   const countryChecks = players.flatMap((player) => player.countryChecks || []);
   const standingsCategories = new Set(players.flatMap((player) => (player.standingsSources || []).map((source) => source.category)));
   const runStatus = report.runStatus || "complete";
@@ -4541,6 +4733,9 @@ function summarize(report) {
     crawledEvents: events.length,
     tabChecks: tabChecks.length,
     failedTabChecks: tabChecks.filter((check) => check.status === "fail").length,
+    additionalBadgeChecks: additionalBadgeChecks.length,
+    warnedAdditionalBadgeChecks: additionalBadgeChecks.filter((check) => check.status === "warn").length,
+    failedAdditionalBadgeChecks: additionalBadgeChecks.filter((check) => check.status === "fail").length,
     countryChecks: countryChecks.length,
     minorCountryChecks: countryChecks.filter((check) => check.status === "minor").length,
     crawledResultPages: resultPages.length,
@@ -4622,6 +4817,7 @@ function formatKoreanDefectType(type) {
   return {
     "Profile summary mismatch": "프로필 요약 불일치",
     "Profile badge count mismatch": "프로필 뱃지 개수 불일치",
+    "Additional badge count mismatch": "추가 뱃지 개수 불일치",
     "Standings/profile summary mismatch": "스탠딩/프로필 요약 불일치",
     "Profile tab count mismatch": "프로필 탭 개수 불일치",
     "Result page mismatch": "Result 페이지 불일치",
@@ -4677,7 +4873,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     resultPages: isKo ? "Result 페이지 확인" : "Result Pages Checked",
     defectCandidates: isKo ? "결함 후보" : "Defect Candidates",
     reviewNotesList: isKo ? "주의/건너뜀 목록" : "Warnings / Skipped Checks",
-    validationRules: isKo ? "검증 규칙 및 기준" : "Validation Rules",
+    validationRules: isKo ? "Playwright 크롤러 실행 스텝" : "Playwright Crawler Steps",
     ruleItem: isKo ? "항목" : "Item",
     ruleRule: isKo ? "규칙" : "Rule",
     coverage: isKo ? "Standings 수집 범위" : "Standings Coverage",
@@ -4696,6 +4892,12 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     comparisonValue: isKo ? "비교값" : "Comparison Value",
     statusText: isKo ? "상태" : "Status",
     tabHeader: isKo ? "탭" : "Tab",
+    additionalBadges: isKo ? "추가 뱃지 검증" : "Additional Badge Checks",
+    badgeGroup: isKo ? "뱃지 그룹" : "Badge Group",
+    detailType: isKo ? "세부 타입" : "Detail Type",
+    uiBadgeCount: isKo ? "UI 뱃지 수" : "UI Badge Count",
+    filterScope: isKo ? "필터 범위" : "Filter Scope",
+    firstPlaceCount: isKo ? "ALL 1위 row 수" : "ALL 1st-place Rows",
     selectedTabLabel: isKo ? "클릭한 탭 라벨" : "Selected Label",
     visibleRows: isKo ? "표시 row 수" : "Visible Rows",
     detailText: isKo ? "상세 정보" : "Detail",
@@ -4712,29 +4914,25 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
     backToSimple: isKo ? "기존 단순 리포트 보기" : "View Simple Report",
     searchEventsPlaceholder: isKo ? "이벤트명 검색..." : "Search events...",
     rulesData: isKo ? [
-      ["Standings/Profile", "All-Time Earnings - Men/Women의 Earnings, All-Time Bracelets의 Bracelets, All-Time Rings의 Rings를 프로필 요약값과 비교합니다."],
-      ["Standings 카테고리", `${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}에서 상위 선수를 수집합니다.`],
-      ["Title", "프로필 요약값을 기준으로 Title 전용 탭의 표시 row 수를 비교합니다. ALL 탭 계산값은 참고값으로 남깁니다."],
-      ["Bracelets Badge", "뱃지의 표시 개수를 프로필 상단 Bracelets 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
-      ["Rings Badge", "뱃지의 표시 개수를 프로필 상단 Rings 값과 비교하고, 불일치하면 결함 후보로 리포트에 노출합니다."],
-      ["Final Tables", "프로필 요약값을 기준으로 Final Tables 전용 탭의 표시 row 수를 비교합니다. ALL 탭 계산값은 참고값으로 남깁니다."],
-      ["Cashes", "Load more로 펼친 ALL 탭 row를 프로필 Cashes와 비교합니다. 프로필 Cashes까지 수집하지 못하면 수집 미완료 주의로 표시합니다."],
-      ["Total Earnings", "프로필 Total Earnings와 ALL 탭 계산 합계가 다르면 환율/통화/원본값 차이 가능성이 있어 주의로 표시하고 실패 집계에서는 제외합니다."],
-      ["Profile tabs", "Title, Bracelets, Rings, Final Tables 탭을 눌러 표시 row 수와 프로필 요약값을 비교합니다."],
-      ["Country flag", "Standings, Profile, Result에서 수집 가능한 국기 이미지의 국가코드만 비교합니다. 코드 누락 또는 코드 불일치는 실패가 아닌 경미 이슈로 표시합니다."],
-      ["Result", "Result 페이지를 열어 최종 결과표에서 No, 선수명, 상금이 모두 정확히 맞는지 확인합니다."]
+      ["1. Standings 화면 열기", `Playwright가 Player Standings 화면을 열고 ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")} 카테고리에서 대상 선수 row를 수집합니다.`],
+      ["2. 브랜드/시즌 필터 적용", "설정된 Brand, Season, Profile Brand 값이 있으면 Playwright가 화면 필터를 적용한 뒤 실제 표시 row를 다시 읽습니다."],
+      ["3. 선수 프로필 이동", "Playwright가 수집된 선수 링크를 열고 프로필 상단 요약값, Badge, 국가/국기, 탭 영역을 읽습니다."],
+      ["4. ALL 탭 펼치기", "Playwright가 Load More를 설정된 횟수까지 클릭해 ALL 탭 row를 가능한 범위까지 펼칩니다."],
+      ["5. 전용 탭 클릭", "Playwright가 Title, Bracelets, Rings, Final Tables 탭을 클릭하고 화면에 렌더링된 row 수를 프로필 요약값과 비교합니다."],
+      ["6. Badge count 확인", "Bracelets/Rings 및 추가 Badge가 있으면 Playwright가 UI Badge 수와 브랜드 필터 범위의 ALL 탭 1위 row 수를 비교합니다. Badge가 없으면 skip으로 남깁니다."],
+      ["7. 중복 row 표시", "같은 이벤트 row가 화면에 중복 렌더링되면 rendered duplicates로 sample을 남깁니다. 이 항목은 숨기지 않고 오류 후보로 확인합니다."],
+      ["8. Result 상세 확인", "기본 모드에서는 Playwright가 Result 페이지를 열어 No, 선수명, 상금이 맞는지 확인합니다. profile-only/standings-only에서는 이 단계를 생략합니다."],
+      ["9. 리포트 생성", "Playwright가 수집한 HTML/JSON/CSV 결과를 저장하고 mismatch, missing, skipped, duplicate evidence를 리포트에 표시합니다."]
     ] : [
-      ["Standings categories", `Collect top players from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
-      ["Standings/Profile", "Compare All-Time Earnings - Men/Women Earnings, All-Time Bracelets Bracelets, and All-Time Rings Rings against the profile summary values."],
-      ["Title", "Compare the Title profile tab visible row count against the profile summary value. Keep the ALL-tab calculated value as reference only."],
-      ["Bracelets Badge", "Compare the displayed count with the profile Bracelets value, and report mismatches as defect candidates."],
-      ["Rings Badge", "Compare the displayed count with the profile Rings value, and report mismatches as defect candidates."],
-      ["Final Tables", "Compare the Final Tables profile tab visible row count against the profile summary value. Keep the ALL-tab calculated value as reference only."],
-      ["Cashes", "Compare ALL-tab rows against profile Cashes. If collection stops before the profile Cashes count, mark it as an incomplete-collection warning."],
-      ["Total Earnings", "If profile Total Earnings differs from the ALL-tab calculated total, mark it as Warn because currency/rate/source differences can occur, and exclude it from failure totals."],
-      ["Profile tabs", "Click Title, Bracelets, Rings, and Final Tables tabs and compare visible row counts with profile stats."],
-      ["Country flag", "Compare only country codes from flag images across Standings, Profile, and Result when available. Missing codes and code mismatches are reported as Minor, not Fail."],
-      ["Result", "Open Results and verify that No, Player, and Earnings all match exactly."]
+      ["1. Open Standings", `Playwright opens Player Standings and collects target player rows from ${STANDINGS_CATEGORIES.map((c) => c.label).join(", ")}.`],
+      ["2. Apply filters", "If Brand, Season, or Profile Brand is configured, Playwright applies the filter and reads the visible rows again."],
+      ["3. Open player profiles", "Playwright opens each collected player profile and reads summary values, badges, country/flag, and tab areas."],
+      ["4. Expand ALL tab", "Playwright clicks Load More up to the configured limit and expands available ALL-tab rows."],
+      ["5. Click profile tabs", "Playwright clicks Title, Bracelets, Rings, and Final Tables tabs and compares rendered row counts with profile summary values."],
+      ["6. Check badge counts", "For Bracelets/Rings and additional badges, Playwright compares UI badge counts with ALL-tab first-place rows under the selected brand scope. Missing badges are skipped."],
+      ["7. Report duplicate rows", "If the same event row is rendered more than once, the report shows rendered duplicates with sample evidence."],
+      ["8. Check Result details", "In full mode, Playwright opens Result pages and checks No, Player, and Earnings. profile-only and standings-only skip this stage."],
+      ["9. Generate report", "Playwright writes HTML, JSON, and CSV outputs with mismatch, missing, skipped, and duplicate evidence."]
     ]
   };
 
@@ -5138,7 +5336,7 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
       </div>
     </div>
 
-    <!-- Validation Rules Collapsible Card -->
+    <!-- Playwright Crawler Steps Collapsible Card -->
     <div class="group-card" style="margin-bottom: 40px;">
       <div class="group-header" onclick="toggleGroupCollapse('metadata', 'rules')">
         <div class="group-header-left">
@@ -5885,6 +6083,34 @@ function renderDashboardTemplate(report, isKo, pastReports = []) {
                         \`).join("")}
                       </tbody>
                     </table>
+                    \${(player.additionalBadgeChecks || []).length ? \`
+                      <h4 style="margin:22px 0 12px;font-family:'Outfit',sans-serif;">\${labels.additionalBadges}</h4>
+                      <table style="width:100%;">
+                        <thead>
+                          <tr>
+                            <th>\${labels.badgeGroup}</th>
+                            <th>\${labels.detailType}</th>
+                            <th>\${labels.uiBadgeCount}</th>
+                            <th>\${labels.filterScope}</th>
+                            <th>\${labels.firstPlaceCount}</th>
+                            <th>\${labels.statusText}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          \${(player.additionalBadgeChecks || []).map(item => \`
+                            <tr>
+                              <td><strong>\${escapeHtml(item.group || "Additional Badge")}</strong></td>
+                              <td>\${escapeHtml(item.detailType || item.badgeLabel || item.badgeType || "-")}</td>
+                              <td>\${escapeHtml(formatValue(item.badgeLabel || "Badge", item.displayedCount))}</td>
+                              <td><code>\${escapeHtml(item.filterScope || item.brand || "-")}</code></td>
+                              <td>\${escapeHtml(formatValue(item.badgeLabel || "Badge", item.firstPlaceCount))}</td>
+                              <td><span class="status-badge \${item.status}">\${escapeHtml(formatStatus(item.status))}</span></td>
+                            </tr>
+                            \${item.detail ? \`<tr><td colspan="6" style="font-size:12px;color:var(--text-muted);">\${escapeHtml(item.detail)}</td></tr>\` : ""}
+                          \`).join("")}
+                        </tbody>
+                      </table>
+                    \` : ""}
                   </div>
 
                   <!-- Sub-tab Content: Profile Tab Integrity -->
@@ -6679,6 +6905,10 @@ function runSelfTest() {
   if (deduped.duplicateEvents.length !== 1 || dedupedCalculated.titles !== 3 || dedupedCalculated.finalTables !== 4 || dedupedCalculated.cashes !== 5) {
     throw new Error("Duplicate event rows should be removed before applying profile Cashes overflow");
   }
+  const duplicateEvidence = duplicateEventEvidence(pauliusLikeEvents);
+  if (duplicateEvidence.length !== 1 || !/Alternate label/i.test(duplicateEvidence[0].eventName)) {
+    throw new Error("Duplicate event evidence should expose the duplicated rendered row for report review");
+  }
   const sameDateRankPrizeA = normalizeEvent({ rowIndex: 10, text: "Distinct Event A #9 $10,000 Result", cells: ["Distinct Event A", "#9", "$10,000"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/a", hasResultControl: true });
   sameDateRankPrizeA.date = "Jan 01 2024";
   const sameDateRankPrizeB = normalizeEvent({ rowIndex: 11, text: "Distinct Event B #9 $10,000 Result", cells: ["Distinct Event B", "#9", "$10,000"], headers: ["Event", "Rank", "Earnings"], resultUrl: "https://example.test/b", hasResultControl: true });
@@ -6730,6 +6960,45 @@ function runSelfTest() {
   const braceletBadgeMismatch = compareSummary({ bracelets: 3 }, { bracelets: 3 }, { bracelets: 2, rings: 0 }).find((item) => item.key === "bracelets");
   if (braceletBadgeMismatch?.status !== "fail" || !buildDefects({ name: "Bracelet Mismatch", url: "https://example.test/bracelet", comparisons: [braceletBadgeMismatch], tabChecks: [], events: [] }).length) {
     throw new Error("Bracelet badge mismatch should fail against the profile summary value");
+  }
+  const additionalBadgeChecks = buildAdditionalBadgeChecks({
+    badgeDefs: [{
+      key: "ggpoker-tournament",
+      label: "GGPoker Tournament",
+      group: "Additional Badge",
+      detailType: "GGPoker Tournament",
+      brand: "GGPoker",
+      countMode: "filtered-first-place-count"
+    }],
+    badgeCounts: { "ggpoker-tournament": 2 },
+    brandFilter: "GGPoker",
+    events: [
+      { eventName: "GGPoker Event A", rank: 1, earnings: 100 },
+      { eventName: "GGPoker Event B", rank: 1, earnings: 200 },
+      { eventName: "GGPoker Event C", rank: 2, earnings: 50 }
+    ]
+  });
+  if (additionalBadgeChecks[0]?.status !== "pass" || additionalBadgeChecks[0]?.firstPlaceCount !== 2) {
+    throw new Error("Additional Badge count should compare UI badge count with filtered ALL first-place rows");
+  }
+  const additionalBadgeMismatch = buildAdditionalBadgeChecks({
+    badgeDefs: [{
+      key: "wpt",
+      label: "WPT",
+      group: "Additional Badge",
+      detailType: "WPT",
+      brand: "WPT",
+      countMode: "filtered-first-place-count"
+    }],
+    badgeCounts: { wpt: 1 },
+    brandFilter: "WPT",
+    events: [
+      { eventName: "WPT Event A", rank: 1, earnings: 100 },
+      { eventName: "WPT Event B", rank: 1, earnings: 200 }
+    ]
+  });
+  if (additionalBadgeMismatch[0]?.status !== "warn" || additionalBadgeMismatch[0]?.firstPlaceCount !== 2) {
+    throw new Error("Additional Badge mismatch should be reported as a warning with first-place evidence");
   }
   const standingsEarningsSource = buildStandingMetricSource("All-Time Earnings - Men", "1 Alex Kulev Bulgaria $12,361,923");
   if (standingsEarningsSource.metricValue !== 12361923 || standingsEarningsSource.metricKey !== "totalEarnings") {
