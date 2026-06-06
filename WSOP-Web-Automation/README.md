@@ -680,6 +680,19 @@ RUN_BRAND_COMPARE_LATEST.bat "LIVE_DATA_JSON" "STAGE_DATA_JSON"
 - JSON/HTML reports include player-level `countryChecks`, a country summary, an `Unknown Country` list, country minor issue list, and a country filter in the player directory.
 - Defect CSV rows include `countryCode` for context; country minor issues remain in the HTML/JSON review notes rather than defect candidates.
 
+## Badge/Crown automation note
+
+- Phase 3 may observe Badge/Crown UI signals later, but it is not the official Badge count or Crown tier integrity path.
+- Badge count, Badge group, and Crown tier integrity belong to the existing `WSOP-Player-Standings-Crawler` profile/profile-only flow first; Phase 6 is only a supporting backend/API comparison area when needed.
+- Historical POY users should reuse `fixtures/player-presentation/poy-players.fixture.json`; do not duplicate them in Badge/Crown UI fixtures.
+- Additional Badge definitions are configured in `../WSOP-Player-Standings-Crawler/automation/config/badge-definitions.json`.
+- The first crawler-integrity path keeps Bracelet/Ring in the existing summary/tab validation and adds new Badge types as `Additional Badge` detail rows once their stable asset/key values are known.
+- Brand/Profile Brand filters are existing crawler scope controls, not new Badge crawler logic.
+- In the Run dashboard, use the existing `플레이어 스탠딩 크롤러` card with `Profile Only`, `Brand Filter`, and `Profile Brand Filter` settings. This keeps Badge correctness merged into `WSOP-Player-Standings-Crawler`, not split into a separate crawler or Phase 3 UI presentation.
+- Bracelet/Ring currently use `badge_WSOPBracelet.webp` and `badge_WSOPRing.webp`. GGPoker/WPT/etc. Badge assets can be added through the same Badge definition structure once their paths and stable UI keys are confirmed; their count rule is the filtered ALL-tab first-place row count.
+- Detailed validation steps are documented in `../docs/WSOP_BADGE_CROWN_PROFILE_FILTER_VALIDATION_STEPS.md`.
+- The default mode is warning-only because the feature can be deployed gradually and GGPass Crown data can appear before Scouter Badge data.
+
 ## Stage/Live crawler output tag
 
 Dashboard 또는 배치 실행에서 `BASE_URL`/`baseUrl`이 stage 도메인을 가리키면 크롤러 산출물 파일명은 `wsop-player-crawler-stage-YYYYMMDD-HHMMSS-*` 형식으로 생성됩니다. 기본 Live 실행은 기존처럼 `wsop-player-crawler-live-YYYYMMDD-HHMMSS-*` 형식을 유지합니다.

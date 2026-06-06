@@ -132,6 +132,13 @@ npm run crawl:self-test
 - 두 하위 프로젝트는 같은 상위 폴더 안에 sibling으로 있어야 합니다.
 - 크롤러 폴더명은 `WSOP-Player-Standings-Crawler`를 기준으로 합니다.
 - `node_modules`, `automation/output`, `test-results`, Playwright report 산출물은 Git에 포함하지 않습니다.
+- Badge/Crown rollout observation에서 값 정합성은 `WSOP-Player-Standings-Crawler`의 profile/profile-only 흐름에서 우선 다룹니다. Phase 3는 필요 시 UI signal 확인만 담당하며, Badge 개수/Crown tier 정합성의 공식 실행 축은 아닙니다.
+- Badge/Crown 테스트 방향성은 `docs/WSOP_BADGE_CROWN_TEST_STRATEGY.md`에 정리합니다.
+- Badge/Crown profile filter 역검증 스텝은 `docs/WSOP_BADGE_CROWN_PROFILE_FILTER_VALIDATION_STEPS.md`에 정리합니다.
+- 신규 Badge 정의는 `WSOP-Player-Standings-Crawler/automation/config/badge-definitions.json`의 `additionalBadges`에 추가합니다. 이미지 경로/alt/class/data key가 확정되기 전까지 기본값은 빈 배열입니다.
+- Bracelet/Ring은 이미 프로필 Badge로 제공 중이므로 기존 프로필 요약/탭 검증을 유지합니다.
+- GGPoker Badge처럼 브랜드별 Badge count가 추가되면 브랜드 분리/필터는 기존 플레이어 크롤러 기능을 그대로 쓰고, 새로 추가할 것은 Badge asset/key입니다. 신규 Badge count는 해당 브랜드/profile filter scope에서 ALL 탭의 1위 row 수로 계산합니다. 정식 실행 축은 별도 Badge 크롤러가 아니라 `WSOP-Player-Standings-Crawler` 기존 크롤러의 profile-only 정합성 흐름입니다.
+- 통합 Run 대시보드에서는 기존 `플레이어 스탠딩 크롤러` 카드를 선택하고 `Profile Only`, `Brand Filter`, `Profile Brand Filter` 옵션으로 이 검증 흐름을 실행합니다.
 - 외부 사이트 대상 자동화이므로 요청 범위와 동시성을 과도하게 올리지 않습니다.
 - selector, 로그인/접근 제한, 네트워크/보안 정책 변화는 실패 원인이 될 수 있으므로 리포트의 실패 상세와 각 README의 유지보수 포인트를 함께 확인합니다.
 

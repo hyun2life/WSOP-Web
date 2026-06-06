@@ -56,6 +56,63 @@ set "WSOP_NO_PAUSE=true"
 
 정합성을 높이고 싶으면 `RESULT_LIMIT=0`, `RESULT_PAGE_LIMIT=0`, `MAX_LOAD_MORE=100` 이상을 유지하는 것을 권장합니다. 빠른 동작 확인만 할 때만 값을 줄이세요.
 
+## Badge/Crown 프로필 필터 정합성
+
+Badge/Crown의 Badge count 정합성은 별도 Badge 크롤러로 분리하지 않고, 기존 플레이어 크롤러의 profile/profile-only 정합성 흐름에 포함합니다. 브랜드 분리와 profile brand filter는 이미 기존 크롤러에 들어와 있으므로, 이번 작업에서 새로 필요한 것은 Player Profile에 노출된 Badge asset/key입니다. 신규 Badge count는 해당 브랜드/profile filter scope에서 ALL 탭의 1위 row 수로 계산합니다.
+
+추가 Badge 정의는 아래 설정 파일의 `additionalBadges`에 넣습니다. 아직 신규 Badge 이미지 경로/alt/class/data key가 확정되지 않았으므로 기본값은 빈 배열입니다.
+
+```text
+automation\config\badge-definitions.json
+```
+
+예시:
+
+```json
+{
+  "additionalBadges": [
+    {
+      "key": "ggpoker-tournament",
+      "label": "GGPoker Tournament",
+      "detailType": "GGPoker Tournament",
+      "brand": "GGPoker",
+      "fileName": "badge_GGPokerTournament.webp",
+      "altPattern": "ggpoker\\s+tournament",
+      "dataKey": "ggpoker-tournament"
+    }
+  ]
+}
+```
+
+통합 대시보드에서는 기존 `플레이어 스탠딩 크롤러` 카드를 선택하고, 빠른 Badge/Profile 검증이 필요하면 `Profile Only`와 Brand/Profile Brand 옵션을 켭니다. 직접 실행할 때는 기존 live BAT에 같은 환경변수를 지정합니다.
+
+```bat
+set "PROFILE_ONLY=true"
+set "BRAND=WSOP"
+set "PROFILE_BRAND=WSOP"
+set "PLAYER_LIMIT=5"
+set "RESULT_LIMIT=0"
+set "RESULT_RANK_LIMIT=0"
+set "MAX_LOAD_MORE=100"
+set "RESULT_PAGE_LIMIT=0"
+set "DISABLED_RESULT_MODE=skip"
+set "CONCURRENCY=5"
+RUN_WSOP_PLAYER_CRAWLER_LIVE.bat
+```
+
+GGPoker 등 다른 브랜드를 확인할 때는 `BRAND`와 `PROFILE_BRAND`를 같은 브랜드명으로 바꿔서 실행합니다. `PROFILE_ONLY=true`이므로 Result 상세 페이지까지 내려가지 않고, standings 대상 수집과 profile summary/tab/event 정합성까지만 수행합니다.
+
+산출물은 기존 크롤러와 동일하게 `automation\output` 아래에 생성됩니다.
+
+```text
+automation\output\wsop-player-crawler-live-*-data.json
+automation\output\wsop-player-crawler-live-*-report-ko.html
+automation\output\wsop-player-crawler-live-*-report.html
+automation\output\wsop-player-crawler-live-*-defects.csv
+```
+
+초기 운영 기준은 warning 중심입니다. 신규 Badge asset/key, GGPass/Scouter 동기화 지연, profile filter selector 변경 가능성이 있으므로 mismatch는 먼저 리포트에서 원인 후보를 확인한 뒤 hard fail 전환을 검토합니다. 리포트에서는 Bracelet/Ring은 기존 분류를 유지하고, 추가 Badge는 하나의 신규 Badge 그룹 안에서 세부 타입별 count mismatch를 보여줍니다.
+
 ## 브라우저 표시 여부
 
 기본 BAT는 실제 브라우저 창을 띄워서 실행합니다. 로그인, 접근 확인, 차단 여부를 직접 볼 수 있어서 라이브 검증에는 이 방식이 가장 안전합니다.
