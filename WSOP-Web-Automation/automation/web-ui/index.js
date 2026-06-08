@@ -985,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tournamentAllowedArgs = new Set(['year', 'limit', 'auth-wait-ms', 'concurrency', 'event-limit']);
         if (selectedPhase.id === 'tournament-crawler' && !tournamentAllowedArgs.has(argName)) return;
         if (standingsOnlyRequested && ['profile-brand', 'profile-season', 'result-limit'].includes(argName)) return;
-        if (profileOnlyRequested && ['brand', 'season', 'result-limit'].includes(argName)) return;
+        if (profileOnlyRequested && ['result-limit'].includes(argName)) return;
 
         if (argName === 'brand') {
           const selectedBrands = [];

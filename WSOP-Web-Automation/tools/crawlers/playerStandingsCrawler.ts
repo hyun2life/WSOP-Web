@@ -58,7 +58,7 @@ const PROFILE_BADGE_DEFS = [
 
 const DEFAULT_STANDINGS_LIMIT = 50;
 const DEFAULT_CONCURRENCY = 5;
-const MAX_CONCURRENCY = 10;
+const MAX_CONCURRENCY = 100;
 const DEFAULT_RESULT_PAGE_LIMIT = 0;
 const DEFAULT_OUT_PATH = "automation/output/wsop-player-crawler-data.json";
 const DEFAULT_HTML_PATH = "automation/output/wsop-player-crawler-report.html";
@@ -1916,19 +1916,28 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
 
       let rows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
 
-      if (currentBrand && rows.length < limit) {
+      let pageNum = 1;
+      while (rows.length < limit) {
         const nextButton = page.locator('button, a').filter({ hasText: /next|load more|show more/i }).first();
         const hasNext = (await nextButton.count()) > 0 && (await nextButton.isVisible().catch(() => false));
+        if (!hasNext) break;
 
-        if (hasNext) {
-          console.log(`  [크롤러] 다음 페이지(2페이지) 수집을 시도합니다.`);
-          await nextButton.click().catch(() => {});
-          await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
-          await page.waitForTimeout(1000);
+        pageNum++;
+        console.log(`  [크롤러] 다음 페이지(${pageNum}페이지) 수집을 시도합니다.`);
+        await nextButton.click().catch(() => {});
+        await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+        await page.waitForTimeout(1000);
 
-          const page2Rows = await extractStandingPlayerLinks(page, limit - rows.length, category.sectionSelector || null);
-          rows = rows.concat(page2Rows);
+        const newRows = await extractStandingPlayerLinks(page, limit, category.sectionSelector || null);
+        const existingUrls = new Set(rows.map(r => r.url));
+        const uniqueNewRows = newRows.filter(r => !existingUrls.has(r.url));
+
+        if (uniqueNewRows.length === 0) {
+          console.log(`  [크롤러] 더 이상 새로운 플레이어가 감지되지 않아 수집을 중단합니다.`);
+          break;
         }
+
+        rows = rows.concat(uniqueNewRows);
       }
 
       if (!rows.length) continue;

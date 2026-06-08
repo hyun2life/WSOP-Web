@@ -1,3 +1,20 @@
 {
-  "additionalBadges": []
+  "additionalBadges": [
+    {
+      "key": "POY",
+      "label": "POY",
+      "detailType": "POY",
+      "fileName": "badge_POY.webp",
+      "altPattern": "POY\\s+title",
+      "brand": ""
+    },
+    {
+      "key": "POY_2004",
+      "label": "POY_2004",
+      "detailType": "POY_2004",
+      "fileName": "badge_POY_2004.webp",
+      "altPattern": "POY_2004\\s+title",
+      "brand": ""
+    }
+  ]
 }
