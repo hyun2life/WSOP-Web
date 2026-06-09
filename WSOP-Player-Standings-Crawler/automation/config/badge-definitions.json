@@ -5,16 +5,392 @@
       "label": "POY",
       "detailType": "POY",
       "fileName": "badge_POY.webp",
-      "altPattern": "POY\\s+title",
-      "brand": ""
+      "altPattern": "POY",
+      "brand": "WSOP"
     },
     {
       "key": "POY_2004",
-      "label": "POY_2004",
-      "detailType": "POY_2004",
+      "label": "POY 2004",
+      "detailType": "POY 2004",
       "fileName": "badge_POY_2004.webp",
-      "altPattern": "POY_2004\\s+title",
+      "altPattern": "POY\\s*2004",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2005",
+      "label": "POY 2005",
+      "detailType": "POY 2005",
+      "fileName": "badge_POY_2005.webp",
+      "altPattern": "POY\\s*2005",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2006",
+      "label": "POY 2006",
+      "detailType": "POY 2006",
+      "fileName": "badge_POY_2006.webp",
+      "altPattern": "POY\\s*2006",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2007",
+      "label": "POY 2007",
+      "detailType": "POY 2007",
+      "fileName": "badge_POY_2007.webp",
+      "altPattern": "POY\\s*2007",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2008",
+      "label": "POY 2008",
+      "detailType": "POY 2008",
+      "fileName": "badge_POY_2008.webp",
+      "altPattern": "POY\\s*2008",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2009",
+      "label": "POY 2009",
+      "detailType": "POY 2009",
+      "fileName": "badge_POY_2009.webp",
+      "altPattern": "POY\\s*2009",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2010",
+      "label": "POY 2010",
+      "detailType": "POY 2010",
+      "fileName": "badge_POY_2010.webp",
+      "altPattern": "POY\\s*2010",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2011",
+      "label": "POY 2011",
+      "detailType": "POY 2011",
+      "fileName": "badge_POY_2011.webp",
+      "altPattern": "POY\\s*2011",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2012",
+      "label": "POY 2012",
+      "detailType": "POY 2012",
+      "fileName": "badge_POY_2012.webp",
+      "altPattern": "POY\\s*2012",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2013",
+      "label": "POY 2013",
+      "detailType": "POY 2013",
+      "fileName": "badge_POY_2013.webp",
+      "altPattern": "POY\\s*2013",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2014",
+      "label": "POY 2014",
+      "detailType": "POY 2014",
+      "fileName": "badge_POY_2014.webp",
+      "altPattern": "POY\\s*2014",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2015",
+      "label": "POY 2015",
+      "detailType": "POY 2015",
+      "fileName": "badge_POY_2015.webp",
+      "altPattern": "POY\\s*2015",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2016",
+      "label": "POY 2016",
+      "detailType": "POY 2016",
+      "fileName": "badge_POY_2016.webp",
+      "altPattern": "POY\\s*2016",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2017",
+      "label": "POY 2017",
+      "detailType": "POY 2017",
+      "fileName": "badge_POY_2017.webp",
+      "altPattern": "POY\\s*2017",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2018",
+      "label": "POY 2018",
+      "detailType": "POY 2018",
+      "fileName": "badge_POY_2018.webp",
+      "altPattern": "POY\\s*2018",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2019",
+      "label": "POY 2019",
+      "detailType": "POY 2019",
+      "fileName": "badge_POY_2019.webp",
+      "altPattern": "POY\\s*2019",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2020",
+      "label": "POY 2020",
+      "detailType": "POY 2020",
+      "fileName": "badge_POY_2020.webp",
+      "altPattern": "POY\\s*2020",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2021",
+      "label": "POY 2021",
+      "detailType": "POY 2021",
+      "fileName": "badge_POY_2021.webp",
+      "altPattern": "POY\\s*2021",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2022",
+      "label": "POY 2022",
+      "detailType": "POY 2022",
+      "fileName": "badge_POY_2022.webp",
+      "altPattern": "POY\\s*2022",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2023",
+      "label": "POY 2023",
+      "detailType": "POY 2023",
+      "fileName": "badge_POY_2023.webp",
+      "altPattern": "POY\\s*2023",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2024",
+      "label": "POY 2024",
+      "detailType": "POY 2024",
+      "fileName": "badge_POY_2024.webp",
+      "altPattern": "POY\\s*2024",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2025",
+      "label": "POY 2025",
+      "detailType": "POY 2025",
+      "fileName": "badge_POY_2025.webp",
+      "altPattern": "POY\\s*2025",
+      "brand": "WSOP"
+    },
+    {
+      "key": "POY_2026",
+      "label": "POY 2026",
+      "detailType": "POY 2026",
+      "fileName": "badge_POY_2026.webp",
+      "altPattern": "POY\\s*2026",
+      "brand": "WSOP"
+    },
+    {
+      "key": "Standings",
+      "label": "Standings",
+      "detailType": "Standings",
+      "fileName": "badge_Standings.webp",
+      "altPattern": "standings",
       "brand": ""
+    },
+    {
+      "key": "AllTime_Men",
+      "label": "All-Time Earnings - Men",
+      "detailType": "All-Time Earnings - Men",
+      "fileName": "badge_AllTime_Men.webp",
+      "altPattern": "all-time.*men",
+      "brand": ""
+    },
+    {
+      "key": "AllTime_Women",
+      "label": "All-Time Earnings - Women",
+      "detailType": "All-Time Earnings - Women",
+      "fileName": "badge_AllTime_Women.webp",
+      "altPattern": "all-time.*women",
+      "brand": ""
+    },
+    {
+      "key": "WSOP_Bracelets",
+      "label": "WSOP Bracelets",
+      "detailType": "WSOP Bracelets",
+      "fileName": "badge_WSOP_Bracelets.webp",
+      "altPattern": "wsop.*bracelet",
+      "brand": "WSOP"
+    },
+    {
+      "key": "WSOP_Rings",
+      "label": "WSOP Rings",
+      "detailType": "WSOP Rings",
+      "fileName": "badge_WSOP_Rings.webp",
+      "altPattern": "wsop.*ring",
+      "brand": "WSOP"
+    },
+    {
+      "key": "GG_Millions10K",
+      "label": "GG Millions 10K",
+      "detailType": "GG Millions 10K",
+      "fileName": "badge_GG_Millions10K.webp",
+      "altPattern": "gg.*million",
+      "brand": "GGPoker"
+    },
+    {
+      "key": "GG_Masters150",
+      "label": "GG Masters 150",
+      "detailType": "GG Masters 150",
+      "fileName": "badge_GG_Masters150.webp",
+      "altPattern": "gg.*masters",
+      "brand": "GGPoker"
+    },
+    {
+      "key": "Triton",
+      "label": "Triton",
+      "detailType": "Triton",
+      "fileName": "badge_Triton.webp",
+      "altPattern": "triton",
+      "brand": "Triton"
+    },
+    {
+      "key": "WPT",
+      "label": "WPT",
+      "detailType": "WPT",
+      "fileName": "badge_WPT.webp",
+      "altPattern": "wpt",
+      "brand": "WPT"
+    },
+    {
+      "key": "EPT",
+      "label": "EPT",
+      "detailType": "EPT",
+      "fileName": "badge_EPT.webp",
+      "altPattern": "ept",
+      "brand": "EPT"
+    },
+    {
+      "key": "PGT",
+      "label": "PGT",
+      "detailType": "PGT",
+      "fileName": "badge_PGT.webp",
+      "altPattern": "pgt",
+      "brand": "PGT"
+    },
+    {
+      "key": "APL",
+      "label": "APL",
+      "detailType": "APL",
+      "fileName": "badge_APL.webp",
+      "altPattern": "apl",
+      "brand": "APL"
+    },
+    {
+      "key": "AsiaPT",
+      "label": "AsiaPT",
+      "detailType": "AsiaPT",
+      "fileName": "badge_AsiaPT.webp",
+      "altPattern": "asia.*pt",
+      "brand": "AsiaPT"
+    },
+    {
+      "key": "BSOP",
+      "label": "BSOP",
+      "detailType": "BSOP",
+      "fileName": "badge_BSOP.webp",
+      "altPattern": "bsop",
+      "brand": "BSOP"
+    },
+    {
+      "key": "EAPT",
+      "label": "EAPT",
+      "detailType": "EAPT",
+      "fileName": "badge_EAPT.webp",
+      "altPattern": "eapt",
+      "brand": "EAPT"
+    },
+    {
+      "key": "GUKPT",
+      "label": "GUKPT",
+      "detailType": "GUKPT",
+      "fileName": "badge_GUKPT.webp",
+      "altPattern": "gukpt",
+      "brand": "GUKPT"
+    },
+    {
+      "key": "KSOP",
+      "label": "KSOP",
+      "detailType": "KSOP",
+      "fileName": "badge_KSOP.webp",
+      "altPattern": "ksop",
+      "brand": "KSOP"
+    },
+    {
+      "key": "MSPT",
+      "label": "MSPT",
+      "detailType": "MSPT",
+      "fileName": "badge_MSPT.webp",
+      "altPattern": "mspt",
+      "brand": "MSPT"
+    },
+    {
+      "key": "PokerDream",
+      "label": "Poker Dream",
+      "detailType": "Poker Dream",
+      "fileName": "badge_PokerDream.webp",
+      "altPattern": "poker.*dream",
+      "brand": "PokerDream"
+    },
+    {
+      "key": "IrishPT",
+      "label": "IrishPT",
+      "detailType": "IrishPT",
+      "fileName": "badge_IrishPT.webp",
+      "altPattern": "irish.*pt",
+      "brand": "IrishPT"
+    },
+    {
+      "key": "KOT",
+      "label": "KOT",
+      "detailType": "KOT",
+      "fileName": "badge_KOT.webp",
+      "altPattern": "kot",
+      "brand": "KOT"
+    },
+    {
+      "key": "RGPS",
+      "label": "RGPS",
+      "detailType": "RGPS",
+      "fileName": "badge_RGPS.webp",
+      "altPattern": "rgps",
+      "brand": "RGPS"
+    },
+    {
+      "key": "NAPT",
+      "label": "NAPT",
+      "detailType": "NAPT",
+      "fileName": "badge_NAPT.webp",
+      "altPattern": "napt",
+      "brand": "NAPT"
+    },
+    {
+      "key": "WPTP",
+      "label": "WPTP",
+      "detailType": "WPTP",
+      "fileName": "badge_WPTP.webp",
+      "altPattern": "wptp",
+      "brand": "WPT"
+    },
+    {
+      "key": "APPT",
+      "label": "APPT",
+      "detailType": "APPT",
+      "fileName": "badge_APPT.webp",
+      "altPattern": "appt",
+      "brand": "APPT"
     }
   ]
 }

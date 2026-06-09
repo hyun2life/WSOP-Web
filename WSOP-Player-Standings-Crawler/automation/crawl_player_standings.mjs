@@ -31,6 +31,7 @@ const STAT_DEFS = [
 // path: null + sectionSelector가 있으면 메인 standings 페이지에서 해당 섹션만 추출한다.
 const STANDINGS_CATEGORIES = [
   { label: "2026 Standings", path: "2026-standings" },
+  { label: "2026 POY", path: "2026-poy", customUrl: "https://www.wsop.com/2026-poy/" },
   { label: "All-Time Earnings - Men", path: "all-time-earnings-men" },
   { label: "All-Time Earnings - Women", path: "all-time-earnings-women" },
   { label: "All-Time Bracelets", path: "all-time-bracelets" },
@@ -40,6 +41,7 @@ const STANDINGS_CATEGORIES = [
 
 const BRAND_FILTER_EXCLUDED_CATEGORIES = new Set([
   "2026 Standings",
+  "2026 POY",
   "All-Time Bracelets",
   "All-Time Rings"
 ]);
@@ -957,6 +959,26 @@ async function extractProfileBadgeCounts(page) {
         }
         return 1;
       };
+      const parseRankText = (value) => {
+        const text = normalize(value);
+        const match = text.match(/#\s*(\d[\d,]*)/);
+        return match ? Number(match[1].replace(/,/g, "")) : null;
+      };
+      const readBadgeRank = (img) => {
+        const container = img.closest("li") || img.parentElement;
+        const candidates = [
+          img.nextElementSibling,
+          img.previousElementSibling,
+          img.parentElement,
+          container
+        ];
+        for (const candidate of candidates) {
+          if (!candidate) continue;
+          const rank = parseRankText(candidate.textContent);
+          if (rank !== null) return rank;
+        }
+        return null;
+      };
       const counts = {};
       const details = {};
       for (const badgeDef of badgeDefs) {
@@ -990,9 +1012,11 @@ async function extractProfileBadgeCounts(page) {
         if (!badgeDef) continue;
 
         const count = readBadgeCount(img);
+        const rank = readBadgeRank(img);
         counts[badgeDef.key] += count;
         details[badgeDef.key].push({
           count,
+          rank,
           alt: img.getAttribute("alt") || "",
           src: img.getAttribute("src") || img.currentSrc || ""
         });
@@ -1350,26 +1374,341 @@ function activeProfileBrandMatchesBadge(brandFilter, badgeDef) {
   return activeBrands.includes(expectedBrand);
 }
 
-function buildAdditionalBadgeChecks({ badgeCounts = {}, events = [], brandFilter = null, badgeDefs = ADDITIONAL_PROFILE_BADGE_DEFS } = {}) {
+function loadHistoricalPoyWinners() {
+  try {
+    const fixturePath = path.join(PROJECT_ROOT, "..", "WSOP-Web-Automation", "fixtures", "player-presentation", "poy-players.fixture.json");
+    if (fs.existsSync(fixturePath)) {
+      const data = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+      return data;
+    }
+  } catch (error) {
+    console.warn(`[경고] POY fixtures를 읽지 못했습니다: ${error.message}`);
+  }
+  return [];
+}
+
+function findPoyFixturePlayer(playerName) {
+  const winners = loadHistoricalPoyWinners();
+  const targetNames = comparableNameCandidates(playerName);
+  return winners.find((winner) => {
+    const winnerNames = comparableNameCandidates(winner.displayName);
+    return winnerNames.some((winnerName) => targetNames.some((targetName) => winnerName.includes(targetName) || targetName.includes(winnerName)));
+  }) || null;
+}
+
+function eventMatchesBadge(event, badgeDef) {
+  const eventText = `${event.eventName} ${event.rowText || ""}`.toLowerCase();
+  const brandLower = (badgeDef.brand || "").toLowerCase();
+  const keyLower = (badgeDef.key || "").toLowerCase();
+
+  // GGPoker 뱃지 중 세부 우승 이벤트 매칭
+  if (keyLower === "gg-millions10k" || keyLower === "gg_millions10k") {
+    return eventText.includes("gg world festival") || eventText.includes("ggworldfestival");
+  }
+  if (keyLower === "gg-masters150" || keyLower === "gg_masters150") {
+    return eventText.includes("ggmasters $150") || eventText.includes("ggmasters 150") || (eventText.includes("ggmasters") && eventText.includes("150"));
+  }
+
+  if (!badgeDef.brand) return true;
+
+  if (brandLower.includes("wsop")) {
+    return eventText.includes("wsop") || 
+           eventText.includes("world series of poker") || 
+           eventText.includes("circuit") || 
+           eventText.includes("ring") || 
+           eventText.includes("bracelet");
+  }
+  if (brandLower.includes("ggpoker") || brandLower.includes("gg")) {
+    return eventText.includes("ggpoker") || 
+           eventText.includes("gg") || 
+           eventText.includes("ggmasters") || 
+           eventText.includes("ggmillion");
+  }
+  if (brandLower.includes("irish")) {
+    return eventText.includes("irish") || 
+           eventText.includes("irishpt");
+  }
+  if (brandLower.includes("asiapt") || brandLower.includes("asia")) {
+    return eventText.includes("asia") || 
+           eventText.includes("asiapt");
+  }
+  if (brandLower.includes("wptp") || brandLower.includes("wpt")) {
+    return eventText.includes("wpt") || 
+           eventText.includes("wptp");
+  }
+  return eventText.includes(brandLower);
+}
+
+function verifyAvatarCrown(player) {
+  const excludedKeys = new Set(["details", "error"]);
+  let totalBadges = 0;
+  if (player.badgeCounts) {
+    for (const [key, count] of Object.entries(player.badgeCounts)) {
+      if (excludedKeys.has(key)) continue;
+      if (Number.isFinite(count)) {
+        totalBadges += count;
+      }
+    }
+  }
+
+  let expectedCrown = null;
+  if (totalBadges >= 5) {
+    expectedCrown = "Gold Crown";
+  } else if (totalBadges >= 3) {
+    expectedCrown = "Silver Crown";
+  } else if (totalBadges >= 1) {
+    expectedCrown = "Bronze Crown";
+  }
+
+  const profileCrown = player.profileCrown || null;
+  const searchCrown = player.searchCrown || null;
+  const standingsCrowns = (player.standingsSources || []).map(s => s.crown).filter(Boolean);
+  const standingsCrown = standingsCrowns[0] || null;
+
+  const checks = [];
+  const addCheck = (location, actualCrown) => {
+    const status = actualCrown === expectedCrown ? "pass" : "fail";
+    let detail = "";
+    if (status === "fail") {
+      detail = `Avatar crown mismatch at ${location}: expected=${expectedCrown || "None"}, actual=${actualCrown || "None"} (totalBadges=${totalBadges})`;
+    } else {
+      detail = `Avatar crown at ${location} matches expected=${expectedCrown || "None"} (totalBadges=${totalBadges})`;
+    }
+    checks.push({
+      location,
+      expected: expectedCrown,
+      actual: actualCrown,
+      status,
+      detail
+    });
+  };
+
+  addCheck("Profile", profileCrown);
+  addCheck("Search", searchCrown);
+
+  const hasStandingsRecord = (player.standingsSources || []).some(s => s.category && s.category !== "Manual player URL" && s.category !== "Default standings view");
+  if (hasStandingsRecord) {
+    addCheck("Standings", standingsCrown);
+  }
+
+  let consistencyStatus = "pass";
+  let consistencyDetail = "Avatar crowns are consistent across all crawled views.";
+  const activeViews = [
+    { name: "Profile", crown: profileCrown },
+    { name: "Search", crown: searchCrown }
+  ];
+  if (hasStandingsRecord) {
+    activeViews.push({ name: "Standings", crown: standingsCrown });
+  }
+
+  const distinctCrowns = new Set(activeViews.map(v => v.crown));
+  if (distinctCrowns.size > 1) {
+    consistencyStatus = "fail";
+    const viewDetails = activeViews.map(v => `${v.name}=${v.crown || "None"}`).join(", ");
+    consistencyDetail = `Avatar crowns are inconsistent across views: ${viewDetails}`;
+  }
+
+  return {
+    totalBadges,
+    expectedCrown,
+    checks,
+    consistency: {
+      status: consistencyStatus,
+      detail: consistencyDetail
+    }
+  };
+}
+
+function attachAvatarCrownChecks(player) {
+  player.avatarCrownChecks = verifyAvatarCrown(player);
+  player.defects = player.defects || [];
+  
+  for (const check of player.avatarCrownChecks.checks) {
+    if (check.status === "fail") {
+      player.defects.push({
+        player: player.name,
+        brand: "All",
+        countryCode: player.countryCode || "UNKNOWN",
+        type: "Avatar crown mismatch",
+        item: `Avatar Crown / ${check.location}`,
+        expected: check.expected || "None",
+        actual: check.actual || "None",
+        url: player.url,
+        detail: check.detail
+      });
+    }
+  }
+
+  if (player.avatarCrownChecks.consistency.status === "fail") {
+    player.defects.push({
+      player: player.name,
+      brand: "All",
+      countryCode: player.countryCode || "UNKNOWN",
+      type: "Avatar crown inconsistency",
+      item: "Avatar Crown Consistency",
+      expected: player.avatarCrownChecks.expectedCrown || "None",
+      actual: "Inconsistent",
+      url: player.url,
+      detail: player.avatarCrownChecks.consistency.detail
+    });
+  }
+
+  player.status = playerStatus(player);
+}
+
+function buildAdditionalBadgeChecks({
+  badgeCounts = {},
+  events = [],
+  brandFilter = null,
+  badgeDefs = ADDITIONAL_PROFILE_BADGE_DEFS,
+  standingsSources = [],
+  playerName = ""
+} = {}) {
+  const counts = badgeCounts.details ? badgeCounts : { ...badgeCounts, details: {} };
+
   return badgeDefs
     .map((badgeDef) => {
-      const displayedCount = Number.isFinite(badgeCounts?.[badgeDef.key]) ? badgeCounts[badgeDef.key] : 0;
+      const displayedCount = Number.isFinite(counts[badgeDef.key]) ? counts[badgeDef.key] : 0;
+      const badgeDetails = counts.details?.[badgeDef.key] || [];
       const hasVisibleBadge = displayedCount > 0;
-      const scopeMatches = activeProfileBrandMatchesBadge(brandFilter, badgeDef);
-      const shouldReport = scopeMatches || hasVisibleBadge;
+      
+      // 실행 옵션으로 브랜드 필터가 명시적으로 주어진 경우에만 스코프 제한을 체크하고, 
+      // 주어지지 않은 전체 검증(null)의 경우 뱃지의 브랜드를 항상 통과시켜 검증합니다.
+      const scopeMatches = brandFilter
+        ? activeProfileBrandMatchesBadge(brandFilter, badgeDef)
+        : true;
+        
+      const isRankBadge = ["poy", "standings", "alltime-men", "alltime-women", "POY", "Standings", "AllTime_Men", "AllTime_Women"].includes(badgeDef.key);
+      const isHistoricalPoyBadge = /^poy-\d{4}$/.test(badgeDef.key) || /^POY_\d{4}$/.test(badgeDef.key);
+
+      // A. 일반 우승 실적 계산
+      let firstPlaceEvents = [];
+      let firstPlaceCount = 0;
+      if (!isRankBadge && !isHistoricalPoyBadge) {
+        firstPlaceEvents = (events || []).filter((event) => 
+          event.rank === 1 && eventMatchesBadge(event, badgeDef)
+        );
+        firstPlaceCount = firstPlaceEvents.length;
+      }
+
+      // B. 랭킹 뱃지 관련 순위 데이터 조회
+      let standingRank = null;
+      let matchedSource = null;
+      if (isRankBadge) {
+        const categoryMap = {
+          "poy": "2026 POY",
+          "POY": "2026 POY",
+          "standings": "2026 Standings",
+          "Standings": "2026 Standings",
+          "alltime-men": "All-Time Earnings - Men",
+          "AllTime_Men": "All-Time Earnings - Men",
+          "alltime-women": "All-Time Earnings - Women",
+          "AllTime_Women": "All-Time Earnings - Women"
+        };
+        const targetCategory = categoryMap[badgeDef.key];
+        matchedSource = (standingsSources || []).find(src => src.category === targetCategory);
+        if (matchedSource) {
+          standingRank = matchedSource.rank;
+        }
+      }
+
+      // C. 역대 POY 뱃지 매칭
+      let hasHistoricalPoyWin = false;
+      let poyYear = null;
+      if (isHistoricalPoyBadge) {
+        poyYear = Number(badgeDef.key.replace("poy-", "").replace("POY_", ""));
+        if (poyYear <= 2025) {
+          const fixturePlayer = findPoyFixturePlayer(playerName);
+          if (fixturePlayer && fixturePlayer.poyYears && fixturePlayer.poyYears.includes(poyYear)) {
+            hasHistoricalPoyWin = true;
+          }
+        }
+      }
+
+      // 검증 보고 대상 여부
+      let shouldReport = false;
+      const cleanKey = badgeDef.key.toLowerCase();
+      if (isRankBadge) {
+        const maxRank = (cleanKey === "poy" || cleanKey === "standings") ? 99 : 999;
+        const inRankZone = standingRank !== null && standingRank <= maxRank;
+        if (hasVisibleBadge || inRankZone) {
+          shouldReport = true;
+        }
+      } else if (isHistoricalPoyBadge) {
+        if (poyYear !== null && poyYear > 2025) {
+          shouldReport = false;
+        } else if (hasVisibleBadge || hasHistoricalPoyWin) {
+          shouldReport = true;
+        }
+      } else {
+        shouldReport = hasVisibleBadge;
+      }
+
       if (!shouldReport) return null;
 
-      const firstPlaceEvents = scopeMatches ? (events || []).filter((event) => event.rank === 1) : [];
-      const firstPlaceCount = firstPlaceEvents.length;
       let status = "pass";
-      let detail = `${badgeDef.detailType}: displayed=${displayedCount}, firstPlaceCount=${firstPlaceCount}, scope=${brandFilter || "All"}`;
+      let detail = "";
+      let actualComparedCount = firstPlaceCount;
 
-      if (!scopeMatches) {
-        status = "warn";
-        detail = `${badgeDef.detailType}: Badge is visible (${displayedCount}) but profile brand scope '${badgeDef.brand}' is not active. Re-run with PROFILE_BRAND=${badgeDef.brand}.`;
-      } else if (displayedCount !== firstPlaceCount) {
-        status = "warn";
-        detail = `${badgeDef.detailType}: displayed=${displayedCount}, filtered ALL first-place rows=${firstPlaceCount}, scope=${brandFilter || badgeDef.brand || "All"}`;
+      if (isRankBadge) {
+        const maxRank = (cleanKey === "poy" || cleanKey === "standings") ? 99 : 999;
+        const inRankZone = standingRank !== null && standingRank <= maxRank;
+
+        if (inRankZone) {
+          if (!hasVisibleBadge) {
+            status = "fail";
+            detail = `${badgeDef.detailType}: Player is ranked #${standingRank} in '${matchedSource.category}' (within top ${maxRank}), but the badge is missing from the profile.`;
+          } else {
+            const parsedRanks = badgeDetails.map(d => d.rank).filter(r => r !== null);
+            const rankMatches = parsedRanks.includes(standingRank);
+            if (!rankMatches) {
+              status = "fail";
+              detail = `${badgeDef.detailType}: Badge is displayed but rank mismatch. Standings rank=#${standingRank}, UI badge rank text=${parsedRanks.length ? '#' + parsedRanks.join(', #') : 'none'}.`;
+            } else {
+              status = "pass";
+              detail = `${badgeDef.detailType}: Displayed rank #${standingRank} matches standings rank (within top ${maxRank}).`;
+            }
+          }
+        } else {
+          if (hasVisibleBadge) {
+            status = "fail";
+            const rankText = standingRank !== null ? `#${standingRank}` : "not found";
+            detail = `${badgeDef.detailType}: Badge is displayed, but player rank is ${rankText} (outside top ${maxRank}).`;
+          }
+        }
+        actualComparedCount = standingRank || 0;
+      } else if (isHistoricalPoyBadge) {
+        if (hasHistoricalPoyWin) {
+          if (!hasVisibleBadge) {
+            status = "fail";
+            detail = `${badgeDef.detailType}: Player is historical POY winner of year ${poyYear}, but the badge is missing from the profile.`;
+          } else {
+            status = "pass";
+            detail = `${badgeDef.detailType}: Historical POY winner of year ${poyYear} badge is correctly displayed.`;
+          }
+        } else {
+          if (hasVisibleBadge) {
+            status = "fail";
+            detail = `${badgeDef.detailType}: Badge is displayed, but player has no record of winning POY in ${poyYear}.`;
+          }
+        }
+        actualComparedCount = hasHistoricalPoyWin ? 1 : 0;
+      } else {
+        detail = `${badgeDef.detailType}: displayed=${displayedCount}, firstPlaceCount=${firstPlaceCount}, scope=${brandFilter || badgeDef.brand || "All"}`;
+
+        if (!scopeMatches) {
+          status = "warn";
+          detail = `${badgeDef.detailType}: Badge is visible (${displayedCount}) but profile brand scope '${badgeDef.brand}' is not active. Re-run with PROFILE_BRAND=${badgeDef.brand}.`;
+        } else if (displayedCount !== firstPlaceCount) {
+          const isOfficialEventBadge = ["wsop-bracelets", "wsop-rings", "bracelets", "rings", "WSOP_Bracelets", "WSOP_Rings"].includes(badgeDef.key);
+          if (isOfficialEventBadge && displayedCount === 99 && firstPlaceCount >= 99) {
+            status = "pass";
+            detail = `${badgeDef.detailType}: displayed=${displayedCount} matches the max display cap of 99, actual firstPlaceCount=${firstPlaceCount} is 99 or more.`;
+          } else {
+            status = "warn";
+            detail = `${badgeDef.detailType}: displayed=${displayedCount}, filtered ALL first-place rows=${firstPlaceCount}, scope=${brandFilter || badgeDef.brand || "All"}`;
+          }
+        }
       }
 
       return {
@@ -1379,19 +1718,19 @@ function buildAdditionalBadgeChecks({ badgeCounts = {}, events = [], brandFilter
         detailType: badgeDef.detailType,
         brand: badgeDef.brand || brandFilter || "All",
         filterScope: brandFilter || badgeDef.brand || "All",
-        countMode: badgeDef.countMode || "filtered-first-place-count",
+        countMode: badgeDef.countMode || (isRankBadge ? "leaderboard-rank" : isHistoricalPoyBadge ? "historical-poy" : "filtered-first-place-count"),
         displayedCount,
         firstPlaceCount,
-        actualComparedCount: firstPlaceCount,
+        actualComparedCount,
         status,
         detail,
-        rowSamples: firstPlaceEvents.slice(0, 5).map((event) => ({
+        rowSamples: (!isRankBadge && !isHistoricalPoyBadge) ? firstPlaceEvents.slice(0, 5).map((event) => ({
           eventName: event.eventName,
           date: event.date,
           rank: event.rank,
           earnings: event.earnings,
           resultUrl: event.resultUrl || event.disabledResultUrl || ""
-        }))
+        })) : []
       };
     })
     .filter(Boolean);
@@ -1744,6 +2083,16 @@ async function extractStandingPlayerLinks(page, limit, containerSelector) {
         || countryCodeFromValue(image.getAttribute("title"))
         || countryCodeFromValue(image.getAttribute("class"));
     };
+    const crownFromRow = (rootElement) => {
+      if (!rootElement) return null;
+      const image = rootElement.querySelector('img[src*="crown" i], img[alt*="crown" i], img[class*="crown" i]');
+      if (!image) return null;
+      const src = image.getAttribute("src") || image.currentSrc || "";
+      if (src.includes("avatar-crown-bronze")) return "Bronze Crown";
+      if (src.includes("avatar-crown-silver")) return "Silver Crown";
+      if (src.includes("avatar-crown-gold")) return "Gold Crown";
+      return null;
+    };
     const root = selector ? document.querySelector(selector) : document;
     if (!root) return [];
     return Array.from(root.querySelectorAll("a[href]"))
@@ -1753,7 +2102,8 @@ async function extractStandingPlayerLinks(page, limit, containerSelector) {
           href: anchor.href,
           text: normalize(anchor.textContent),
           rowText: normalize(row?.textContent || anchor.textContent),
-          countryCode: countryCodeFromImage(row)
+          countryCode: countryCodeFromImage(row),
+          crown: crownFromRow(row)
         };
       })
       .filter((item) => {
@@ -1778,7 +2128,8 @@ async function extractStandingPlayerLinks(page, limit, containerSelector) {
       name: cleanPlayerName(link.text, cleanUrl),
       rowText: link.rowText,
       countryCode: normalizeCountryCode(link.countryCode),
-      rank: rows.length + 1
+      rank: rows.length + 1,
+      crown: link.crown
     });
     if (limit > 0 && rows.length >= limit) break;
   }
@@ -1788,6 +2139,7 @@ async function extractStandingPlayerLinks(page, limit, containerSelector) {
 // standings 카테고리 URL을 만든다. 기존 stage URL과 공개 wsop.com 경로 형식을 모두 지원한다.
 // path가 null인 카테고리 (예: All Player Stats)는 URL을 생성하지 않고 null을 반환한다.
 function categoryUrlFor(playersUrl, category) {
+  if (category.customUrl) return category.customUrl;
   if (!category.path) return null;
   try {
     const url = new URL(playersUrl);
@@ -2426,6 +2778,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
             sourceUrl: page.url(),
             brand: currentBrand || "All",
             season: currentSeason || "All",
+            crown: row.crown,
             ...buildStandingMetricSource(category.label, row.rowText)
           });
         }
@@ -2438,7 +2791,7 @@ async function collectPlayerEntries(page, playersUrl, limit, authWaitMs, brand =
     for (const row of rows) {
       byUrl.set(row.url, {
         url: row.url,
-        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, countryCode: row.countryCode, selected: false, brand: "All" }]
+        standingsSources: [{ category: "Default standings view", rank: row.rank, name: row.name, rowText: row.rowText, countryCode: row.countryCode, selected: false, brand: "All", crown: row.crown }]
       });
     }
   }
@@ -4258,15 +4611,77 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
   const warnings = [];
   try {
     let profilePageStatusCode = null;
+    let searchCrown = null;
     try {
-      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+      const searchName = playerNameFromUrl(url) || "Daniel Negreanu";
+      const playersUrl = new URL(url).origin + "/players";
+      console.log(`    [크롤러] 플레이어 검색창에서 검색을 수행합니다: ${searchName}`);
+      
+      const response = await page.goto(playersUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
       profilePageStatusCode = response?.status?.() ?? null;
-    } catch (gotoError) {
-      const hasContainer = await page.locator("body").count().catch(() => 0);
-      if (hasContainer > 0) {
-        console.log(`    [경고] crawlPlayer page.goto 타임아웃이 발생했으나 바디 영역이 감지되어 크롤링을 속행합니다: ${url}`);
+      await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => { });
+      await waitForAccessLogin(page, authWaitMs);
+
+      const searchInput = page.locator('input[placeholder*="search" i], input[type="text"], input[id*="search" i]').first();
+      if (await searchInput.count() > 0 && await searchInput.isVisible()) {
+        await searchInput.fill(searchName);
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(2000);
+
+        searchCrown = await page.evaluate((sName) => {
+          const normalize = (val) => String(val || "").replace(/\s+/g, " ").trim();
+          const cleanName = normalize(sName).toLowerCase();
+          const anchors = Array.from(document.querySelectorAll('a[href*="/players/"]'));
+          const matchedAnchor = anchors.find(a => {
+            const hrefParts = a.getAttribute("href").split("/").filter(Boolean);
+            const namePart = hrefParts[1] || "";
+            return normalize(a.textContent).toLowerCase().includes(cleanName) || namePart.toLowerCase().includes(cleanName.replace(/\s+/g, "-"));
+          });
+          if (!matchedAnchor) return null;
+
+          const row = matchedAnchor.closest('tr, li, [class*="row" i], [class*="item" i], [class*="card" i]') || matchedAnchor.parentElement;
+          if (!row) return null;
+
+          const image = row.querySelector('img[src*="crown" i], img[alt*="crown" i], img[class*="crown" i]');
+          if (!image) return null;
+          const src = image.getAttribute("src") || image.currentSrc || "";
+          if (src.includes("avatar-crown-bronze")) return "Bronze Crown";
+          if (src.includes("avatar-crown-silver")) return "Silver Crown";
+          if (src.includes("avatar-crown-gold")) return "Gold Crown";
+          return null;
+        }, searchName);
+
+        console.log(`    [크롤러] 플레이어 검색 결과 아바타 크라운: ${searchCrown || "None"}`);
+
+        const playerLink = page.locator('a[href*="/players/"]').filter({ hasText: new RegExp(searchName.split(/\s+/)[0], "i") }).first();
+        if (await playerLink.count() > 0 && await playerLink.isVisible()) {
+          const profileResponse = await playerLink.click().then(() => page.waitForLoadState("domcontentloaded", { timeout: 15000 })).catch(() => null);
+          if (profileResponse) {
+            profilePageStatusCode = 200;
+          } else {
+            const responseDirect = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+            profilePageStatusCode = responseDirect?.status?.() ?? null;
+          }
+        } else {
+          const responseDirect = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+          profilePageStatusCode = responseDirect?.status?.() ?? null;
+        }
       } else {
-        throw gotoError;
+        const responseDirect = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+        profilePageStatusCode = responseDirect?.status?.() ?? null;
+      }
+    } catch (gotoError) {
+      console.warn(`    [경고] 플레이어 검색 인터랙션 실패 (direct profile 이동으로 fallback): ${gotoError.message}`);
+      try {
+        const responseDirect = await page.goto(url, { waitUntil: "domcontentloaded", timeout });
+        profilePageStatusCode = responseDirect?.status?.() ?? null;
+      } catch (directError) {
+        const hasContainer = await page.locator("body").count().catch(() => 0);
+        if (hasContainer > 0) {
+          console.log(`    [경고] crawlPlayer page.goto 타임아웃이 발생했으나 바디 영역이 감지되어 크롤링을 속행합니다: ${url}`);
+        } else {
+          throw directError;
+        }
       }
     }
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => { });
@@ -4317,6 +4732,17 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     if (badgeCounts.error) {
       warnings.push(`Profile badge count extraction failed: ${badgeCounts.error}`);
     }
+    const profileCrown = await page.evaluate(() => {
+      const image = document.querySelector('img[src*="crown" i], img[alt*="crown" i], img[class*="crown" i]');
+      if (!image) return null;
+      const src = image.getAttribute("src") || image.currentSrc || "";
+      if (src.includes("avatar-crown-bronze")) return "Bronze Crown";
+      if (src.includes("avatar-crown-silver")) return "Silver Crown";
+      if (src.includes("avatar-crown-gold")) return "Gold Crown";
+      return null;
+    }).catch(() => null);
+    console.log(`    [크롤러] 프로필 메인 아바타 크라운: ${profileCrown || "None"}`);
+
     const { events, expansion } = await expandAllEventRows(page, summary.cashes, maxLoadMore);
     if (!events.length && isZeroProfileSummary(summary)) {
       return profileDataUnavailableWarningPlayer({ name, url, standingsSources, summary, bodyText });
@@ -4338,7 +4764,13 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
     const rawSummaryEvents = splitEventsByExpectedCashes(events, summary).comparisonEvents;
     const { checks: tabChecks, tabEventsByKey } = await collectProfileTabChecks(page, summary, maxLoadMore, disabledResultMode, skippedUnavailableResultEvents, events);
     const calculated = calculateSummaryFromEvents(rawSummaryEvents, summary, events);
-    const additionalBadgeChecks = buildAdditionalBadgeChecks({ badgeCounts, events, brandFilter });
+    const additionalBadgeChecks = buildAdditionalBadgeChecks({
+      badgeCounts,
+      events,
+      brandFilter,
+      standingsSources,
+      playerName: name
+    });
     // Summary는 ALL 탭 수집값으로, 각 탭은 자기 탭 수집값으로 독립 계산한다.
 
     // ALL 탭 기반 지표별 계산 수량과 개별 지표 탭 수집 수량 교차 정합성 검증 (Cross-Tab Validation)
@@ -4377,6 +4809,8 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       standingsSources,
       summary,
       badgeCounts,
+      searchCrown,
+      profileCrown,
       summaryForComparison,
       summaryAdjustment: null,
       events,
@@ -4430,7 +4864,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
       }
       player.countryChecks = buildCountryChecks(player, "profile-only");
       player.defects = buildDefects(player);
-      player.status = playerStatus(player);
+      attachAvatarCrownChecks(player);
       return player;
     }
 
@@ -4480,7 +4914,7 @@ async function crawlPlayer(context, url, timeout, resultLimit, resultRankLimit, 
 
     player.countryChecks = buildCountryChecks(player, "crawler");
     player.defects = buildDefects(player);
-    player.status = playerStatus(player);
+    attachAvatarCrownChecks(player);
     return player;
   } catch (error) {
     return {
@@ -4554,7 +4988,9 @@ async function crawlSnapshotPlayerResults(context, snapshotPlayer, timeout, resu
   player.additionalBadgeChecks = player.additionalBadgeChecks || buildAdditionalBadgeChecks({
     badgeCounts: player.badgeCounts || {},
     events: player.events || [],
-    brandFilter: player.profileBrandFilter || player.brandFilter || null
+    brandFilter: player.profileBrandFilter || player.brandFilter || null,
+    standingsSources: player.standingsSources || [],
+    playerName: player.name
   });
   player.comparisons = player.comparisons || reconcileSummaryComparisons(
     compareSummary(player.summaryForComparison || player.summary, player.calculated || {}, player.badgeCounts),
@@ -4621,7 +5057,7 @@ async function crawlSnapshotPlayerResults(context, snapshotPlayer, timeout, resu
   }
 
   player.defects = buildDefects(player);
-  player.status = playerStatus(player);
+  attachAvatarCrownChecks(player);
   return player;
 }
 
@@ -7015,6 +7451,85 @@ function runSelfTest() {
   if (additionalBadgeMismatch[0]?.status !== "warn" || additionalBadgeMismatch[0]?.firstPlaceCount !== 2) {
     throw new Error("Additional Badge mismatch should be reported as a warning with first-place evidence");
   }
+  const poyRankBadgeChecks = buildAdditionalBadgeChecks({
+    badgeDefs: [{
+      key: "Standings",
+      label: "Standings",
+      group: "Additional Badge",
+      detailType: "Standings",
+      brand: "",
+      countMode: "leaderboard-rank"
+    }],
+    badgeCounts: {
+      Standings: 1,
+      details: {
+        Standings: [{ count: 1, rank: 5, alt: "", src: "" }]
+      }
+    },
+    standingsSources: [
+      { category: "2026 Standings", rank: 5, name: "Scott Seiver" }
+    ],
+    playerName: "Scott Seiver"
+  });
+  if (poyRankBadgeChecks[0]?.status !== "pass") {
+    throw new Error("Rank badge verification with matching rank should pass");
+  }
+
+  const poyRankBadgeMismatch = buildAdditionalBadgeChecks({
+    badgeDefs: [{
+      key: "Standings",
+      label: "Standings",
+      group: "Additional Badge",
+      detailType: "Standings",
+      brand: "",
+      countMode: "leaderboard-rank"
+    }],
+    badgeCounts: {
+      Standings: 1,
+      details: {
+        Standings: [{ count: 1, rank: 10, alt: "", src: "" }]
+      }
+    },
+    standingsSources: [
+      { category: "2026 Standings", rank: 5, name: "Scott Seiver" }
+    ],
+    playerName: "Scott Seiver"
+  });
+  if (poyRankBadgeMismatch[0]?.status !== "fail") {
+    throw new Error("Rank badge verification with mismatching rank should fail");
+  }
+
+  const historicalPoyCheck = buildAdditionalBadgeChecks({
+    badgeDefs: [{
+      key: "POY_2024",
+      label: "POY 2024",
+      group: "Additional Badge",
+      detailType: "POY 2024",
+      brand: "WSOP",
+      countMode: "historical-poy"
+    }],
+    badgeCounts: { POY_2024: 1 },
+    playerName: "Scott Brandon Seiver"
+  });
+  if (historicalPoyCheck[0]?.status !== "pass") {
+    throw new Error("Historical POY badge verification for valid winner should pass");
+  }
+
+  const historicalPoyMismatch = buildAdditionalBadgeChecks({
+    badgeDefs: [{
+      key: "POY_2024",
+      label: "POY 2024",
+      group: "Additional Badge",
+      detailType: "POY 2024",
+      brand: "WSOP",
+      countMode: "historical-poy"
+    }],
+    badgeCounts: { POY_2024: 1 },
+    playerName: "Unknown Player"
+  });
+  if (historicalPoyMismatch[0]?.status !== "fail") {
+    throw new Error("Historical POY badge verification for invalid winner should fail");
+  }
   const standingsEarningsSource = buildStandingMetricSource("All-Time Earnings - Men", "1 Alex Kulev Bulgaria $12,361,923");
   if (standingsEarningsSource.metricValue !== 12361923 || standingsEarningsSource.metricKey !== "totalEarnings") {
     throw new Error("All-Time Earnings standings row should extract Total Earnings");
@@ -7149,6 +7664,51 @@ function runSelfTest() {
   if (warningReport.summary.status !== "warn" || warningReport.summary.warnedPlayers !== 1 || warningReport.summary.failedPlayers !== 0) {
     throw new Error("Warning-only report should have overall warn status");
   }
+  // 아바타 크라운 셀프 테스트
+  const crownTestPlayer1 = {
+    name: "Crown Winner",
+    url: "https://example.test/crown-winner",
+    badgeCounts: { bracelets: 2, rings: 3 }, // 총 5개 -> Gold Crown 예상
+    profileCrown: "Gold Crown",
+    searchCrown: "Gold Crown",
+    standingsSources: [
+      { category: "2026 Standings", rank: 1, name: "Crown Winner", crown: "Gold Crown" }
+    ],
+    defects: []
+  };
+  attachAvatarCrownChecks(crownTestPlayer1);
+  if (crownTestPlayer1.avatarCrownChecks.expectedCrown !== "Gold Crown") {
+    throw new Error("Self-test: expected Gold Crown for 5 badges");
+  }
+  if (crownTestPlayer1.avatarCrownChecks.consistency.status !== "pass") {
+    throw new Error("Self-test: Gold Crown should pass consistency check");
+  }
+  if (crownTestPlayer1.defects.length > 0) {
+    throw new Error("Self-test: Perfect Gold Crown match should have zero defects");
+  }
+
+  const crownTestPlayer2 = {
+    name: "Crown Mismatch",
+    url: "https://example.test/crown-mismatch",
+    badgeCounts: { bracelets: 1, rings: 0 }, // 총 1개 -> Bronze Crown 예상
+    profileCrown: "Bronze Crown",
+    searchCrown: "Silver Crown", // Mismatch
+    standingsSources: [
+      { category: "2026 Standings", rank: 2, name: "Crown Mismatch", crown: "Bronze Crown" }
+    ],
+    defects: []
+  };
+  attachAvatarCrownChecks(crownTestPlayer2);
+  if (crownTestPlayer2.avatarCrownChecks.expectedCrown !== "Bronze Crown") {
+    throw new Error("Self-test: expected Bronze Crown for 1 badge");
+  }
+  if (crownTestPlayer2.defects.length === 0) {
+    throw new Error("Self-test: Crown mismatch should produce defects");
+  }
+  if (!crownTestPlayer2.defects.some(d => d.type === "Avatar crown mismatch" && d.item === "Avatar Crown / Search")) {
+    throw new Error("Self-test: Search view mismatch defect should be recorded");
+  }
+
   console.log("Crawler self-test passed.");
 }
 
